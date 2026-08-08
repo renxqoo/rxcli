@@ -21,7 +21,8 @@
 │  鉴权 / 请求 / 信封 / 错误分类 / 凭证 / 管道 / skill      │
 ├─────────────────────────────────────────────────────────┤
 │  你的业务包  (依赖本包,只对接业务接口)                    │
-│  例:@renxqoo/cli(订单/商品/发票/账号)                  │
+│  例:@renxqoo/rxstock(A 股行情/财务/技术指标,公开数据)   │
+│     @renxqoo/cli(订单/商品/发票,OAuth 鉴权)            │
 ├─────────────────────────────────────────────────────────┤
 │  agent / 终端用户                                        │
 │  unix 管道组合命令,读 skill 自服务发现                   │
@@ -42,6 +43,13 @@
 - **🖥️ 双模输出** —— 默认 JSON(agent);`--no-json` 切人类可读文本(自动表格 + CJK 对齐);`defaultFormat` 业务可选默认。
 - **🧙 install 向导** —— 全局安装 + skills 装载 + 注册 + 登录引导,业务包拦截 `install` 命令即可。
 
+### 实际业务包(基于本框架)
+
+| 业务包 | 场景 | 鉴权模式 | 看点 |
+| --- | --- | --- | --- |
+| [`@renxqoo/rxstock`](../../apps/a-stock) | A 股行情/财务/技术指标 | 无(公开数据) | 多源 fallback、统一 fallback 执行器、技术指标本地计算 |
+| [`@renxqoo/cli`](../../apps/crm) | 公司业务(订单/商品) | OAuth device flow | 中间层鉴权、split-flow 登录、install 向导 |
+
 ---
 
 ## 安装
@@ -58,38 +66,43 @@ pnpm add @renxqoo/agent-data-cli
 
 ## 快速开始(写一个业务包)
 
-一个命令 < 30 行:
+一个命令 < 30 行(无鉴权场景,如公开数据):
 
 ```ts
 import { defineCli, defineCommand } from "@renxqoo/agent-data-cli";
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
-export default defineCli({
-  name: "orders",
-  description: "订单查询",
+const app = defineCli({
+  name: "myapp",
+  description: "我的数据 CLI",
   commands: {
     list: defineCommand({
       name: "list",
-      description: "查询订单列表",
-      args: { limit: { type: "number", desc: "返回数量上限" } },
+      description: "查询列表",
+      args: { limit: { type: "number", default: 20, desc: "返回数量上限" } },
       async run(args, ctx) {
-        const res = await ctx.get<{ items: Order[]; hasMore: boolean; nextCursor?: string }>(
-          "/orders",
-          { limit: args.limit },
-        );
-        return {
-          data: res.data.items,
-          meta: {
-            pagination: {
-              complete: !res.data.hasMore,
-              nextToken: res.data.nextCursor,
-            },
-          },
-        };
+        const res = await ctx.get<{ items: any[] }>("/items", { limit: args.limit });
+        return { data: res.data.items, meta: { count: res.data.items.length } };
       },
     }),
   },
 });
+
+// bin 入口检测(realpathSync 避免 npm 全局安装软链失配)
+function isMainEntry(): boolean {
+  try {
+    return realpathSync(process.argv[1] ?? "") === fileURLToPath(import.meta.url);
+  } catch {
+    return false;
+  }
+}
+if (isMainEntry()) app.run(process.argv.slice(2));
+export default app;
 ```
+
+> 完整无鉴权示例见实际业务包 [`@renxqoo/rxstock`](../../apps/a-stock)(A 股数据,多源 fallback)。
+> 鉴权场景(对接 OAuth 后端)见 [`@renxqoo/cli`](../../apps/crm)。
 
 加鉴权(一行):
 
@@ -215,19 +228,20 @@ const myPlugin: Plugin = {
 }
 ```
 
-**exit code 映射**:
+**exit code 映射**(框架按错误类别自动设,agent 可据此判断处理策略):
 
-| code | 含义                     |
-| ---- | ------------------------ |
-| 0    | 成功                     |
-| 1    | 内部错误                 |
-| 2    | 参数错误(validation)     |
-| 3    | 需要登录(authentication) |
-| 4    | 配置错误(config)         |
-| 5    | 网络错误(network)        |
-| 6    | API 错误(api)            |
-| 7    | 权限不足(permission)     |
-| 8    | 策略拦截(policy)         |
+| code | 类别 | 含义 |
+| ---- | ---- | ---- |
+| 0 | — | 成功 |
+| 1 | api | 服务端业务错误(404/500/429 等) |
+| 2 | validation | 参数不合法 |
+| 3 | authentication / authorization / config | 需登录 / 缺权限 / 配置缺失 |
+| 4 | network | DNS / 超时 / 拒绝 |
+| 5 | internal | SDK 内部错误(几乎不该发生) |
+| 6 | policy | 风控拦截 |
+| 10 | confirmation | 高危写入需 `--yes` |
+
+9 类类型化错误:`ValidationError` / `AuthenticationError` / `PermissionError` / `ConfigError` / `NetworkError` / `APIError`(`NotFoundError` 子类)/ `PolicyError` / `InternalError` / `ConfirmationRequiredError`。永远用 `errs.*` 构造,不要 `throw new Error()`(会被降级成 internal/unknown)。
 
 ---
 
@@ -247,7 +261,7 @@ const myPlugin: Plugin = {
 
 ## 文档
 
-完整设计文档(随包发布,`docs/` 目录):
+### 设计文档(随包发布,`docs/` 目录)
 
 | 文档                                          | 内容                            |
 | --------------------------------------------- | ------------------------------- |
@@ -258,6 +272,16 @@ const myPlugin: Plugin = {
 | [`04-errors.md`](docs/04-errors.md)           | 9 类错误、何时 throw            |
 | [`05-credentials.md`](docs/05-credentials.md) | provider chain、自定义凭证      |
 | [`06-skills.md`](docs/06-skills.md)           | skill 系统、命令文档自动生成    |
+
+### Agent Skill:agent-cli-builder
+
+框架自带一个 AI Agent Skill([`skills/agent-cli-builder`](skills/agent-cli-builder/SKILL.md)),教 AI 如何用本框架从零构建 agent-native CLI 业务包。AI Agent 读它即可学会:5 分钟写出无鉴权 CLI、配置 OAuth 鉴权、多源 fallback、写 SKILL.md 让 Agent 自服务发现。这是"用 AI 做 CLI"的关键能力。
+
+包含进阶参考:
+- [`auth-patterns.md`](skills/agent-cli-builder/references/auth-patterns.md) — defineAuth / split-flow 登录 / register / HMAC
+- [`patterns.md`](skills/agent-cli-builder/references/patterns.md) — 分页续拉 / 管道下游 / humanFormat
+- [`error-catalog.md`](skills/agent-cli-builder/references/error-catalog.md) — 30+ subtype 速查 + errorOnStatus 配置
+- [`testing.md`](skills/agent-cli-builder/references/testing.md) — createTestCtx 全套 mock
 
 ---
 
