@@ -1,5 +1,5 @@
 /**
- * @renxqoo/agentdatacli —— 命令执行器(pipeline)
+ * @renxqoo/agent-data-cli —— 命令执行器(pipeline)
  *
  * 设计依据:docs/02-sdk-guide.md "生命周期总图"、docs/03-envelopes.md。
  *

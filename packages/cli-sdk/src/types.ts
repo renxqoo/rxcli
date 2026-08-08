@@ -1,5 +1,5 @@
 /**
- * @renxqoo/agentdatacli —— 全部核心类型定义
+ * @renxqoo/agent-data-cli —— 全部核心类型定义
  *
  * 设计依据:packages/cli-sdk/docs/ 下的设计文档(00~07)。
  * 本文件是实现的类型基石,后续模块(envelope/request/pipeline/...)都从这里取类型。

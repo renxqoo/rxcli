@@ -1,8 +1,8 @@
 /**
- * @renxqoo/agentdatacli/skills —— skill 系统(reader + sync + gen)
+ * @renxqoo/agent-data-cli/skills —— skill 系统(reader + sync + gen)
  *
  * 子路径导出(供自定义 skill 处理用):
- *   import { listSkills, readSkill, syncSkills, refreshAutogen } from '@renxqoo/agentdatacli/skills'
+ *   import { listSkills, readSkill, syncSkills, refreshAutogen } from '@renxqoo/agent-data-cli/skills'
  */
 
 export type { SkillInfo, DirEntry } from './reader.js'

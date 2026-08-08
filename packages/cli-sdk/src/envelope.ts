@@ -1,5 +1,5 @@
 /**
- * @renxqoo/agentdatacli —— 信封序列化
+ * @renxqoo/agent-data-cli —— 信封序列化
  *
  * 设计依据:docs/03-envelopes.md。
  * 关键决策(case 转换边界):**只转信封骨架字段 camelCase→snake_case,data 原样不动**。

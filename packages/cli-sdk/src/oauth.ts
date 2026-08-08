@@ -1,5 +1,5 @@
 /**
- * @renxqoo/agentdatacli —— OAuth device flow + 401 singleflight refresh
+ * @renxqoo/agent-data-cli —— OAuth device flow + 401 singleflight refresh
  *
  * 设计依据:docs/05-credentials.md "provider chain"。
  * 实现:deviceAuthorization/pollDeviceToken/refreshAccessToken/getUserInfo/revoke/registerClient。

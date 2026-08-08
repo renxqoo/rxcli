@@ -1,5 +1,5 @@
 /**
- * @renxqoo/agentdatacli —— defineCli(App 工厂)+ defineCommand + defineCommands
+ * @renxqoo/agent-data-cli —— defineCli(App 工厂)+ defineCommand + defineCommands
  *
  * 设计依据:docs/02-sdk-guide.md "命令:defineCommand"、"装载方式"。
  * 启动模型(已批准):cac + App.run(argv)。
@@ -413,7 +413,7 @@ function detectBinName(): string | undefined {
           bin?: string | Record<string, string>
         }
         // 跳过 cli-sdk 自己 / monorepo 根(无 bin 或 bin 不是业务命令)
-        if (pkg.name === '@renxqoo/agentdatacli' || !pkg.bin) {
+        if (pkg.name === '@renxqoo/agent-data-cli' || !pkg.bin) {
           dir = dirname(dir)
           continue
         }
@@ -441,7 +441,7 @@ function detectVersion(): string {
         if (existsSync(pkgPath)) {
           const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as { name?: string; version?: string }
           // 跳过 cli-sdk 自己 / monorepo 根(cli-sdk 版本 ≠ 业务包版本)
-          if (pkg.name === '@renxqoo/agentdatacli' || !pkg.version) {
+          if (pkg.name === '@renxqoo/agent-data-cli' || !pkg.version) {
             dir = dirname(dir)
             continue
           }
@@ -481,7 +481,7 @@ export function detectBizPackage(): BizPackageInfo | null {
           bin?: string | Record<string, string>
         }
         // 跳过 cli-sdk 自己 / monorepo 根(无 bin 或不是业务命令)
-        if (pkg.name === '@renxqoo/agentdatacli' || !pkg.bin) {
+        if (pkg.name === '@renxqoo/agent-data-cli' || !pkg.bin) {
           dir = dirname(dir)
           continue
         }

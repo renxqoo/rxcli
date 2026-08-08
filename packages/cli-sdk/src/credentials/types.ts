@@ -1,5 +1,5 @@
 /**
- * @renxqoo/agentdatacli/credentials —— 凭证与 provider chain 类型
+ * @renxqoo/agent-data-cli/credentials —— 凭证与 provider chain 类型
  *
  * 设计依据:docs/05-credentials.md。
  * 两层 API 对照(方法名故意不同,避免混用):

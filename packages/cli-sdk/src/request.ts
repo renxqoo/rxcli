@@ -1,5 +1,5 @@
 /**
- * @renxqoo/agentdatacli —— 请求层(transport)
+ * @renxqoo/agent-data-cli —— 请求层(transport)
  *
  * 设计依据:docs/02-sdk-guide.md "ctx:请求与上下文"、docs/04-errors.md "何时 throw"。
  * 运行时中立:全局 fetch(Node 18+ / bun 原生)。

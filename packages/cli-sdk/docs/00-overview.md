@@ -6,7 +6,7 @@
 
 ## 一句话定位
 
-**`@renxqoo/agentdatacli` 是一个 agent-native CLI 框架包:业务包依赖它,只用声明"调哪个后端接口、字段怎么处理",就能获得鉴权、脱敏、信封、错误分类、管道组合、skill 发现等全套能力。**
+**`@renxqoo/agent-data-cli` 是一个 agent-native CLI 框架包:业务包依赖它,只用声明"调哪个后端接口、字段怎么处理",就能获得鉴权、脱敏、信封、错误分类、管道组合、skill 发现等全套能力。**
 
 它解决的核心矛盾是:**后端接口千差万别(REST/GraphQL/RPC、OAuth/API-key/mTLS、各种字段命名),但"把数据交给 agent 的方式"是通用的。** 框架把前者交给业务包,后者收敛成框架能力。
 

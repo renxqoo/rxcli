@@ -1,5 +1,5 @@
 /**
- * @renxqoo/agentdatacli —— CommandContext 工厂
+ * @renxqoo/agent-data-cli —— CommandContext 工厂
  *
  * 设计依据:docs/02-sdk-guide.md "ctx:请求与上下文"。
  * ctx 把 transport 的请求方法经过 plugin beforeRequest/afterRequest 包装后挂上,

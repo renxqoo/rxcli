@@ -8,7 +8,7 @@
  * 美化打印用框架兜底(--no-json 自动表格/key:value 详情)。
  */
 
-import { defineCommands, defineCommand } from '@renxqoo/agentdatacli'
+import { defineCommands, defineCommand } from '@renxqoo/agent-data-cli'
 
 export const accountCommands = defineCommands({
   profile: defineCommand({

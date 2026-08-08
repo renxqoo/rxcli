@@ -1,5 +1,5 @@
 /**
- * @renxqoo/agentdatacli/errs —— 9 类类型化错误 + exit code 映射
+ * @renxqoo/agent-data-cli/errs —— 9 类类型化错误 + exit code 映射
  *
  * 设计依据:docs/04-errors.md。
  * 业务包 throw 类型化错误,cli-sdk 捕获后渲染成信封到 stderr(见 envelope.ts)。
@@ -298,7 +298,7 @@ export function toCliError(err: unknown): CliError {
   return new InternalError({ subtype: 'unknown', message, cause: err })
 }
 
-/** errs 命名空间导出(对齐文档 `import { errs } from '@renxqoo/agentdatacli'` 用法)。 */
+/** errs 命名空间导出(对齐文档 `import { errs } from '@renxqoo/agent-data-cli'` 用法)。 */
 export const errs = {
   CliError,
   ValidationError,

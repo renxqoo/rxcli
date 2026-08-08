@@ -1,5 +1,5 @@
 /**
- * @renxqoo/agentdatacli —— defineAuth:OAuth 鉴权工厂
+ * @renxqoo/agent-data-cli —— defineAuth:OAuth 鉴权工厂
  *
  * 把"OAuth device flow 鉴权"从业务包收编成框架层的一个工厂。返回一个 Plugin,
  * 同时通过 plugin.provides 自动贡献命令(login/status/logout/register),

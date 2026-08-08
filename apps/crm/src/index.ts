@@ -8,7 +8,7 @@
  *   - skill 直接复用 v1(已搬到 skills/)
  */
 
-import { defineCli, defineAuth } from '@renxqoo/agentdatacli'
+import { defineCli, defineAuth } from '@renxqoo/agent-data-cli'
 import { AUTH_BASE_URL, API_BASE_URL, SKILLS_DIR } from './config.js'
 import { ordersCommands } from './commands/orders.js'
 import { productsCommands } from './commands/products.js'
@@ -57,7 +57,7 @@ const app = defineCli<CrmState>({
 // skillsSource 空=本地 skills/;设了(如 RXCLI_SKILLS_SOURCE=https://skills.sh/p/xxx)=npx skills add。
 const argv = process.argv.slice(2)
 if (import.meta.url === `file://${process.argv[1]}` && argv[0] === 'install') {
-  const { runInstallWizard } = await import('@renxqoo/agentdatacli')
+  const { runInstallWizard } = await import('@renxqoo/agent-data-cli')
   await runInstallWizard({ skillsSource: process.env.RXCLI_SKILLS_SOURCE })
   process.exit(0)
 }

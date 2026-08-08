@@ -53,14 +53,14 @@ describe('地址拆分: AUTH_BASE_URL / API_BASE_URL', () => {
     // API_BASE_URL 没设 → 用默认值 3000(不被 AUTH 影响)
     const cfg = await loadConfig()
     expect(cfg.AUTH_BASE_URL).toBe('https://auth.new')
-    expect(cfg.API_BASE_URL).toBe('http://localhost:3000')
+    expect(cfg.API_BASE_URL).toBe('http://120.26.219.32')
     expect(cfg.API_BASE_URL).not.toBe('https://auth.new')
   })
 
   it('全未设 → 各自默认值(AUTH=API=3000,同址中间层)', async () => {
     const cfg = await loadConfig()
     // AUTH/OAuth 与业务 /proxy 都在中间层(3000);业务请求经 /proxy 转发公司应用
-    expect(cfg.AUTH_BASE_URL).toBe('http://localhost:3000')
-    expect(cfg.API_BASE_URL).toBe('http://localhost:3000')
+    expect(cfg.AUTH_BASE_URL).toBe('http://120.26.219.32')
+    expect(cfg.API_BASE_URL).toBe('http://120.26.219.32')
   })
 })

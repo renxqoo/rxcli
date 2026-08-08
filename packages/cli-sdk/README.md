@@ -1,4 +1,4 @@
-# @renxqoo/agentdatacli
+# @renxqoo/agent-data-cli
 
 > Agent-native CLI framework —— 让 AI agent 结构化获取业务数据的命令行框架。
 >
@@ -17,7 +17,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  @renxqoo/agentdatacli  (本包,框架)                      │
+│  @renxqoo/agent-data-cli  (本包,框架)                      │
 │  鉴权 / 请求 / 信封 / 错误分类 / 凭证 / 管道 / skill      │
 ├─────────────────────────────────────────────────────────┤
 │  你的业务包  (依赖本包,只对接业务接口)                    │
@@ -47,9 +47,9 @@
 ## 安装
 
 ```bash
-npm install @renxqoo/agentdatacli
+npm install @renxqoo/agent-data-cli
 # 或
-pnpm add @renxqoo/agentdatacli
+pnpm add @renxqoo/agent-data-cli
 ```
 
 > **要求** Node.js >= 18
@@ -61,7 +61,7 @@ pnpm add @renxqoo/agentdatacli
 一个命令 < 30 行:
 
 ```ts
-import { defineCli, defineCommand } from '@renxqoo/agentdatacli'
+import { defineCli, defineCommand } from '@renxqoo/agent-data-cli'
 
 export default defineCli({
   name: 'orders',
@@ -94,7 +94,7 @@ export default defineCli({
 加鉴权(一行):
 
 ```ts
-import { defineCli, defineAuth } from '@renxqoo/agentdatacli'
+import { defineCli, defineAuth } from '@renxqoo/agent-data-cli'
 
 const auth = await defineAuth({
   credentialNamespace: 'orders',

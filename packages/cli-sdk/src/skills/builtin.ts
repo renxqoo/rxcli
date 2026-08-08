@@ -1,5 +1,5 @@
 /**
- * @renxqoo/agentdatacli/skills —— 内置 skills 命令(list/read/sync/gen)
+ * @renxqoo/agent-data-cli/skills —— 内置 skills 命令(list/read/sync/gen)
  *
  * 设计依据:docs/06-skills.md、docs/01-cli-usage.md "skill 自服务发现"。
  * 这些命令由 defineCli 在有 skillsDir 时自动注入(作为 'skills' 子命名空间)。

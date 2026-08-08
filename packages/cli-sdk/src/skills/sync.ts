@@ -1,5 +1,5 @@
 /**
- * @renxqoo/agentdatacli/skills —— skill 同步(到 ~/.agents/skills/)
+ * @renxqoo/agent-data-cli/skills —— skill 同步(到 ~/.agents/skills/)
  *
  * 设计依据:docs/06-skills.md "skill 同步机制"。
  * 实现 skills 同步。

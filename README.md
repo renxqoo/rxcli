@@ -192,8 +192,8 @@ rxcli auth login
 
 | 环境变量              | 默认                    | 说明                          |
 | --------------------- | ----------------------- | ----------------------------- |
-| `RXCLI_AUTH_BASE_URL` | RXCLI_AUTH_BASE_URL | 鉴权中间层(device flow/token)|
-| `RXCLI_API_BASE_URL`  | RXCLI_AUTH_BASE_URL | 业务 API 网关(/proxy/*)      |
+| `RXCLI_AUTH_BASE_URL` |  RXCLI_AUTH_BASE_URL  | 鉴权中间层(device flow/token)|
+| `RXCLI_API_BASE_URL`  |  RXCLI_API_BASE_URL   | 业务 API 网关(/proxy/*)      |
 | `RXCLI_CLIENT_ID`     | (config.json)           | OAuth client id               |
 | `RXCLI_CLIENT_SECRET` | (config.json)           | OAuth client secret           |
 | `RXCLI_SKILLS_SOURCE` | (空=本地 skills)        | skills 源 URL(install 向导用)|

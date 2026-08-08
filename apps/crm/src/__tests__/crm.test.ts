@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { createTestCtx } from '@renxqoo/agentdatacli'
+import { createTestCtx } from '@renxqoo/agent-data-cli'
 import { ordersCommands } from '../commands/orders.js'
 import { productsCommands } from '../commands/products.js'
 import { invoicesCommands } from '../commands/invoices.js'

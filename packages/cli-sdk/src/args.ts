@@ -1,5 +1,5 @@
 /**
- * @renxqoo/agentdatacli —— 参数解析与校验
+ * @renxqoo/agent-data-cli —— 参数解析与校验
  *
  * 设计依据:docs/02-sdk-guide.md "ArgsSpec + ArgSpec"、"args 字段规范"。
  * cli-sdk 只负责解析 + 校验类型 + 填默认值,不参与参数语义(后端要 page/pageSize 还是 cursor,

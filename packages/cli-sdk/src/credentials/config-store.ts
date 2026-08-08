@@ -1,5 +1,5 @@
 /**
- * @renxqoo/agentdatacli/credentials —— ConfigStore 实现
+ * @renxqoo/agent-data-cli/credentials —— ConfigStore 实现
  *
  * 设计依据:docs/05-credentials.md "凭证存储"。
  * 实现,改造点:

@@ -1,5 +1,5 @@
 /**
- * @renxqoo/agentdatacli —— 管道(pipe)
+ * @renxqoo/agent-data-cli —— 管道(pipe)
  *
  * 设计依据:docs/01-cli-usage.md "管道用法"、docs/03-envelopes.md "PipeRecord"。
  * 方案(已批准):信封整包。上游 stdout 是完整信封 {ok,data,meta};

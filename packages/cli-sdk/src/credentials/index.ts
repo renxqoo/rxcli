@@ -1,9 +1,9 @@
 /**
- * @renxqoo/agentdatacli/credentials —— 凭证与 provider chain 公共入口
+ * @renxqoo/agent-data-cli/credentials —— 凭证与 provider chain 公共入口
  *
  * 子路径导出(供自定义 provider 实现者用):
- *   import type { CredentialProvider, ConfigStore } from '@renxqoo/agentdatacli/credentials'
- *   import { fileStore, memoryStore } from '@renxqoo/agentdatacli/credentials'
+ *   import type { CredentialProvider, ConfigStore } from '@renxqoo/agent-data-cli/credentials'
+ *   import { fileStore, memoryStore } from '@renxqoo/agent-data-cli/credentials'
  */
 
 export type {

@@ -5,7 +5,7 @@
  * 美化打印用框架兜底(--no-json 自动表格)。
  */
 
-import { defineCommands, defineCommand, errs } from '@renxqoo/agentdatacli'
+import { defineCommands, defineCommand, errs } from '@renxqoo/agent-data-cli'
 
 export const productsCommands = defineCommands({
   list: defineCommand({

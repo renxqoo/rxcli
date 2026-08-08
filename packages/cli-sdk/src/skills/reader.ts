@@ -1,5 +1,5 @@
 /**
- * @renxqoo/agentdatacli/skills —— skill 内容读取器
+ * @renxqoo/agent-data-cli/skills —— skill 内容读取器
  *
  * 设计依据:docs/06-skills.md、docs/01-cli-usage.md "skill 自服务发现"。
  * 对齐 lark-cli skillcontent/reader.go 实现。

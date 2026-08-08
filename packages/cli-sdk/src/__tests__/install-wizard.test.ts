@@ -90,7 +90,7 @@ describe('detectBizPackage: 业务包探测', () => {
       expect(typeof result.name).toBe('string')
       expect(typeof result.bin).toBe('string')
       // cli-sdk 自己应被跳过
-      expect(result.name).not.toBe('@renxqoo/agentdatacli')
+      expect(result.name).not.toBe('@renxqoo/agent-data-cli')
     } else {
       expect(result).toBeNull()
     }

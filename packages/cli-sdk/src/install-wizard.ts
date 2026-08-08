@@ -1,5 +1,5 @@
 /**
- * @renxqoo/agentdatacli —— install 向导(框架层,所有业务包通用)
+ * @renxqoo/agent-data-cli —— install 向导(框架层,所有业务包通用)
  *
  * 迁自 v1 rxcli/src/install-wizard.ts,改造点:
  *   - PKG/BIN 常数 → detectBizPackage() 动态探测(业务包 name/bin/version)
@@ -399,7 +399,7 @@ export interface InstallWizardOptions {
  *
  * ```ts
  * if (argv[0] === 'install') {
- *   const { runInstallWizard } = await import('@renxqoo/agentdatacli')
+ *   const { runInstallWizard } = await import('@renxqoo/agent-data-cli')
  *   await runInstallWizard({ skillsSource: process.env.RXCLI_SKILLS_SOURCE })
  *   process.exit(0)
  * }

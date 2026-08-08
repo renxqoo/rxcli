@@ -1,5 +1,5 @@
 /**
- * @renxqoo/agentdatacli —— 插件编排(vite 式)
+ * @renxqoo/agent-data-cli —— 插件编排(vite 式)
  *
  * 设计依据:docs/02-sdk-guide.md "插件系统"。
  * 5 个钩子(beforeCommand/beforeRequest/afterRequest/beforeOutput/onError)

@@ -1,5 +1,5 @@
 /**
- * @renxqoo/agentdatacli —— agent-native CLI SDK 入口
+ * @renxqoo/agent-data-cli —— agent-native CLI SDK 入口
  *
  * 本包提供业务包构建 agent 友好 CLI 所需的全部基础服务:
  *   - 请求方法(get/post/...,带鉴权 + 401 自动续期)直接挂 ctx,无 client 层
@@ -13,7 +13,7 @@
  *
  * 用法(业务包入口):
  * ```ts
- * import { defineCli, defineCommand, defineCommands, errs } from '@renxqoo/agentdatacli'
+ * import { defineCli, defineCommand, defineCommands, errs } from '@renxqoo/agent-data-cli'
  * ```
  */
 
