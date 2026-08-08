@@ -61,21 +61,21 @@ pnpm add @renxqoo/agent-data-cli
 一个命令 < 30 行:
 
 ```ts
-import { defineCli, defineCommand } from '@renxqoo/agent-data-cli'
+import { defineCli, defineCommand } from "@renxqoo/agent-data-cli";
 
 export default defineCli({
-  name: 'orders',
-  description: '订单查询',
+  name: "orders",
+  description: "订单查询",
   commands: {
     list: defineCommand({
-      name: 'list',
-      description: '查询订单列表',
-      args: { limit: { type: 'number', desc: '返回数量上限' } },
+      name: "list",
+      description: "查询订单列表",
+      args: { limit: { type: "number", desc: "返回数量上限" } },
       async run(args, ctx) {
         const res = await ctx.get<{ items: Order[]; hasMore: boolean; nextCursor?: string }>(
-          '/orders',
+          "/orders",
           { limit: args.limit },
-        )
+        );
         return {
           data: res.data.items,
           meta: {
@@ -84,30 +84,30 @@ export default defineCli({
               nextToken: res.data.nextCursor,
             },
           },
-        }
+        };
       },
     }),
   },
-})
+});
 ```
 
 加鉴权(一行):
 
 ```ts
-import { defineCli, defineAuth } from '@renxqoo/agent-data-cli'
+import { defineCli, defineAuth } from "@renxqoo/agent-data-cli";
 
 const auth = await defineAuth({
-  credentialNamespace: 'orders',
-  baseUrl: 'https://auth.example.com',
-  scope: 'orders.read offline_access',  // 业务自定,无默认值
-})
+  credentialNamespace: "orders",
+  baseUrl: "https://auth.example.com",
+  scope: "orders.read offline_access", // 业务自定,无默认值
+});
 
 export default defineCli({
-  name: 'orders',
-  plugins: [auth],          // ← 钩子 + login/status/logout/register 全自动注入
+  name: "orders",
+  plugins: [auth], // ← 钩子 + login/status/logout/register 全自动注入
   commands: {},
   // ...
-})
+});
 ```
 
 → `rxcli auth login` / `rxcli auth status` / `rxcli auth logout` / `rxcli auth register` 自动可用,无需手挂命令。
@@ -136,31 +136,31 @@ defineCli({
 
 ```ts
 defineCommand({
-  name: 'get',
-  description: '查询单个订单',
+  name: "get",
+  description: "查询单个订单",
   args: {
-    id: { type: 'string', required: true, positional: true, desc: '订单 ID' },
-    verbose: { type: 'boolean', desc: '详细输出' },
+    id: { type: "string", required: true, positional: true, desc: "订单 ID" },
+    verbose: { type: "boolean", desc: "详细输出" },
   },
-  humanFormat: (data, meta) => `订单: ${data.id}`,  // 可选:--no-json 自定义文本
+  humanFormat: (data, meta) => `订单: ${data.id}`, // 可选:--no-json 自定义文本
   async run(args, ctx) {
     // ctx.get/post/put/patch/delete —— 请求方法直接挂 ctx
-    const res = await ctx.get(`/orders/${args.id}`)
-    return { data: res.data }
+    const res = await ctx.get(`/orders/${args.id}`);
+    return { data: res.data };
   },
-})
+});
 ```
 
 ### `defineAuth(opts)` — OAuth 鉴权工厂
 
 ```ts
 const auth = await defineAuth({
-  credentialNamespace: 'crm',       // → credentials/crm.json
-  baseUrl: AUTH_BASE_URL,           // OAuth 中间层
-  scope: 'company.api offline_access', // 业务自定,空=不带 scope
+  credentialNamespace: "crm", // → credentials/crm.json
+  baseUrl: AUTH_BASE_URL, // OAuth 中间层
+  scope: "company.api offline_access", // 业务自定,空=不带 scope
   // commandNamespace: 'auth',      // 默认 'auth' → rxcli auth login
   // authStyle: 'bearer',           // 默认 'bearer' | 'x-api-key' | 'basic'
-})
+});
 ```
 
 返回一个 Plugin,塞进 `plugins: [auth]` 即:钩子生效 + auth 命令自动挂载。
@@ -169,18 +169,29 @@ const auth = await defineAuth({
 
 ```ts
 const myPlugin: Plugin = {
-  name: 'audit',
-  enforce: 'pre',                   // 'pre' | 'post'(默认 normal)
-  provides: {                        // 可选:贡献命令,defineCli 自动注入
+  name: "audit",
+  enforce: "pre", // 'pre' | 'post'(默认 normal)
+  provides: {
+    // 可选:贡献命令,defineCli 自动注入
     namespaces: { admin: { users: userCmd } },
     commands: { telemetry: telemetryCmd },
   },
-  async beforeCommand(ctx) { /* 填 state */ },
-  async beforeRequest(ctx, req) { /* 加 header */ },
-  async afterRequest(ctx, res) { /* 审计 */ },
-  async beforeOutput(ctx, data) { return transformedData },
-  async onError(ctx, err) { return normalizedErr },
-}
+  async beforeCommand(ctx) {
+    /* 填 state */
+  },
+  async beforeRequest(ctx, req) {
+    /* 加 header */
+  },
+  async afterRequest(ctx, res) {
+    /* 审计 */
+  },
+  async beforeOutput(ctx, data) {
+    return transformedData;
+  },
+  async onError(ctx, err) {
+    return normalizedErr;
+  },
+};
 ```
 
 > plugin `provides` 贡献的命令**自动豁免该 plugin 自身的 beforeCommand**(精确豁免),不豁免别的 plugin。无需手写 `internal: true`。
@@ -190,40 +201,45 @@ const myPlugin: Plugin = {
 ## 信封契约
 
 **成功**(stdout):
+
 ```json
 {"ok":true,"identity":"user","data":{"orders":[...]},"meta":{"count":2,"pagination":{"complete":true}}}
 ```
 
 **错误**(stderr):
+
 ```json
-{"ok":false,"error":{"type":"api","subtype":"not_found","message":"订单不存在","hint":"检查 ID"}}
+{
+  "ok": false,
+  "error": { "type": "api", "subtype": "not_found", "message": "订单不存在", "hint": "检查 ID" }
+}
 ```
 
 **exit code 映射**:
 
-| code | 含义 |
-|---|---|
-| 0 | 成功 |
-| 1 | 内部错误 |
-| 2 | 参数错误(validation) |
-| 3 | 需要登录(authentication) |
-| 4 | 配置错误(config) |
-| 5 | 网络错误(network) |
-| 6 | API 错误(api) |
-| 7 | 权限不足(permission) |
-| 8 | 策略拦截(policy) |
+| code | 含义                     |
+| ---- | ------------------------ |
+| 0    | 成功                     |
+| 1    | 内部错误                 |
+| 2    | 参数错误(validation)     |
+| 3    | 需要登录(authentication) |
+| 4    | 配置错误(config)         |
+| 5    | 网络错误(network)        |
+| 6    | API 错误(api)            |
+| 7    | 权限不足(permission)     |
+| 8    | 策略拦截(policy)         |
 
 ---
 
 ## `--json` / `--no-json` 输出模式
 
-| 模式 | 行为 |
-|---|---|
-| 默认(`auto`) | stdout 是 TTY(终端)→ 文本;非 TTY(管道/脚本)→ JSON |
-| `--json` | 强制 JSON 信封 |
-| `--no-json` | 强制文本(管道保护:stdin 非 TTY 时仍 JSON) |
-| `defaultFormat: 'human'` | 业务设默认文本 |
-| `defaultFormat: 'json'` | 业务设默认 JSON |
+| 模式                     | 行为                                              |
+| ------------------------ | ------------------------------------------------- |
+| 默认(`auto`)             | stdout 是 TTY(终端)→ 文本;非 TTY(管道/脚本)→ JSON |
+| `--json`                 | 强制 JSON 信封                                    |
+| `--no-json`              | 强制文本(管道保护:stdin 非 TTY 时仍 JSON)         |
+| `defaultFormat: 'human'` | 业务设默认文本                                    |
+| `defaultFormat: 'json'`  | 业务设默认 JSON                                   |
 
 `--no-json` 文本模式:框架自动识别数据结构出表格(对象数组→表格 / 单对象→key:value / scalar 数组→序号列表),命令可选 `humanFormat` 精致化(¥/中文列名/翻译)。CJK 字符按显示宽度对齐。
 
@@ -233,15 +249,15 @@ const myPlugin: Plugin = {
 
 完整设计文档(随包发布,`docs/` 目录):
 
-| 文档 | 内容 |
-|---|---|
-| [`00-overview.md`](docs/00-overview.md) | 架构、分层、决策清单 |
-| [`01-cli-usage.md`](docs/01-cli-usage.md) | 命令调用、管道、分页、exit code |
-| [`02-sdk-guide.md`](docs/02-sdk-guide.md) | SDK 用法、ctx 接口、钩子 |
-| [`03-envelopes.md`](docs/03-envelopes.md) | 信封字段契约 |
-| [`04-errors.md`](docs/04-errors.md) | 9 类错误、何时 throw |
-| [`05-credentials.md`](docs/05-credentials.md) | provider chain、自定义凭证 |
-| [`06-skills.md`](docs/06-skills.md) | skill 系统、命令文档自动生成 |
+| 文档                                          | 内容                            |
+| --------------------------------------------- | ------------------------------- |
+| [`00-overview.md`](docs/00-overview.md)       | 架构、分层、决策清单            |
+| [`01-cli-usage.md`](docs/01-cli-usage.md)     | 命令调用、管道、分页、exit code |
+| [`02-sdk-guide.md`](docs/02-sdk-guide.md)     | SDK 用法、ctx 接口、钩子        |
+| [`03-envelopes.md`](docs/03-envelopes.md)     | 信封字段契约                    |
+| [`04-errors.md`](docs/04-errors.md)           | 9 类错误、何时 throw            |
+| [`05-credentials.md`](docs/05-credentials.md) | provider chain、自定义凭证      |
+| [`06-skills.md`](docs/06-skills.md)           | skill 系统、命令文档自动生成    |
 
 ---
 

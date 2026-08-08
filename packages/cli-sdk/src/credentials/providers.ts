@@ -6,12 +6,7 @@
  * 默认 4 个 provider:flag(1)/env(5)/file(10)/oauth(20)。
  */
 
-import type {
-  CredentialProvider,
-  ProviderContext,
-  TokenResult,
-  IdentityHint,
-} from './types.js'
+import type { CredentialProvider, ProviderContext, TokenResult, IdentityHint } from "./types.js";
 
 // ============================================================================
 // 默认 provider:defaultProviders() 返回 4 个,供业务包自写的 auth Plugin 用
@@ -23,18 +18,18 @@ import type {
  */
 export function flagProvider(): CredentialProvider {
   return {
-    name: () => 'flag',
+    name: () => "flag",
     priority: () => 1,
     async resolveToken(pctx: ProviderContext): Promise<TokenResult | null> {
-      const key = pctx.args.apiKey
-      if (typeof key !== 'string' || !key) return null
+      const key = pctx.args.apiKey;
+      if (typeof key !== "string" || !key) return null;
       return {
         token: key,
-        type: 'api-key',
-        source: 'flag:--api-key',
-      }
+        type: "api-key",
+        source: "flag:--api-key",
+      };
     },
-  }
+  };
 }
 
 /**
@@ -43,19 +38,19 @@ export function flagProvider(): CredentialProvider {
  */
 export function envProvider(): CredentialProvider {
   return {
-    name: () => 'env',
+    name: () => "env",
     priority: () => 5,
     async resolveToken(pctx: ProviderContext): Promise<TokenResult | null> {
-      const envName = `${pctx.namespace.toUpperCase().replace(/-/g, '_')}_API_KEY`
-      const key = pctx.env[envName]
-      if (typeof key !== 'string' || !key) return null
+      const envName = `${pctx.namespace.toUpperCase().replace(/-/g, "_")}_API_KEY`;
+      const key = pctx.env[envName];
+      if (typeof key !== "string" || !key) return null;
       return {
         token: key,
-        type: 'api-key',
+        type: "api-key",
         source: `env:${envName}`,
-      }
+      };
     },
-  }
+  };
 }
 
 /**
@@ -64,34 +59,34 @@ export function envProvider(): CredentialProvider {
  */
 export function fileProvider(): CredentialProvider {
   return {
-    name: () => 'file',
+    name: () => "file",
     priority: () => 10,
     async resolveToken(pctx: ProviderContext): Promise<TokenResult | null> {
-      const creds = await pctx.configStore.loadCredentials(pctx.namespace)
-      if (!creds) return null
+      const creds = await pctx.configStore.loadCredentials(pctx.namespace);
+      if (!creds) return null;
       // API key 形态
-      const apiKey = creds.apiKey
-      if (typeof apiKey === 'string' && apiKey) {
+      const apiKey = creds.apiKey;
+      if (typeof apiKey === "string" && apiKey) {
         return {
           token: apiKey,
-          type: 'api-key',
+          type: "api-key",
           ...(Array.isArray(creds.scopes) ? { scopes: creds.scopes as string[] } : {}),
           source: `file:${pctx.namespace}.json#apiKey`,
-        }
+        };
       }
       // 也支持直接 token 字段(bearer 场景但非 OAuth 流程)
-      const token = creds.token
-      if (typeof token === 'string' && token) {
+      const token = creds.token;
+      if (typeof token === "string" && token) {
         return {
           token,
-          type: 'bearer',
+          type: "bearer",
           ...(Array.isArray(creds.scopes) ? { scopes: creds.scopes as string[] } : {}),
           source: `file:${pctx.namespace}.json#token`,
-        }
+        };
       }
-      return null
+      return null;
     },
-  }
+  };
 }
 
 /**
@@ -102,43 +97,43 @@ export function fileProvider(): CredentialProvider {
  */
 export function oauthProvider(): CredentialProvider {
   return {
-    name: () => 'oauth',
+    name: () => "oauth",
     priority: () => 20,
     async resolveToken(pctx: ProviderContext): Promise<TokenResult | null> {
-      const creds = await pctx.configStore.loadCredentials(pctx.namespace)
-      if (!creds) return null
-      const token = creds.token
-      const refreshToken = creds.refreshToken
-      if (typeof token !== 'string' || !token) return null
+      const creds = await pctx.configStore.loadCredentials(pctx.namespace);
+      if (!creds) return null;
+      const token = creds.token;
+      const refreshToken = creds.refreshToken;
+      if (typeof token !== "string" || !token) return null;
 
-      const scopes = Array.isArray(creds.scopes) ? (creds.scopes as string[]) : undefined
-      const expiresAt = typeof creds.expiresAt === 'number' ? creds.expiresAt : undefined
+      const scopes = Array.isArray(creds.scopes) ? (creds.scopes as string[]) : undefined;
+      const expiresAt = typeof creds.expiresAt === "number" ? creds.expiresAt : undefined;
       const result: TokenResult = {
         token,
-        type: 'bearer',
+        type: "bearer",
         source: `oauth:${pctx.namespace}.json`,
         ...(scopes ? { scopes } : {}),
         ...(expiresAt ? { expiresAt } : {}),
-        ...(typeof refreshToken === 'string' && refreshToken ? { refreshToken } : {}),
-      }
-      return result
+        ...(typeof refreshToken === "string" && refreshToken ? { refreshToken } : {}),
+      };
+      return result;
     },
     async resolveIdentity(pctx: ProviderContext): Promise<IdentityHint | null> {
-      const creds = await pctx.configStore.loadCredentials(pctx.namespace)
-      if (!creds || !creds.user || typeof creds.user !== 'object') return null
-      const u = creds.user as { userId?: string; name?: string }
+      const creds = await pctx.configStore.loadCredentials(pctx.namespace);
+      if (!creds || !creds.user || typeof creds.user !== "object") return null;
+      const u = creds.user as { userId?: string; name?: string };
       return {
-        identity: 'user',
+        identity: "user",
         ...(u.userId ? { userId: u.userId } : {}),
         ...(u.name ? { name: u.name } : {}),
-      }
+      };
     },
-  }
+  };
 }
 
 /** 默认 4 个 provider,按 priority 升序。 */
 export function defaultProviders(): CredentialProvider[] {
-  return [flagProvider(), envProvider(), fileProvider(), oauthProvider()]
+  return [flagProvider(), envProvider(), fileProvider(), oauthProvider()];
 }
 
 // ============================================================================
@@ -154,14 +149,14 @@ export async function resolveWithChain(
   pctx: ProviderContext,
 ): Promise<{ token: TokenResult; provider: CredentialProvider } | null> {
   // 按 priority 升序排序(未声明 priority 默认 10)
-  const sorted = [...providers].sort((a, b) => (a.priority?.() ?? 10) - (b.priority?.() ?? 10))
+  const sorted = [...providers].sort((a, b) => (a.priority?.() ?? 10) - (b.priority?.() ?? 10));
   for (const provider of sorted) {
-    const token = await provider.resolveToken(pctx)
+    const token = await provider.resolveToken(pctx);
     if (token) {
-      return { token, provider }
+      return { token, provider };
     }
   }
-  return null
+  return null;
 }
 
 /** 用 chain 结果尝试推断 identity(调第一个能返回的 resolveIdentity)。 */
@@ -169,11 +164,11 @@ export async function resolveIdentityWithChain(
   providers: CredentialProvider[],
   pctx: ProviderContext,
 ): Promise<IdentityHint | null> {
-  const sorted = [...providers].sort((a, b) => (a.priority?.() ?? 10) - (b.priority?.() ?? 10))
+  const sorted = [...providers].sort((a, b) => (a.priority?.() ?? 10) - (b.priority?.() ?? 10));
   for (const provider of sorted) {
-    if (!provider.resolveIdentity) continue
-    const hint = await provider.resolveIdentity(pctx)
-    if (hint) return hint
+    if (!provider.resolveIdentity) continue;
+    const hint = await provider.resolveIdentity(pctx);
+    if (hint) return hint;
   }
-  return null
+  return null;
 }

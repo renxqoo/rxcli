@@ -6,22 +6,28 @@
  * mock request 即可覆盖全部业务逻辑),不需要起真实 server。
  */
 
-import type { CommandContext, RequestOptions, TransportResponse, PipeApi, LogApi } from './types.js'
-import { createTransport, type Transport } from './request.js'
-import { createContext, createStderrLog } from './context.js'
+import type {
+  CommandContext,
+  RequestOptions,
+  TransportResponse,
+  PipeApi,
+  LogApi,
+} from "./types.js";
+import { createTransport, type Transport } from "./request.js";
+import { createContext, createStderrLog } from "./context.js";
 
 /** mock 的 request 函数:接收 RequestOptions,返回 TransportResponse。 */
-export type MockRequest = (opts: RequestOptions) => Promise<TransportResponse> | TransportResponse
+export type MockRequest = (opts: RequestOptions) => Promise<TransportResponse> | TransportResponse;
 
 export interface CreateTestCtxOptions<State> {
   /** mock request(高层 get/post 都走它)。不传则返回空 200。 */
-  request?: MockRequest
+  request?: MockRequest;
   /** 初始 state。 */
-  state?: State
+  state?: State;
   /** 自定义 log(默认静默,不污染测试输出)。 */
-  log?: LogApi
+  log?: LogApi;
   /** 自定义 pipe。 */
-  pipe?: PipeApi
+  pipe?: PipeApi;
 }
 
 /**
@@ -44,28 +50,30 @@ export function createTestCtx<State = Record<string, never>>(
   // 把 mock request 包成 Transport
   const transport: Transport = {
     request: async <T = unknown>(reqOpts: RequestOptions): Promise<TransportResponse<T>> => {
-      const res = opts.request ? await opts.request(reqOpts) : { status: 200, data: undefined, headers: {} }
+      const res = opts.request
+        ? await opts.request(reqOpts)
+        : { status: 200, data: undefined, headers: {} };
       // T 是名义类型,mock 实现统一返回 unknown;运行时值由调用方断言
-      return res as TransportResponse<T>
+      return res as TransportResponse<T>;
     },
-    get: (path, query) => transport.request({ method: 'GET', path, query }),
-    post: (path, body) => transport.request({ method: 'POST', path, body }),
-    put: (path, body) => transport.request({ method: 'PUT', path, body }),
-    patch: (path, body) => transport.request({ method: 'PATCH', path, body }),
-    delete: (path) => transport.request({ method: 'DELETE', path }),
-  }
+    get: (path, query) => transport.request({ method: "GET", path, query }),
+    post: (path, body) => transport.request({ method: "POST", path, body }),
+    put: (path, body) => transport.request({ method: "PUT", path, body }),
+    patch: (path, body) => transport.request({ method: "PATCH", path, body }),
+    delete: (path) => transport.request({ method: "DELETE", path }),
+  };
 
   return createContext<State>({
     state: (opts.state ?? {}) as State,
     transport,
     log: opts.log ?? createSilentLog(),
     pipe: opts.pipe ?? createEmptyTestPipe(),
-  })
+  });
 }
 
 /** 静默 log(测试默认不输出)。 */
 function createSilentLog(): LogApi {
-  return { info: () => {}, warn: () => {}, error: () => {} }
+  return { info: () => {}, warn: () => {}, error: () => {} };
 }
 
 /** 测试用空 pipe。 */
@@ -75,7 +83,7 @@ function createEmptyTestPipe(): PipeApi {
       /* 无数据 */
     },
     isInPipe() {
-      return false
+      return false;
     },
-  }
+  };
 }

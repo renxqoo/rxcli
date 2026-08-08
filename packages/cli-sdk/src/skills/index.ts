@@ -5,7 +5,7 @@
  *   import { listSkills, readSkill, syncSkills, refreshAutogen } from '@renxqoo/agent-data-cli/skills'
  */
 
-export type { SkillInfo, DirEntry } from './reader.js'
+export type { SkillInfo, DirEntry } from "./reader.js";
 export {
   listSkills,
   listPath,
@@ -14,9 +14,9 @@ export {
   splitArg,
   cleanSubPath,
   parseFrontmatter,
-} from './reader.js'
+} from "./reader.js";
 
-export { syncSkills } from './sync.js'
+export { syncSkills } from "./sync.js";
 
 export {
   flattenCommands,
@@ -27,4 +27,4 @@ export {
   generateSkillSkeleton,
   AUTOGEN_START,
   AUTOGEN_END,
-} from './gen.js'
+} from "./gen.js";

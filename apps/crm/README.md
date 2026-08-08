@@ -168,10 +168,10 @@ agent: (读 rx-orders skill) → rxcli orders list → 解析信封 → 返回�
 
 `rxcli` 默认按"是否终端"自动选择:
 
-| 场景 | 默认输出 |
-|---|---|
-| 终端(TTY) | 人类可读文本(自动表格) |
-| 管道/脚本/CI | JSON 信封 |
+| 场景         | 默认输出               |
+| ------------ | ---------------------- |
+| 终端(TTY)    | 人类可读文本(自动表格) |
+| 管道/脚本/CI | JSON 信封              |
 
 显式控制:`--json`(强制 JSON)/ `--no-json`(强制文本)。
 
@@ -181,13 +181,13 @@ agent: (读 rx-orders skill) → rxcli orders list → 解析信封 → 返回�
 
 ### 环境变量
 
-| 变量 | 默认 | 说明 |
-|---|---|---|
-| `RXCLI_AUTH_BASE_URL` | `http://localhost:3000` | 鉴权中间层地址 |
-| `RXCLI_API_BASE_URL` | `http://localhost:3000` | 业务 API 网关地址 |
-| `RXCLI_CLIENT_ID` | (config.json) | OAuth client id |
-| `RXCLI_CLIENT_SECRET` | (config.json) | OAuth client secret |
-| `RXCLI_SKILLS_SOURCE` | (空=本地) | skills 源 URL(空用包内本地 skills) |
+| 变量                  | 默认                    | 说明                               |
+| --------------------- | ----------------------- | ---------------------------------- |
+| `RXCLI_AUTH_BASE_URL` | `http://localhost:3000` | 鉴权中间层地址                     |
+| `RXCLI_API_BASE_URL`  | `http://localhost:3000` | 业务 API 网关地址                  |
+| `RXCLI_CLIENT_ID`     | (config.json)           | OAuth client id                    |
+| `RXCLI_CLIENT_SECRET` | (config.json)           | OAuth client secret                |
+| `RXCLI_SKILLS_SOURCE` | (空=本地)               | skills 源 URL(空用包内本地 skills) |
 
 ### 本地文件
 
@@ -222,22 +222,27 @@ pnpm build
 ### 业务包入口(参考实现)
 
 ```ts
-import { defineCli, defineAuth } from '@renxqoo/agent-data-cli'
+import { defineCli, defineAuth } from "@renxqoo/agent-data-cli";
 
 const auth = await defineAuth({
-  credentialNamespace: 'crm',
+  credentialNamespace: "crm",
   baseUrl: AUTH_BASE_URL,
-  scope: 'company.api offline_access',
-})
+  scope: "company.api offline_access",
+});
 
 export default defineCli({
-  name: 'crm',
-  plugins: [auth],                                    // 钩子 + auth 命令全自动
+  name: "crm",
+  plugins: [auth], // 钩子 + auth 命令全自动
   commands: {},
   namespaces: { orders, products, invoices, account }, // 纯业务
   baseUrl: API_BASE_URL,
-  errorOnStatus: { 401: 'token_expired', 403: 'forbidden', 404: 'not_found', '5xx': 'server_error' },
-})
+  errorOnStatus: {
+    401: "token_expired",
+    403: "forbidden",
+    404: "not_found",
+    "5xx": "server_error",
+  },
+});
 ```
 
 ---

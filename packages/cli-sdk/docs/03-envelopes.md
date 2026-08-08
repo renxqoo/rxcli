@@ -7,6 +7,7 @@
 ## 为什么要有信封
 
 没有信封的世界:每个命令随便吐 JSON,字段不统一,agent 没法稳定解析。有了信封:
+
 - **agent 靠 `ok` 字段判断成败**,不用猜
 - **wire-stable 字段**(`type`/`subtype`)让 agent 能写稳定的分支逻辑
 - **分页/通知等元信息**有固定位置(`meta`),不污染业务数据(`data`)
@@ -46,24 +47,24 @@
 
 ### 字段说明
 
-| 字段 | 是否必有 | 稳定性 | 说明 |
-|---|:---:|---|---|
-| `ok` | ✅ 必有 | **wire-stable** | 成功永远是 `true`。agent 靠它判断 |
-| `identity` | ❌ 可选 | wire-stable | 调用者身份:`user` / `bot`。未解析出身份时省略 |
-| `data` | ❌ 可选 | informational | 业务数据。命令无数据输出时(如纯写入)可省略 |
-| `meta` | ❌ 可选 | mixed | 元信息,见下文 |
-| `dry_run` | ❌ 可选 | wire-stable | `true` 表示 dry-run 模式(只构造请求未发送)。出现时为 true,正常请求省略 |
-| `_notice` | ❌ 可选 | informational | 系统级提示(版本更新、skill 漂移)。下划线前缀表示非业务字段 |
+| 字段       | 是否必有 | 稳定性          | 说明                                                                   |
+| ---------- | :------: | --------------- | ---------------------------------------------------------------------- |
+| `ok`       | ✅ 必有  | **wire-stable** | 成功永远是 `true`。agent 靠它判断                                      |
+| `identity` | ❌ 可选  | wire-stable     | 调用者身份:`user` / `bot`。未解析出身份时省略                          |
+| `data`     | ❌ 可选  | informational   | 业务数据。命令无数据输出时(如纯写入)可省略                             |
+| `meta`     | ❌ 可选  | mixed           | 元信息,见下文                                                          |
+| `dry_run`  | ❌ 可选  | wire-stable     | `true` 表示 dry-run 模式(只构造请求未发送)。出现时为 true,正常请求省略 |
+| `_notice`  | ❌ 可选  | informational   | 系统级提示(版本更新、skill 漂移)。下划线前缀表示非业务字段             |
 
 ### meta 字段
 
 `meta` 携带"关于这次响应的元信息",不放业务数据:
 
-| 子字段 | 类型 | 说明 |
-|---|---|---|
-| `count` | number | 本次返回的记录数(`data` 是数组时) |
-| `pagination` | object | 分页信息,见下文 |
-| `rollback` | string | 可选:写入操作的回滚提示(如"可用 xxx 撤销") |
+| 子字段       | 类型   | 说明                                       |
+| ------------ | ------ | ------------------------------------------ |
+| `count`      | number | 本次返回的记录数(`data` 是数组时)          |
+| `pagination` | object | 分页信息,见下文                            |
+| `rollback`   | string | 可选:写入操作的回滚提示(如"可用 xxx 撤销") |
 
 > **为什么分页放 meta 不放 data?** 因为"是否拉完"不是业务资源的一部分,而是 CLI 合成的状态。写进 data 既污染 payload,又强迫调用者区分"API 字段"和"CLI 字段"。
 
@@ -78,12 +79,12 @@
 }
 ```
 
-| 字段 | 是否必有 | 说明 |
-|---|:---:|---|
-| `complete` | ✅ | **true 表示后端数据已拉完**;false 表示还有更多。agent 靠它判断是否续拉 |
-| `pages` | ❌ | 本次响应包含的 API 页数(通常 1) |
-| `items` | ❌ | 本次响应包含的记录数(经过命令层过滤后) |
-| `next_token` | ❌ | 续拉游标。`complete:false` 时通常有;`complete:true` 时省略 |
+| 字段         | 是否必有 | 说明                                                                   |
+| ------------ | :------: | ---------------------------------------------------------------------- |
+| `complete`   |    ✅    | **true 表示后端数据已拉完**;false 表示还有更多。agent 靠它判断是否续拉 |
+| `pages`      |    ❌    | 本次响应包含的 API 页数(通常 1)                                        |
+| `items`      |    ❌    | 本次响应包含的记录数(经过命令层过滤后)                                 |
+| `next_token` |    ❌    | 续拉游标。`complete:false` 时通常有;`complete:true` 时省略             |
 
 **业务命令必须如实填 `complete` 和 `next_token`**(决策清单 #9)。详见 `02-sdk-guide.md` 的"分页实现"。
 
@@ -128,33 +129,33 @@ onError 链(pre→normal→post 插件,每个都跑;不处理返回原 err,处�
 
 ### 顶层字段(与成功信封一致)
 
-| 字段 | 是否必有 | 稳定性 | 说明 |
-|---|:---:|---|---|
-| `ok` | ✅ | **wire-stable** | 错误永远是 `false` |
-| `identity` | ❌ | wire-stable | 调用者身份(`user`/`bot`),未解析出时省略。与成功信封同 |
-| `error` | ✅ | mixed | 错误详情对象,见下表 |
+| 字段       | 是否必有 | 稳定性          | 说明                                                  |
+| ---------- | :------: | --------------- | ----------------------------------------------------- |
+| `ok`       |    ✅    | **wire-stable** | 错误永远是 `false`                                    |
+| `identity` |    ❌    | wire-stable     | 调用者身份(`user`/`bot`),未解析出时省略。与成功信封同 |
+| `error`    |    ✅    | mixed           | 错误详情对象,见下表                                   |
 
 ### error 子字段说明
 
-| 字段 | 是否必有 | 稳定性 | 说明 |
-|---|:---:|---|---|
-| `type` | ✅ | **wire-stable** | 9 个 Category 之一(见 `04-errors.md`),agent 可分支 |
-| `subtype` | ✅ | **wire-stable** | 稳定的小写下划线标识符,agent 可分支 |
-| `code` | ❌ | wire-stable | 上游数字码(如 HTTP status、API code)。零时省略 |
-| `message` | ✅ | **informational** | 给人看的描述,**不保证稳定**,agent 不要靠它分支 |
-| `hint` | ❌ | informational | **给 agent 的可执行恢复指令**(详见 `04-errors.md`) |
-| `retryable` | ❌ | wire-stable | 出现且为 true 时表示可重试;false 时省略 |
-| `param` | ❌ | per-subtype-stable | 出错的参数名(`ValidationError` 用),如 `"--limit"` |
-| `params` | ❌ | per-subtype-stable | 多参数校验详情数组(`ValidationError` 用) |
-| 按 subtype 扩展 | ❌ | per-subtype-stable | 如 `missing_scopes`(数组,机器可读)、`console_url`;只在对应 subtype 出现,该 subtype 内稳定 |
+| 字段            | 是否必有 | 稳定性             | 说明                                                                                      |
+| --------------- | :------: | ------------------ | ----------------------------------------------------------------------------------------- |
+| `type`          |    ✅    | **wire-stable**    | 9 个 Category 之一(见 `04-errors.md`),agent 可分支                                        |
+| `subtype`       |    ✅    | **wire-stable**    | 稳定的小写下划线标识符,agent 可分支                                                       |
+| `code`          |    ❌    | wire-stable        | 上游数字码(如 HTTP status、API code)。零时省略                                            |
+| `message`       |    ✅    | **informational**  | 给人看的描述,**不保证稳定**,agent 不要靠它分支                                            |
+| `hint`          |    ❌    | informational      | **给 agent 的可执行恢复指令**(详见 `04-errors.md`)                                        |
+| `retryable`     |    ❌    | wire-stable        | 出现且为 true 时表示可重试;false 时省略                                                   |
+| `param`         |    ❌    | per-subtype-stable | 出错的参数名(`ValidationError` 用),如 `"--limit"`                                         |
+| `params`        |    ❌    | per-subtype-stable | 多参数校验详情数组(`ValidationError` 用)                                                  |
+| 按 subtype 扩展 |    ❌    | per-subtype-stable | 如 `missing_scopes`(数组,机器可读)、`console_url`;只在对应 subtype 出现,该 subtype 内稳定 |
 
 ### wire-stable vs informational(关键区分)
 
-| 类型 | 含义 | agent 能不能靠它分支 |
-|---|---|:---:|
-| **wire-stable** | 跨版本不变的契约字段 | ✅ 可以 |
-| **informational** | 给人看/提示性的,可能变 | ❌ 不要分支 |
-| **per-subtype-stable** | 在同一 subtype 内稳定 | ✅ 可以(限定 subtype) |
+| 类型                   | 含义                   | agent 能不能靠它分支  |
+| ---------------------- | ---------------------- | :-------------------: |
+| **wire-stable**        | 跨版本不变的契约字段   |        ✅ 可以        |
+| **informational**      | 给人看/提示性的,可能变 |      ❌ 不要分支      |
+| **per-subtype-stable** | 在同一 subtype 内稳定  | ✅ 可以(限定 subtype) |
 
 **铁律:agent 的分支逻辑只能基于 wire-stable 字段(`ok`、`error.type`、`error.subtype`、`error.code`、`retryable`)。** `message` 只用来展示给人,可能随版本改写。
 
@@ -164,13 +165,13 @@ onError 链(pre→normal→post 插件,每个都跑;不处理返回原 err,处�
 
 这是管道能组合的根,**铁律不可违反**:
 
-| 内容 | 流 | 谁写 |
-|---|---|---|
-| 成功信封(`{ok:true,...}`) | **stdout** | 框架从 `run` 返回值序列化 |
-| 错误信封(`{ok:false,...}`) | **stderr** | cli-sdk 错误渲染层 |
-| 日志(info/warn/error) | **stderr** | `ctx.log.*()` |
-| 进度条 / spinner | **stderr** | cli-sdk 进度层 |
-| 提示(空结果、引导) | **stderr** | cli-sdk 提示层 |
+| 内容                       | 流         | 谁写                      |
+| -------------------------- | ---------- | ------------------------- |
+| 成功信封(`{ok:true,...}`)  | **stdout** | 框架从 `run` 返回值序列化 |
+| 错误信封(`{ok:false,...}`) | **stderr** | cli-sdk 错误渲染层        |
+| 日志(info/warn/error)      | **stderr** | `ctx.log.*()`             |
+| 进度条 / spinner           | **stderr** | cli-sdk 进度层            |
+| 提示(空结果、引导)         | **stderr** | cli-sdk 提示层            |
 
 **业务命令永远不能直接往 stdout 写非信封内容。** 一切非数据输出走 `ctx.log`(stderr)。否则 `rxcli-orders list | jq` 混进一行"加载中..."整个管道就废了。
 
@@ -179,6 +180,7 @@ onError 链(pre→normal→post 插件,每个都跑;不处理返回原 err,处�
 ### 为什么错误也走 stderr(而不是 stdout)
 
 因为 `cmd | jq` 时,jq 只读 stdout。如果错误信封走 stdout:
+
 - jq 会收到错误 JSON,把它当数据处理 → agent 误判
 - 错误信封的结构和成功信封不一样,jq 表达式会崩
 
@@ -192,7 +194,7 @@ onError 链(pre→normal→post 插件,每个都跑;不处理返回原 err,处�
 
 ```ts
 // 谓词命令:stdout 已有答案,只想要 exit code,不渲染 stderr 信封
-if (!loggedIn) throw new errs.BareError(3)   // exit 3,stderr 不输出信封
+if (!loggedIn) throw new errs.BareError(3); // exit 3,stderr 不输出信封
 ```
 
 `BareError` 是**唯一**绕过信封契约的类型,只用于"stdout 已是完整答案"的谓词场景。普通命令不要用。
@@ -227,12 +229,12 @@ if (!loggedIn) throw new errs.BareError(3)   // exit 3,stderr 不输出信封
 }
 ```
 
-| 字段 | 是否必有 | 说明 |
-|---|:---:|---|
-| `type` | ✅ | 来源业务包命名空间(如 `orders`),下游按它分流(`if rec.type !== 'orders' continue`)。框架序列化时自动填入的 `defineCli.name` |
-| `id` | ❌ | 稳定标识。**管道传引用+ID 的核心**(决策清单 #11):链中传脱敏值+ID,下游用 ID 关联,不依赖具体字段值。命令输出数组时每条建议带 id |
-| `data` | ❌ | payload(已过 `beforeOutput` 转换) |
-| `meta` | ❌ | 可选元数据(来源命令、时间戳) |
+| 字段   | 是否必有 | 说明                                                                                                                          |
+| ------ | :------: | ----------------------------------------------------------------------------------------------------------------------------- |
+| `type` |    ✅    | 来源业务包命名空间(如 `orders`),下游按它分流(`if rec.type !== 'orders' continue`)。框架序列化时自动填入的 `defineCli.name`    |
+| `id`   |    ❌    | 稳定标识。**管道传引用+ID 的核心**(决策清单 #11):链中传脱敏值+ID,下游用 ID 关联,不依赖具体字段值。命令输出数组时每条建议带 id |
+| `data` |    ❌    | payload(已过 `beforeOutput` 转换)                                                                                             |
+| `meta` |    ❌    | 可选元数据(来源命令、时间戳)                                                                                                  |
 
 > **注意:PipeRecord 是下游 `ctx.pipe.in()` 读到的形态,不是 stdout 信封本身。** stdout 仍是一个完整信封 `{ok, data, meta}`;当 data 是数组时,cli-sdk 把每条记录包成 PipeRecord 供下游逐条消费。单对象命令(data 不是数组)管道时,下游收到的是单条 `{type, id, data}`。
 
@@ -244,14 +246,13 @@ if (!loggedIn) throw new errs.BareError(3)   // exit 3,stderr 不输出信封
 
 传统 CLI 常见做法是同步 `console.log(JSON.stringify(body, null, 2))`,没有信封概念。本框架改成信封模型:
 
-| | 传统 console.log | 信封模型(`run` 返回值 → 框架序列化) |
-|---|---|---|
-| 输出 | 裸 JSON body,美化打印 | 信封 `{ok, data, meta}` |
-| 错误 | exitCode=1 + console.error message | stderr 错误信封 + 类型化 exit code |
-| 分页 | 无 | `meta.pagination` |
-| stdout 纯净 | ❌(美化打印有空格,管道易混) | ✅(紧凑 JSON) |
-| agent 可分支 | ❌(只有 message 字符串) | ✅(wire-stable type/subtype) |
-
+|              | 传统 console.log                   | 信封模型(`run` 返回值 → 框架序列化) |
+| ------------ | ---------------------------------- | ----------------------------------- |
+| 输出         | 裸 JSON body,美化打印              | 信封 `{ok, data, meta}`             |
+| 错误         | exitCode=1 + console.error message | stderr 错误信封 + 类型化 exit code  |
+| 分页         | 无                                 | `meta.pagination`                   |
+| stdout 纯净  | ❌(美化打印有空格,管道易混)        | ✅(紧凑 JSON)                       |
+| agent 可分支 | ❌(只有 message 字符串)            | ✅(wire-stable type/subtype)        |
 
 ---
 

@@ -11,46 +11,46 @@
 // ============================================================================
 
 /** 结构化数据:beforeOutput / run.data 允许的形态(排除 string,保护管道契约)。 */
-export type StructuredData = Record<string, unknown> | unknown[] | null
+export type StructuredData = Record<string, unknown> | unknown[] | null;
 
 // ============================================================================
 // 参数解析(命令 args spec)
 // ============================================================================
 
-export type ArgType = 'string' | 'number' | 'boolean' | 'array'
+export type ArgType = "string" | "number" | "boolean" | "array";
 
 export interface ArgSpec {
   /** 字面量联合,'strin'(拼错)编译报错。 */
-  type: ArgType
-  required?: boolean
+  type: ArgType;
+  required?: boolean;
   /** 默认 flag;true 则 `<id>` 而非 `--id`。 */
-  positional?: boolean
+  positional?: boolean;
   /** 填了进自动生成的命令文档(见 06-skills.md)。 */
-  desc?: string
+  desc?: string;
   /** 简化版:不跟 type 联动。 */
-  default?: unknown
+  default?: unknown;
 }
 
-export type ArgsSpec = Record<string, ArgSpec>
+export type ArgsSpec = Record<string, ArgSpec>;
 
 // ============================================================================
 // 请求 / 传输
 // ============================================================================
 
 export interface RequestOptions {
-  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
-  path: string
-  query?: Record<string, unknown>
-  body?: unknown
-  headers?: Record<string, string>
-  timeout?: number
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  path: string;
+  query?: Record<string, unknown>;
+  body?: unknown;
+  headers?: Record<string, string>;
+  timeout?: number;
 }
 
 export interface TransportResponse<T = unknown> {
-  status: number
+  status: number;
   /** T 默认 unknown;ctx.get<T>() 声明响应 body 类型(可选,axios 式)。 */
-  data: T
-  headers: Record<string, string>
+  data: T;
+  headers: Record<string, string>;
 }
 
 // ============================================================================
@@ -60,30 +60,30 @@ export interface TransportResponse<T = unknown> {
 /** 分页元信息(命令如实填 complete + nextToken,决策清单 #9)。 */
 export interface Pagination {
   /** true 表示后端数据已拉完;false 表示还有更多。agent 靠它判断是否续拉。 */
-  complete: boolean
+  complete: boolean;
   /** 本次响应包含的 API 页数(通常 1)。 */
-  pages?: number
+  pages?: number;
   /** 本次响应包含的记录数(经过命令层过滤后)。 */
-  items?: number
+  items?: number;
   /** 续拉游标。complete:false 时通常有;complete:true 时省略。 */
-  nextToken?: string
+  nextToken?: string;
 }
 
 export interface Meta {
   /** 本次返回的记录数(data 是数组时)。 */
-  count?: number
-  pagination?: Pagination
+  count?: number;
+  pagination?: Pagination;
   /** 可选:写入操作的回滚提示(如"可用 xxx 撤销")。 */
-  rollback?: string
+  rollback?: string;
   /** 允许任意额外字段(业务自定义 meta + 内部标记如 _rawOutput)。下划线前缀的内部字段不进 wire。 */
-  [key: string]: unknown
+  [key: string]: unknown;
 }
 
 /** run 的返回值。纯副作用命令可不 return(void 合法)。 */
 export interface CommandResult<T = unknown> {
   /** 结构化业务数据。 */
-  data: T
-  meta?: Meta
+  data: T;
+  meta?: Meta;
 }
 
 // ============================================================================
@@ -93,13 +93,13 @@ export interface CommandResult<T = unknown> {
 /** 下游 ctx.pipe.in() 读到的每条记录形态。stdout 仍是完整信封;框架把 data 数组逐条包成 PipeRecord。 */
 export interface PipeRecord {
   /** 来源业务包命名空间(defineCli.name),下游按它分流。 */
-  type: string
+  type: string;
   /** 稳定标识。管道传引用+ID 的核心(决策清单 #11)。 */
-  id?: string
+  id?: string;
   /** payload(已过 beforeOutput 转换)。 */
-  data?: unknown
+  data?: unknown;
   /** 可选元数据(来源命令、时间戳)。 */
-  meta?: Record<string, unknown>
+  meta?: Record<string, unknown>;
 }
 
 // ============================================================================
@@ -108,23 +108,23 @@ export interface PipeRecord {
 
 /** 命令运行时读写凭证(走 provider chain;来源是 auth 插件创建的 store,见 05-credentials.md)。 */
 export interface CredentialsApi {
-  get(namespace: string): Promise<Record<string, string> | null>
-  save(namespace: string, creds: Record<string, unknown>): Promise<void>
-  clear(namespace: string): Promise<void>
+  get(namespace: string): Promise<Record<string, string> | null>;
+  save(namespace: string, creds: Record<string, unknown>): Promise<void>;
+  clear(namespace: string): Promise<void>;
 }
 
 export interface PipeApi {
   /** 异步迭代上游记录(PipeRecord)。 */
-  in(): AsyncIterable<PipeRecord>
+  in(): AsyncIterable<PipeRecord>;
   /** stdin 非 TTY 即管道。下游命令 run 开头用它分流。 */
-  isInPipe(): boolean
+  isInPipe(): boolean;
 }
 
 export interface LogApi {
   /** 强制 stderr(绝不污染 stdout/管道)。 */
-  info(msg: unknown): void
-  warn(msg: unknown): void
-  error(msg: unknown): void
+  info(msg: unknown): void;
+  warn(msg: unknown): void;
+  error(msg: unknown): void;
 }
 
 /**
@@ -134,25 +134,25 @@ export interface LogApi {
 export interface CommandContext<State = Record<string, never>> {
   // —— 请求方法(直接挂 ctx,无 client 层)——
   // T 是响应 body 类型,可选(不写则 data 是 unknown)
-  get<T = unknown>(path: string, query?: Record<string, unknown>): Promise<TransportResponse<T>>
-  post<T = unknown>(path: string, body?: unknown): Promise<TransportResponse<T>>
-  put<T = unknown>(path: string, body?: unknown): Promise<TransportResponse<T>>
-  patch<T = unknown>(path: string, body?: unknown): Promise<TransportResponse<T>>
-  delete<T = unknown>(path: string): Promise<TransportResponse<T>>
+  get<T = unknown>(path: string, query?: Record<string, unknown>): Promise<TransportResponse<T>>;
+  post<T = unknown>(path: string, body?: unknown): Promise<TransportResponse<T>>;
+  put<T = unknown>(path: string, body?: unknown): Promise<TransportResponse<T>>;
+  patch<T = unknown>(path: string, body?: unknown): Promise<TransportResponse<T>>;
+  delete<T = unknown>(path: string): Promise<TransportResponse<T>>;
   /** 低层兜底。 */
-  request<T = unknown>(opts: RequestOptions): Promise<TransportResponse<T>>
+  request<T = unknown>(opts: RequestOptions): Promise<TransportResponse<T>>;
 
   // —— state:插件间共享数据,强类型(defineCli<State> 声明)——
-  state: State
+  state: State;
 
   // —— 日志:强制 stderr ——
-  log: LogApi
+  log: LogApi;
 
   // —— 管道:作为下游时读上游记录 ——
-  pipe: PipeApi
+  pipe: PipeApi;
 
   // —— 凭证(运行时读写,见 05-credentials.md)——
-  credentials: CredentialsApi
+  credentials: CredentialsApi;
 }
 
 // ============================================================================
@@ -165,22 +165,22 @@ export interface CommandContext<State = Record<string, never>> {
  */
 export interface CommandSpec<Args = any, Result = unknown> {
   /** 必填,缺了编译报错。 */
-  name: string
-  description: string
+  name: string;
+  description: string;
   /** 可选(解析规范)。 */
-  args?: ArgsSpec
+  args?: ArgsSpec;
   /** 可选:内部命令(skills list/read/sync/gen 等)跳过插件 beforeCommand(不走 auth/凭证校验)。 */
-  internal?: boolean
+  internal?: boolean;
   /**
    * 可选:--no-json 模式的人类可读输出(命令自定义)。
    * 不声明时用框架通用兜底 prettyPrint。声明了就用命令的(如表格、特殊排版)。
    */
-  humanFormat?: (data: unknown, meta?: Meta) => string
-  run: (args: Args, ctx: CommandContext<any>) => Promise<CommandResult<Result> | void>
+  humanFormat?: (data: unknown, meta?: Meta) => string;
+  run: (args: Args, ctx: CommandContext<any>) => Promise<CommandResult<Result> | void>;
 }
 
 /** 命令组:key 决定子命令名(defineCommands 的 key 即命令名)。 */
-export type CommandGroup = Record<string, CommandSpec>
+export type CommandGroup = Record<string, CommandSpec>;
 
 // ============================================================================
 // 插件(Plugin)
@@ -192,9 +192,9 @@ export type CommandGroup = Record<string, CommandSpec>
  */
 export interface Plugin<State = Record<string, never>> {
   /** 必填:插件名(日志/溯源)。 */
-  name: string
+  name: string;
   /** 可选:执行优先级,省略 = 'normal' 档(三档:pre/normal/post)。 */
-  enforce?: 'pre' | 'post'
+  enforce?: "pre" | "post";
   /**
    * 可选:plugin 贡献的命令,defineCli 自动注入,业务无需手挂。
    *
@@ -213,21 +213,21 @@ export interface Plugin<State = Record<string, never>> {
    */
   provides?: {
     /** 贡献命名空间组(同 DefineCliOptions.namespaces 类型)。 */
-    namespaces?: Record<string, CommandGroup>
+    namespaces?: Record<string, CommandGroup>;
     /** 贡献顶层命令(挂顶层 → rxcli <cmd>)。 */
-    commands?: CommandGroup
-  }
+    commands?: CommandGroup;
+  };
   /**
    * 框架内部用:本 plugin 贡献的 route(每条 = 命令路径段)。
    * defineCli 收集 provides 时自动填充;用于精确豁免(plugin 自己的命令跳自己的 beforeCommand)。
    * 业务开发者不写。
    */
-  _ownedRoutes?: string[][]
-  beforeCommand?(ctx: CommandContext<State>): Promise<void>
-  beforeRequest?(ctx: CommandContext<State>, req: RequestOptions): Promise<void>
-  afterRequest?(ctx: CommandContext<State>, res: TransportResponse): Promise<void>
-  beforeOutput?(ctx: CommandContext<State>, data: unknown): Promise<StructuredData>
-  onError?(ctx: CommandContext<State>, err: unknown): Promise<unknown | void>
+  _ownedRoutes?: string[][];
+  beforeCommand?(ctx: CommandContext<State>): Promise<void>;
+  beforeRequest?(ctx: CommandContext<State>, req: RequestOptions): Promise<void>;
+  afterRequest?(ctx: CommandContext<State>, res: TransportResponse): Promise<void>;
+  beforeOutput?(ctx: CommandContext<State>, data: unknown): Promise<StructuredData>;
+  onError?(ctx: CommandContext<State>, err: unknown): Promise<unknown | void>;
 }
 
 // ============================================================================
@@ -235,36 +235,36 @@ export interface Plugin<State = Record<string, never>> {
 // ============================================================================
 
 /** errorOnStatus 的值:status(数字或 '5xx' 形态)→ subtype 字符串(隐含 category)。 */
-export type ErrorOnStatus = Record<number | `${number}xx`, string>
+export type ErrorOnStatus = Record<number | `${number}xx`, string>;
 
 export interface DefineCliOptions<State> {
   /** 必填:命名空间(PipeRecord.type 兜底、skill 标识用)。如 'orders'、'customers'。 */
-  name: string
+  name: string;
   /**
    * 可选:终端 bin 名(help 显示 / SKILL.md 命令签名用)。
    * 业务包显式声明用户真实敲的命令名(如 'rxcli-orders')。
    * 不填则默认用 name(SKILL.md 签名会显示 name <cmd>)。
    */
-  binName?: string
-  description: string
+  binName?: string;
+  description: string;
   /** 可选:所有扩展(含 auth)。入门示例可省略(默认 []);有 auth 需求的业务包传入 auth 插件。 */
-  plugins?: Plugin<State>[]
+  plugins?: Plugin<State>[];
   /** 必填:顶层命令组(key=命令名)→ <binName> <cmd>。 */
-  commands: CommandGroup
+  commands: CommandGroup;
   /** 可选:子命名空间组(key=子命名空间)→ rxcli-<name> <ns> <cmd>;单业务域不填。 */
-  namespaces?: Record<string, CommandGroup>
+  namespaces?: Record<string, CommandGroup>;
   /** 可选:skill 目录(默认 ./skills)。 */
-  skillsDir?: string
+  skillsDir?: string;
   /**
    * 可选:skills 源 URL(install 向导用)。
    * 设了 → install 向导优先 `npx skills add <url>`(覆盖 30+ AI 工具发现路径);
    * 空/未设 → 用包内本地 skills(走 `rxcli skills sync`,只写 ~/.agents/skills/)。
    */
-  skillsSource?: string
+  skillsSource?: string;
   /** 可选:status→错误自动 throw(subtype 隐含 category)。 */
-  errorOnStatus?: ErrorOnStatus
+  errorOnStatus?: ErrorOnStatus;
   /** 可选:后端 baseUrl(无 auth 时可直连;有 auth 时由 provider 决定)。 */
-  baseUrl?: string
+  baseUrl?: string;
   /**
    * 可选:--no-json 文本 / JSON 信封的默认输出格式(用户没传 --json/--no-json 时)。
    *
@@ -275,9 +275,9 @@ export interface DefineCliOptions<State> {
    * `--json` / `--no-json` 永远强制覆盖本选项。
    * 管道保护:被管道(stdin 非 TTY)时,即使默认文本也强制 JSON(保护 agent)。
    */
-  defaultFormat?: 'json' | 'human' | 'auto'
+  defaultFormat?: "json" | "human" | "auto";
   /** 可选:引导文案 i18n。 */
-  messages?: Record<string, unknown>
+  messages?: Record<string, unknown>;
 }
 
 /**
@@ -287,7 +287,7 @@ export interface DefineCliOptions<State> {
  */
 export interface App {
   /** 装配名(defineCli.name)。 */
-  name: string
+  name: string;
   /** 解析 argv 并执行匹配的命令(渲染信封到 stdout/stderr + 设 exit code)。 */
-  run(argv: string[]): Promise<void>
+  run(argv: string[]): Promise<void>;
 }
