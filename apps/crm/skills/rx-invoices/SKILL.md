@@ -1,7 +1,7 @@
 ---
 name: rx-invoices
-version: 1.0.0
-description: "查询发票。当用户需要查发票、看发票列表、查开票记录时使用。"
+version: 1.1.0
+description: "查询发票。当用户需要查发票、看发票列表、查开票记录、我的发票、发票状态时使用。"
 metadata:
   requires:
     bins: ["rxcli"]
@@ -9,9 +9,9 @@ metadata:
   category: business
 ---
 
-# invoices (v1)
+# invoices (v1.1)
 
-**CRITICAL — 开始前 MUST 先用 Read 工具读取 [`../rx-shared/SKILL.md`](../rx-shared/SKILL.md),其中包含注册、登录、认证说明**
+**CRITICAL — 开始前 MUST 先用 Read 工具读取 [`../rx-shared/SKILL.md`](../rx-shared/SKILL.md),其中包含输出信封约定、登录、scope、错误处理说明**
 
 ## 命令
 
@@ -27,8 +27,8 @@ metadata:
 
 ## 前置条件
 
-- 已登录:`rxcli auth status`,未登录 → `rxcli auth login`
-- 需要 `invoices:read` scope(测试账号 alice / dave 有,其它无)
+- 已登录:`rxcli auth status`,未登录 → 引导 `rxcli auth login`(agent 用 Split-Flow,见 rx-shared)
+- 需要 `invoices:read` scope(缺权限返回 403 `forbidden`)
 
 ## invoices list
 
@@ -40,19 +40,24 @@ rxcli invoices list
 
 ### 输出示例
 
+stdout(信封):
 ```json
-{"ok":true,"data":{"invoices":[{"id":"inv_2001","orderId":"o_1001","userId":"u_alice","amount":199.0,"currency":"CNY","status":"paid","issuedAt":"2024-02-10T03:20:00Z"}]}}
+{"ok":true,"identity":"user","data":{"invoices":[{"id":"inv_2001","orderId":"o_1001","userId":"u_alice","amount":199.0,"currency":"CNY","status":"paid","issuedAt":"2024-02-10T03:20:00Z"}]}}
 ```
 
-发票状态:`issued`(已开具)/ `paid`(已支付)/ `void`(已作废)。
+发票状态:`issued`(已开具)/ `paid`(已支付)/ `void`(已作废)。无发票时 `data.invoices` 为空数组 `[]`,不是错误。
+
+> 每张发票的 `orderId` 可用 `rxcli orders get <orderId>` 查对应订单详情(需 `orders:read` scope)。
 
 ### 错误处理
 
-| 错误 | 处理 |
-|------|------|
-| `insufficient_scope` / 403 | 当前用户无 `invoices:read` 权限 |
-| `session not found` | 登录态失效,`auth login` 重新登录 |
-| 网络错误 | 检查中间层地址(`auth status` 里的中间层) |
+| subtype | code | 处理 |
+|------|------|------|
+| `forbidden` | 403 | 当前用户无 `invoices:read` 权限 |
+| `token_expired` | 401 | 登录态失效,`auth login` 重新登录 |
+| `timeout` / `connection_refused` | 4 | 网络/中间层错误,检查 `auth status` 的中间层地址 |
+
+> 信封/错误格式见 rx-shared「输出与信封约定」与「错误处理」。
 
 ## 深度参考
 

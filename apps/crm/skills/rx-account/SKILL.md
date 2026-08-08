@@ -1,7 +1,7 @@
 ---
 name: rx-account
-version: 1.0.0
-description: "账号信息:查看个人资料、管理员查全量用户。当用户需要看自己的资料(邮箱/部门),或管理员需要列出所有用户时使用。"
+version: 1.1.0
+description: "账号信息:查看个人资料、管理员查全量用户。当用户需要看自己的资料(邮箱/部门),或管理员需要列出所有用户、查用户权限时使用。"
 metadata:
   requires:
     bins: ["rxcli"]
@@ -9,9 +9,9 @@ metadata:
   category: business
 ---
 
-# account (v1)
+# account (v1.1)
 
-**CRITICAL — 开始前 MUST 先用 Read 工具读取 [`../rx-shared/SKILL.md`](../rx-shared/SKILL.md),其中包含注册、登录、认证说明**
+**CRITICAL — 开始前 MUST 先用 Read 工具读取 [`../rx-shared/SKILL.md`](../rx-shared/SKILL.md),其中包含输出信封约定、登录、scope、错误处理说明**
 
 ## 命令
 
@@ -25,13 +25,13 @@ metadata:
 | 用户说 | 用什么 |
 |--------|--------|
 | "我的资料" / "我的邮箱" / "我哪个部门" | `account profile` |
-| "列出所有用户" / "有哪些账号" / "用户列表" | `account admin-users`(需 admin) |
+| "列出所有用户" / "有哪些账号" / "用户列表" / "某用户有什么权限" | `account admin-users`(需 admin) |
 
 ## 前置条件
 
-- 已登录:`rxcli auth status`,未登录 → `rxcli auth login`
+- 已登录:`rxcli auth status`,未登录 → 引导 `rxcli auth login`(agent 用 Split-Flow,见 rx-shared)
 - `account profile`:登录即可,无 scope 要求
-- `account admin-users`:需要 `admin` scope(测试账号 alice / erin 有,其它无)
+- `account admin-users`:需要 `admin` scope(缺权限返回 403 `forbidden`)
 
 ## account profile
 
@@ -43,13 +43,14 @@ rxcli account profile
 
 ### 输出示例
 
+stdout(信封):
 ```json
-{"ok":true,"data":{"id":"u_alice","email":"alice@example.com","displayName":"Alice Wang","department":"Engineering","avatarUrl":"https://i.pravatar.cc/128?img=1","createdAt":"2023-01-15T08:30:00Z"}}
+{"ok":true,"identity":"user","data":{"id":"u_alice","email":"alice@example.com","displayName":"Alice Wang","department":"Engineering","avatarUrl":"https://i.pravatar.cc/128?img=1","createdAt":"2023-01-15T08:30:00Z"}}
 ```
 
 ## account admin-users
 
-**管理员功能**:列出系统中全部用户(含 id / name / scopes / 资料)。普通用户调用会收到 403。
+**管理员功能**:列出系统中全部用户(含 id / name / scopes / 资料)。普通用户调用会收到 403 `forbidden`。
 
 ```bash
 rxcli account admin-users
@@ -58,18 +59,20 @@ rxcli account admin-users
 ### 输出示例(节选)
 
 ```json
-{"ok":true,"data":{"users":[{"id":"u_alice","name":"alice","scopes":["orders:read","orders:write","products:read","invoices:read","admin"],"profile":{"email":"alice@example.com","department":"Engineering"}}]}}
+{"ok":true,"identity":"user","data":{"users":[{"id":"u_alice","name":"alice","scopes":["orders:read","orders:write","products:read","invoices:read","admin"],"profile":{"email":"alice@example.com","department":"Engineering"}}]}}
 ```
 
-> 返回的 `scopes` 可用于判断某个用户能调用哪些业务命令(如某用户缺 `orders:read`,则 `orders list` 对其返回 403)。
+> 返回的 `scopes` 可用于判断某个用户能调用哪些业务命令(如某用户缺 `orders:read`,则 `orders list` 对其返回 403 `forbidden`)。
 
 ### 错误处理
 
-| 错误 | 处理 |
-|------|------|
-| `insufficient_scope` / 403(仅 admin users) | 当前用户非管理员,无 `admin` scope |
-| `profile_not_found` / 404(仅 profile) | token 有效但用户资料缺失(理论上不该发生) |
-| `session not found` | 登录态失效,`auth login` 重新登录 |
+| subtype | code | 处理 |
+|------|------|------|
+| `forbidden` | 403(仅 admin-users) | 当前用户非管理员,无 `admin` scope |
+| `token_expired` | 401 | 登录态失效,`auth login` 重新登录 |
+| `timeout` / `connection_refused` | 4 | 网络/中间层错误,检查 `auth status` 的中间层地址 |
+
+> profile 理论上不返回 404(token 有效即有资料)。信封/错误格式见 rx-shared「输出与信封约定」与「错误处理」。
 
 ## 深度参考
 

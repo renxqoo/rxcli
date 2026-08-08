@@ -1,7 +1,7 @@
 ---
 name: rx-products
-version: 1.0.0
-description: "查询商品目录。当用户需要查商品、看商品列表、按分类筛商品、查某个商品详情(价格/库存)时使用。"
+version: 1.1.0
+description: "查询商品目录。当用户需要查商品、看商品列表、按分类筛商品、查某个商品详情(价格/库存)、有什么商品时使用。"
 metadata:
   requires:
     bins: ["rxcli"]
@@ -9,9 +9,9 @@ metadata:
   category: business
 ---
 
-# products (v1)
+# products (v1.1)
 
-**CRITICAL — 开始前 MUST 先用 Read 工具读取 [`../rx-shared/SKILL.md`](../rx-shared/SKILL.md),其中包含注册、登录、认证说明**
+**CRITICAL — 开始前 MUST 先用 Read 工具读取 [`../rx-shared/SKILL.md`](../rx-shared/SKILL.md),其中包含输出信封约定、登录、scope、错误处理说明**
 
 ## 命令
 
@@ -30,8 +30,8 @@ metadata:
 
 ## 前置条件
 
-- 已登录:`rxcli auth status`,未登录 → `rxcli auth login`
-- 需要 `products:read` scope(测试账号 alice / carol 有,bob / dave / erin 无)
+- 已登录:`rxcli auth status`,未登录 → 引导 `rxcli auth login`(agent 用 Split-Flow,见 rx-shared)
+- 需要 `products:read` scope(缺权限返回 403 `forbidden`)
 
 ## products list
 
@@ -39,18 +39,19 @@ metadata:
 
 ```bash
 rxcli products list                          # 全部商品
-rxcli products list --category 电脑外设       # 按分类过滤
+rxcli products list --category 电脑外设       # 按分类过滤(精确匹配)
 ```
 
 ### 输出示例
 
+stdout(信封):
 ```json
-{"ok":true,"data":{"products":[{"id":"p_002","sku":"SKU-KEY-K1","name":"机械键盘 K1","category":"电脑外设","price":599.0,"currency":"CNY","stock":48}],"total":2}}
+{"ok":true,"identity":"user","data":{"products":[{"id":"p_002","sku":"SKU-KEY-K1","name":"机械键盘 K1","category":"电脑外设","price":599.0,"currency":"CNY","stock":48}],"total":2}}
 ```
 
 ### 分类参考
 
-当前目录的分类(仅供示例,实际以 `products list` 返回为准):`厨房用品`、`电脑外设`、`文具`、`配件`。
+`--category` 是**全等精确匹配**(非模糊搜索),分类名要完全一致(含中文)。当前目录分类(仅示例,实际以 `products list` 返回为准):`厨房用品`、`电脑外设`、`文具`、`配件`。缺货商品(`stock:0`)仍会出现,仅表示无库存。
 
 ## products get
 
@@ -63,16 +64,19 @@ rxcli products get p_002
 ### 输出示例
 
 ```json
-{"ok":true,"data":{"id":"p_002","sku":"SKU-KEY-K1","name":"机械键盘 K1","category":"电脑外设","price":599.0,"currency":"CNY","stock":48}}
+{"ok":true,"identity":"user","data":{"id":"p_002","sku":"SKU-KEY-K1","name":"机械键盘 K1","category":"电脑外设","price":599.0,"currency":"CNY","stock":48}}
 ```
 
 ### 错误处理
 
-| 错误 | 处理 |
-|------|------|
-| `product_not_found` / 404 | 商品 id 不存在 |
-| `insufficient_scope` / 403 | 当前用户无 `products:read` 权限 |
-| `session not found` | 登录态失效,`auth login` 重新登录 |
+| subtype | code | 处理 |
+|------|------|------|
+| `not_found` | 404 | 商品 id 不存在 |
+| `forbidden` | 403 | 当前用户无 `products:read` 权限 |
+| `token_expired` | 401 | 登录态失效,`auth login` 重新登录 |
+| `timeout` / `connection_refused` | 4 | 网络/中间层错误,检查 `auth status` 的中间层地址 |
+
+> 信封/错误格式见 rx-shared「输出与信封约定」与「错误处理」。
 
 ## 深度参考
 

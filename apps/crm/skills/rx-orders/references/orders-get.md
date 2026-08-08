@@ -18,8 +18,8 @@ rxcli orders get o_1001
 
 ## 边界情况
 
-- **查别人的订单 → 404**:公司应用按 userId 过滤,不属于当前用户的订单一律返回 `order_not_found`(404),不返回 403,避免泄露"该订单存在但属于别人"。
-- **不存在的订单 → 404**:同上,返回 `order_not_found`。
+- **查别人的订单 → 404**:公司应用按 userId 过滤,不属于当前用户的订单一律返回 404 `not_found`,不返回 403,避免泄露"该订单存在但属于别人"。
+- **不存在的订单 → 404**:同上,返回 404 `not_found`。
 - **行项目 items**:订单详情比列表多 `items`(行项目)和 `shippingAddress` 字段;列表只有汇总。
 - **401 自动续期**:中间层 JWT 过期,CLI 自动用 refresh_token 续期一次,重试请求。
-- **权限不足**:`orders:read` scope 缺失返回 403(bob / dave / erin 账号)。
+- **权限不足**:`orders:read` scope 缺失返回 403 `forbidden`(bob / dave / erin 账号)。

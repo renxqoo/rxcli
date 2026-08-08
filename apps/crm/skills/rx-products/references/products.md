@@ -23,7 +23,7 @@ rxcli products list --category 电脑外设
 - **商品目录全局共享**:与订单(按用户隔离)不同,所有有 `products:read` 的用户看到同一份目录。
 - **token 自动刷新**:company_token 过期时中间层自动刷新(对 CLI 透明)。
 - **401 自动续期**:中间层 JWT 过期,CLI 自动用 refresh_token 续期一次,重试请求。
-- **权限不足**:`products:read` 缺失返回 403。
+- **权限不足**:`products:read` 缺失返回 403 `forbidden`。
 
 ## 限流
 

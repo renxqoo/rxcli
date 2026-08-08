@@ -20,7 +20,7 @@ rxcli invoices list
 - **发票与订单关联**:每张发票有 `orderId` 字段,可用 `rxcli orders get <orderId>` 查对应订单详情(需 `orders:read` scope)。
 - **token 自动刷新**:company_token 过期时中间层自动刷新(对 CLI 透明)。
 - **401 自动续期**:中间层 JWT 过期,CLI 自动用 refresh_token 续期一次,重试请求。
-- **权限不足**:`invoices:read` 缺失返回 403。
+- **权限不足**:`invoices:read` 缺失返回 403 `forbidden`。
 
 ## 限流
 

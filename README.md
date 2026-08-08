@@ -4,14 +4,14 @@
 
 CLI 不直接持有公司应用凭证,而是经 OAuth 2.0 设备授权流程在中间层登录,再由中间层代理所有业务请求 —— company_token 永不离开中间层。
 
-[安装](#安装) · [快速开始](#快速开始) · [Agent Skills](#agent-skills) · [命令](#命令) · [认证](#认证) · [多环境](#多环境)
+[安装](#安装) · [快速开始](#快速开始) · [Agent Skills](#agent-skills) · [命令](#命令) · [认证](#认证) · [后端地址](#后端地址)
 
 ## 特性
 
 - **Agent-Native** — 内置 AI Agent Skills,兼容主流 AI 工具(ZCode / Claude Code / Codex),Agent 零配置即可操作;结构化信封(stdout=数据 / stderr=错误),管道可靠组合
 - **安全边界** — 账号密码只在浏览器↔中间层,CLI 不接触;company_token 只存中间层,CLI 只持有中间层签发的 JWT
 - **动态注册** — 每台机器独立 client 凭据,无需硬编码 secret;注册令牌由管理员后台管理(一次性/多次可选)
-- **多环境** — dev / test / prod,环境变量切换
+- **可配置后端** — 鉴权中间层与业务网关地址均可经环境变量配置,适配自部署/内网场景
 - **自动续期** — token 过期自动刷新(singleflight 复用,避免并发重复刷新)
 
 ## 架构
@@ -114,7 +114,7 @@ rxcli auth status
 rxcli orders list
 ```
 
-输出是结构化 JSON 信封 `{"ok":true,"data":...}`,可直接解析。错误信封走 stderr,exit code 分类(2 参数错 / 3 需登录 / 6 API 错 等)。
+输出是结构化 JSON 信封 `{"ok":true,"data":...}`,可直接解析。错误信封走 stderr,exit code 分类(2 参数错 / 3 需登录或鉴权 / 4 网络 / 1 API 错 等)。
 
 ## Agent Skills
 
@@ -180,9 +180,9 @@ token 生命周期:
 - refresh token(7d)过期 → 需重新 `auth login`
 - refresh token 重用检测 → 自动吊销 session(安全加固)
 
-## 多环境
+## 后端地址
 
-用环境变量配置中间层地址:
+CLI 不绑定固定后端,鉴权中间层与业务网关地址均由环境变量配置(适配自部署 / 内网等场景)。默认指向同一中间层:
 
 ```bash
 RXCLI_AUTH_BASE_URL=https://auth.example.com  \
@@ -190,13 +190,13 @@ RXCLI_API_BASE_URL=https://gateway.example.com  \
 rxcli auth login
 ```
 
-| 环境变量              | 默认                    | 说明                          |
-| --------------------- | ----------------------- | ----------------------------- |
-| `RXCLI_AUTH_BASE_URL` |  RXCLI_AUTH_BASE_URL  | 鉴权中间层(device flow/token)|
-| `RXCLI_API_BASE_URL`  |  RXCLI_API_BASE_URL   | 业务 API 网关(/proxy/*)      |
-| `RXCLI_CLIENT_ID`     | (config.json)           | OAuth client id               |
-| `RXCLI_CLIENT_SECRET` | (config.json)           | OAuth client secret           |
-| `RXCLI_SKILLS_SOURCE` | (空=本地 skills)        | skills 源 URL(install 向导用)|
+| 环境变量              | 默认                            | 说明                          |
+| --------------------- | ------------------------------- | ----------------------------- |
+| `RXCLI_AUTH_BASE_URL` | `http://120.26.219.32`          | 鉴权中间层(device flow/token)|
+| `RXCLI_API_BASE_URL`  | `http://120.26.219.32`          | 业务 API 网关(/proxy/*)      |
+| `RXCLI_CLIENT_ID`     | (读 `~/.rxcli/config.json`)     | OAuth client id               |
+| `RXCLI_CLIENT_SECRET` | (读 `~/.rxcli/config.json`)     | OAuth client secret           |
+| `RXCLI_SKILLS_SOURCE` | (空=用包内本地 skills)          | skills 源 URL(install 向导用)|
 
 ## 本地存储
 
