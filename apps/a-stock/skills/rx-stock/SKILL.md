@@ -13,12 +13,7 @@ rxstock 是 A 股股票数据的命令行工具,通过公开渠道(腾讯/东方
 ## 安装与运行
 
 ```bash
-# 即用即跑(推荐)
-npx @renxqoo/rxstock <命令>
-
-# 全局安装
-npm install -g @renxqoo/rxstock
-rxstock <命令>
+npx @renxqoo/rxstock install
 
 # 一键安装 skill 到本地 AI 工具(向导)
 rxstock install
