@@ -13,13 +13,9 @@ export type {
   TokenResult,
   IdentityHint,
   StoredOAuthCredentials,
-} from './types.js'
+} from "./types.js";
 
-export {
-  fileStore,
-  memoryStore,
-  type FileStoreOptions,
-} from './config-store.js'
+export { fileStore, memoryStore, type FileStoreOptions } from "./config-store.js";
 
 export {
   flagProvider,
@@ -29,4 +25,4 @@ export {
   defaultProviders,
   resolveWithChain,
   resolveIdentityWithChain,
-} from './providers.js'
+} from "./providers.js";

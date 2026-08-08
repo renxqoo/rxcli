@@ -6,16 +6,22 @@
  * + enforce 三档(pre/normal/post)+ onError 链式。
  */
 
-import type { Plugin, CommandContext, RequestOptions, TransportResponse, StructuredData } from './types.js'
+import type {
+  Plugin,
+  CommandContext,
+  RequestOptions,
+  TransportResponse,
+  StructuredData,
+} from "./types.js";
 
 // ============================================================================
 // enforce 三档排序
 // ============================================================================
 
-type EnforceLevel = 'pre' | 'normal' | 'post'
+type EnforceLevel = "pre" | "normal" | "post";
 
 function enforceLevel(p: Plugin<any>): EnforceLevel {
-  return p.enforce ?? 'normal'
+  return p.enforce ?? "normal";
 }
 
 /**
@@ -23,8 +29,8 @@ function enforceLevel(p: Plugin<any>): EnforceLevel {
  * 用于同一钩子内确定插件执行顺序。
  */
 export function sortPlugins<State>(plugins: Plugin<State>[]): Plugin<State>[] {
-  const order: Record<EnforceLevel, number> = { pre: 0, normal: 1, post: 2 }
-  return [...plugins].sort((a, b) => order[enforceLevel(a)] - order[enforceLevel(b)])
+  const order: Record<EnforceLevel, number> = { pre: 0, normal: 1, post: 2 };
+  return [...plugins].sort((a, b) => order[enforceLevel(a)] - order[enforceLevel(b)]);
 }
 
 /** 挑出实现了指定钩子的插件(已排序)。 */
@@ -32,7 +38,7 @@ function withHook<State, K extends keyof Plugin<State>>(
   plugins: Plugin<State>[],
   hook: K,
 ): Plugin<State>[] {
-  return sortPlugins(plugins).filter((p) => typeof p[hook] === 'function')
+  return sortPlugins(plugins).filter((p) => typeof p[hook] === "function");
 }
 
 // ============================================================================
@@ -53,17 +59,17 @@ export async function runBeforeCommand<State>(
   ctx: CommandContext<State>,
   route?: string[],
 ): Promise<void> {
-  for (const p of withHook(plugins, 'beforeCommand')) {
+  for (const p of withHook(plugins, "beforeCommand")) {
     // 精确豁免:plugin 自己的命令跳自己的 beforeCommand(不跳别的 plugin)
-    if (route && isOwnedRoute(p._ownedRoutes, route)) continue
-    await p.beforeCommand!(ctx)
+    if (route && isOwnedRoute(p._ownedRoutes, route)) continue;
+    await p.beforeCommand!(ctx);
   }
 }
 
 /** 判断 route 是否在 ownedRoutes 里(长度 + 逐段相等)。 */
 function isOwnedRoute(owned: string[][] | undefined, route: string[]): boolean {
-  if (!owned || owned.length === 0) return false
-  return owned.some((r) => r.length === route.length && r.every((seg, i) => seg === route[i]))
+  if (!owned || owned.length === 0) return false;
+  return owned.some((r) => r.length === route.length && r.every((seg, i) => seg === route[i]));
 }
 
 /** beforeRequest:每次 ctx.get/post 前,可改 req。 */
@@ -72,8 +78,8 @@ export async function runBeforeRequest<State>(
   ctx: CommandContext<State>,
   req: RequestOptions,
 ): Promise<void> {
-  for (const p of withHook(plugins, 'beforeRequest')) {
-    await p.beforeRequest!(ctx, req)
+  for (const p of withHook(plugins, "beforeRequest")) {
+    await p.beforeRequest!(ctx, req);
   }
 }
 
@@ -83,8 +89,8 @@ export async function runAfterRequest<State>(
   ctx: CommandContext<State>,
   res: TransportResponse,
 ): Promise<void> {
-  for (const p of withHook(plugins, 'afterRequest')) {
-    await p.afterRequest!(ctx, res)
+  for (const p of withHook(plugins, "afterRequest")) {
+    await p.afterRequest!(ctx, res);
   }
 }
 
@@ -97,11 +103,11 @@ export async function runBeforeOutput<State>(
   ctx: CommandContext<State>,
   data: unknown,
 ): Promise<StructuredData> {
-  let current: StructuredData = data as StructuredData
-  for (const p of withHook(plugins, 'beforeOutput')) {
-    current = await p.beforeOutput!(ctx, current)
+  let current: StructuredData = data as StructuredData;
+  for (const p of withHook(plugins, "beforeOutput")) {
+    current = await p.beforeOutput!(ctx, current);
   }
-  return current
+  return current;
 }
 
 // ============================================================================
@@ -126,10 +132,10 @@ export async function runOnError<State>(
   ctx: CommandContext<State>,
   err: unknown,
 ): Promise<unknown> {
-  let current: unknown = err
-  for (const p of withHook(plugins, 'onError')) {
-    current = await p.onError!(ctx, current)
+  let current: unknown = err;
+  for (const p of withHook(plugins, "onError")) {
+    current = await p.onError!(ctx, current);
     // undefined = 吞掉;但继续跑后续插件(它们可能重新抛出)
   }
-  return current
+  return current;
 }

@@ -18,7 +18,7 @@
  */
 
 // 核心装配
-export { defineCli, defineCommand, defineCommands } from './define.js'
+export { defineCli, defineCommand, defineCommands } from "./define.js";
 
 // 认证基础能力(供开发者写 auth Plugin 用;auth 本身是 Plugin,无封闭工厂)
 export {
@@ -37,7 +37,7 @@ export {
   type UserInfo,
   type OAuthClientConfig,
   type PollResult,
-} from './oauth.js'
+} from "./oauth.js";
 
 // 凭证基础能力(供开发者写 auth Plugin 用:provider chain + store)
 export {
@@ -56,7 +56,7 @@ export {
   type TokenResult,
   type IdentityHint,
   type FileStoreOptions,
-} from './credentials/index.js'
+} from "./credentials/index.js";
 
 // 错误(errs 命名空间 + 具名类)
 export {
@@ -75,9 +75,10 @@ export {
   BareError,
   exitCodeOf,
   categoryOfSubtype,
+  SUBTYPE_REGISTRY,
   type Category,
   type Problem,
-} from './errs/index.js'
+} from "./errs/index.js";
 
 // 信封
 export {
@@ -85,13 +86,18 @@ export {
   serializeError,
   type Identity,
   type SerializeOptions,
-} from './envelope.js'
+} from "./envelope.js";
 
 // --no-json 模式通用文本渲染(命令 humanFormat 兜底用;也可供业务自定义渲染复用)
-export { prettyPrint, prettyError, printTable, type TableColumn } from './pretty.js'
+export { prettyPrint, prettyError, printTable, type TableColumn } from "./pretty.js";
 
 // 请求层(供自定义 transport 用)
-export { createTransport, type Transport, type CreateTransportOptions, type On401Hook } from './request.js'
+export {
+  createTransport,
+  type Transport,
+  type CreateTransportOptions,
+  type On401Hook,
+} from "./request.js";
 
 // 插件
 export {
@@ -101,13 +107,13 @@ export {
   runAfterRequest,
   runBeforeOutput,
   runOnError,
-} from './plugin.js'
+} from "./plugin.js";
 
 // 上下文工厂
-export { createContext, createStderrLog } from './context.js'
+export { createContext, createStderrLog } from "./context.js";
 
 // 管道
-export { createPipeReader, emptyPipe } from './pipe.js'
+export { createPipeReader, emptyPipe } from "./pipe.js";
 
 // skill 系统(reader + sync + gen)
 export {
@@ -129,23 +135,23 @@ export {
   AUTOGEN_END,
   type SkillInfo,
   type DirEntry,
-} from './skills/index.js'
+} from "./skills/index.js";
 
 // 参数解析
-export { parseArgs, signatureOfArgs, positionalLabel } from './args.js'
+export { parseArgs, signatureOfArgs, positionalLabel } from "./args.js";
 
 // 执行器
-export { runCommand } from './pipeline.js'
+export { runCommand } from "./pipeline.js";
 
 // install 向导(框架层,业务包拦截 install 命令后调)
-export { runInstallWizard, type InstallWizardOptions } from './install-wizard.js'
-export { detectBizPackage, type BizPackageInfo } from './define.js'
+export { runInstallWizard, type InstallWizardOptions } from "./install-wizard.js";
+export { detectBizPackage, type BizPackageInfo } from "./define.js";
 
 // OAuth 鉴权工厂(plugin.provides 自动注入 login/status/logout/register 命令)
-export { defineAuth, type DefineAuthOptions, pollAndPersist } from './auth/index.js'
+export { defineAuth, type DefineAuthOptions, pollAndPersist } from "./auth/index.js";
 
 // 测试工具(createTestCtx,供业务包 mock ctx 用)
-export { createTestCtx, type MockRequest, type CreateTestCtxOptions } from './test-utils.js'
+export { createTestCtx, type MockRequest, type CreateTestCtxOptions } from "./test-utils.js";
 
 // 类型
 export type {
@@ -169,7 +175,4 @@ export type {
   RequestOptions,
   StructuredData,
   TransportResponse,
-} from './types.js'
-
-// 版本
-export const VERSION = '0.1.0'
+} from "./types.js";

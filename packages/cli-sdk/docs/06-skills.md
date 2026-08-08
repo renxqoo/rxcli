@@ -6,10 +6,10 @@
 
 ## 两种信息,分开产出
 
-| 信息类型 | 例子 | 谁产出 |
-|---|---|---|
-| **机械信息** | 命令签名、参数列表、类型、必填、默认值、scope | `defineCommands` **自动生成** |
-| **语义信息** | description、"用户说X用什么"、前置条件、错误处理、边界 | 人写 |
+| 信息类型     | 例子                                                   | 谁产出                        |
+| ------------ | ------------------------------------------------------ | ----------------------------- |
+| **机械信息** | 命令签名、参数列表、类型、必填、默认值、scope          | `defineCommands` **自动生成** |
+| **语义信息** | description、"用户说X用什么"、前置条件、错误处理、边界 | 人写                          |
 
 **为什么要分开**:如果命令表手写,加一个参数要同步改两处(SKILL.md + 代码),必然漂移。机械信息从代码生成,保证永远同步;语义信息人写,因为只有业务专家知道"用户说'查订单'该映射到哪个命令"。
 
@@ -88,43 +88,48 @@ metadata:
 
 <!-- AUTO-GEN:START commands -->
 <!-- 本区块由 `rxcli skills gen` 自动生成,不要手改 -->
+
 ## 命令
 
-| 操作 | 命令 | 权限 |
-|------|------|------|
-| 查询订单列表 | `rxcli-orders list [--limit <number>] [--offset <number>] [--status <string>]` | — |
-| 查询订单详情 | `rxcli-orders get <id>` | — |
-| 更新订单状态 | `rxcli-orders update <id> [--status <string>]` | orders:write |
+| 操作         | 命令                                                                           | 权限         |
+| ------------ | ------------------------------------------------------------------------------ | ------------ |
+| 查询订单列表 | `rxcli-orders list [--limit <number>] [--offset <number>] [--status <string>]` | —            |
+| 查询订单详情 | `rxcli-orders get <id>`                                                        | —            |
+| 更新订单状态 | `rxcli-orders update <id> [--status <string>]`                                 | orders:write |
 
 ### 参数说明
 
 **list**
-| 参数 | 类型 | 必填 | 默认 | 说明 |
-|------|------|:----:|------|------|
-| `--limit` | number | 否 | 30 | 返回数量上限 |
-| `--offset` | number | 否 | 0 | 偏移量 |
-| `--status` | string | 否 | — | 状态过滤: unpaid/paid/shipped |
+
+| 参数       | 类型   | 必填 | 默认 | 说明                          |
+| ---------- | ------ | :--: | ---- | ----------------------------- |
+| `--limit`  | number |  否  | 30   | 返回数量上限                  |
+| `--offset` | number |  否  | 0    | 偏移量                        |
+| `--status` | string |  否  | —    | 状态过滤: unpaid/paid/shipped |
 
 **get**
-| 参数 | 类型 | 必填 |
-|------|------|:----:|
-| `<id>` | string | 是 |
+
+| 参数   | 类型   | 必填 |
+| ------ | ------ | :--: |
+| `<id>` | string |  是  |
 
 **update**
-| 参数 | 类型 | 必填 |
-|------|------|:----:|
-| `<id>` | string | 是 |
-| `--status` | string | 否 |
+
+| 参数       | 类型   | 必填 |
+| ---------- | ------ | :--: |
+| `<id>`     | string |  是  |
+| `--status` | string |  否  |
+
 <!-- AUTO-GEN:END -->
 
 ## 何时用
 
-| 用户说 | 命令 |
-|--------|------|
-| "查订单" / "看看订单" / "订单列表" | `orders list` |
-| "最近 5 条订单" | `orders list --limit 5` |
-| "查一下 o_1001" / "订单详情" | `orders get o_1001` |
-| "把这个订单改成已发货" | `orders update o_1001 --status shipped` |
+| 用户说                             | 命令                                    |
+| ---------------------------------- | --------------------------------------- |
+| "查订单" / "看看订单" / "订单列表" | `orders list`                           |
+| "最近 5 条订单"                    | `orders list --limit 5`                 |
+| "查一下 o_1001" / "订单详情"       | `orders get o_1001`                     |
+| "把这个订单改成已发货"             | `orders update o_1001 --status shipped` |
 
 ## 前置条件
 
@@ -133,11 +138,11 @@ metadata:
 
 ## 错误处理
 
-| 错误 | 处理 |
-|------|------|
-| `not_found` / exit 1 | 订单不存在,用 `orders list` 查有效 ID |
-| exit 3 + `missing_scope` | 重新登录获取 scope,见 error.hint |
-| exit 4 网络错误 | 稍后重试 |
+| 错误                     | 处理                                  |
+| ------------------------ | ------------------------------------- |
+| `not_found` / exit 1     | 订单不存在,用 `orders list` 查有效 ID |
+| exit 3 + `missing_scope` | 重新登录获取 scope,见 error.hint      |
+| exit 4 网络错误          | 稍后重试                              |
 ```
 
 ### 关键设计:AUTO-GEN 标记块(preserved regions)
@@ -161,15 +166,15 @@ metadata:
 
 生成器从命令定义里提取这些机械信息:
 
-| 字段 | 来源 | 进文档哪里 |
-|---|---|---|
-| `name` | defineCommand.name | 命令表的"操作"列 |
-| `description` | defineCommand.description | 命令表的描述 |
-| `args.*.type` | 参数类型 | 参数表的"类型"列 |
-| `args.*.required` | 是否必填 | 参数表的"必填"列 |
-| `args.*.default` | 默认值 | 参数表的"默认"列 |
-| `args.*.desc` | **可选**描述 | 参数表的"说明"列(不填则是 —) |
-| `requiresScope` | 所需 scope | 命令表的"权限"列 |
+| 字段              | 来源                      | 进文档哪里                   |
+| ----------------- | ------------------------- | ---------------------------- |
+| `name`            | defineCommand.name        | 命令表的"操作"列             |
+| `description`     | defineCommand.description | 命令表的描述                 |
+| `args.*.type`     | 参数类型                  | 参数表的"类型"列             |
+| `args.*.required` | 是否必填                  | 参数表的"必填"列             |
+| `args.*.default`  | 默认值                    | 参数表的"默认"列             |
+| `args.*.desc`     | **可选**描述              | 参数表的"说明"列(不填则是 —) |
+| `requiresScope`   | 所需 scope                | 命令表的"权限"列             |
 
 ### 生成命令
 
@@ -186,10 +191,10 @@ rxcli-orders skills gen orders
 
 ### 生成策略 A + B(都用,决策清单 #15)
 
-| 策略 | 行为 | 命令 |
-|---|---|---|
-| **A. 命令文档片段** | 只生成 `## 命令` + `### 参数说明` 两节,塞进标记块 | `gen <name>`(增量) |
-| **B. 完整骨架** | 首次吐整份 SKILL.md(带 `{{FILL}}` 占位),后续只刷标记块 | `gen <name> --init` |
+| 策略                | 行为                                                   | 命令                |
+| ------------------- | ------------------------------------------------------ | ------------------- |
+| **A. 命令文档片段** | 只生成 `## 命令` + `### 参数说明` 两节,塞进标记块      | `gen <name>`(增量)  |
+| **B. 完整骨架**     | 首次吐整份 SKILL.md(带 `{{FILL}}` 占位),后续只刷标记块 | `gen <name> --init` |
 
 首次 `--init` 用 B,后续维护用 A。两者共享同一套标记块机制。
 
@@ -199,14 +204,14 @@ rxcli-orders skills gen orders
 
 自动生成的签名要稳定、可预测,否则 agent 容易读错。规则(commander/git/jq 通用约定,决策清单):
 
-| 参数特征 | 签名写法 | 例子 |
-|---|---|---|
-| required + positional | `<name>` | `get <id>` |
-| optional + positional | `[<name>]` | `[<offset>]` |
-| required + flag | `--name <type>` | `--status <string>` |
-| optional + flag | `[--name <type>]` | `[--limit <number>]` |
-| boolean flag | `[--flag]` | `[--json]` |
-| array flag(可多次) | `[--name <type>...]` | `[--tag <string>...]` |
+| 参数特征              | 签名写法             | 例子                  |
+| --------------------- | -------------------- | --------------------- |
+| required + positional | `<name>`             | `get <id>`            |
+| optional + positional | `[<name>]`           | `[<offset>]`          |
+| required + flag       | `--name <type>`      | `--status <string>`   |
+| optional + flag       | `[--name <type>]`    | `[--limit <number>]`  |
+| boolean flag          | `[--flag]`           | `[--json]`            |
+| array flag(可多次)    | `[--name <type>...]` | `[--tag <string>...]` |
 
 ### 生成示例
 
@@ -279,13 +284,13 @@ npx @renxqoo/cli install
 
 ```yaml
 ---
-name: orders                    # skill 名(必须,与目录名一致)
-description: 一句话描述何时用    # 必须,agent 靠它语义匹配用户意图
-version: 1.0.0                  # 可选
-metadata:                       # 可选
+name: orders # skill 名(必须,与目录名一致)
+description: 一句话描述何时用 # 必须,agent 靠它语义匹配用户意图
+version: 1.0.0 # 可选
+metadata: # 可选
   requires:
-    bins: ["rxcli-orders"]      # 依赖的 bin
-  category: business            # 分类
+    bins: ["rxcli-orders"] # 依赖的 bin
+  category: business # 分类
   cliHelp: "rxcli-orders --help"
 ---
 ```
@@ -293,11 +298,13 @@ metadata:                       # 可选
 `description` 是 agent 触发 skill 的关键——agent 启动时按 description 语义匹配用户意图。所以要写清楚**何时用**,不只是**是什么**。
 
 ✅ 好 description:
+
 ```
 "查询订单列表/详情/更新。当用户需要查订单、看订单列表、查某个订单详情时使用。"
 ```
 
 ❌ 坏 description(太抽象,agent 难匹配):
+
 ```
 "订单管理工具"
 ```
@@ -314,6 +321,7 @@ $ rxcli skills read orders/../../../etc/passwd
 ```
 
 校验规则:
+
 - 拒绝绝对路径(`/etc/...`)和 Windows 绝对路径(`C:\...`)
 - 拒绝含 `..` 的路径(归一化后检查)
 - 只允许相对路径,限定在 skill 目录内
@@ -351,7 +359,6 @@ vi skills/orders/references/orders-list.md   # 手写,gen 不碰
 ## skill 与 lark-cli 的关系
 
 本框架的 `skills/reader.ts` 和 lark-cli 的 `skillcontent/reader.go` 几乎逐行一致(都是 list/read + 路径校验 + frontmatter 解析)。直接沿用这套(已验证),只增加:
+
 - **命令文档自动生成**(框架新增,lark-cli 用别的方式)
 - **跨包 skill 聚合**(业务包负责,lark-cli 是单仓)
-
-

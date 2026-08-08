@@ -11,36 +11,36 @@
 // ============================================================================
 
 export type Category =
-  | 'validation'
-  | 'authentication'
-  | 'authorization'
-  | 'config'
-  | 'network'
-  | 'api'
-  | 'policy'
-  | 'internal'
-  | 'confirmation'
+  | "validation"
+  | "authentication"
+  | "authorization"
+  | "config"
+  | "network"
+  | "api"
+  | "policy"
+  | "internal"
+  | "confirmation";
 
 /** category → exit code(对齐 04-errors.md 的映射表)。 */
 export function exitCodeOf(category: Category): number {
   switch (category) {
-    case 'validation':
-      return 2
-    case 'authentication':
-    case 'authorization':
-    case 'config':
-      return 3
-    case 'network':
-      return 4
-    case 'internal':
-      return 5
-    case 'policy':
-      return 6
-    case 'confirmation':
-      return 10
-    case 'api':
+    case "validation":
+      return 2;
+    case "authentication":
+    case "authorization":
+    case "config":
+      return 3;
+    case "network":
+      return 4;
+    case "internal":
+      return 5;
+    case "policy":
+      return 6;
+    case "confirmation":
+      return 10;
+    case "api":
     default:
-      return 1
+      return 1;
   }
 }
 
@@ -54,57 +54,57 @@ export function exitCodeOf(category: Category): number {
  */
 export const SUBTYPE_REGISTRY: Record<string, { category: Category }> = {
   // validation
-  invalid_argument: { category: 'validation' },
-  missing_required: { category: 'validation' },
-  out_of_range: { category: 'validation' },
+  invalid_argument: { category: "validation" },
+  missing_required: { category: "validation" },
+  out_of_range: { category: "validation" },
 
   // authentication
-  no_token: { category: 'authentication' },
-  token_expired: { category: 'authentication' },
-  token_revoked: { category: 'authentication' },
-  no_credentials: { category: 'authentication' },
-  no_refresh_token: { category: 'authentication' },
+  no_token: { category: "authentication" },
+  token_expired: { category: "authentication" },
+  token_revoked: { category: "authentication" },
+  no_credentials: { category: "authentication" },
+  no_refresh_token: { category: "authentication" },
 
   // authorization
-  missing_scope: { category: 'authorization' },
-  app_permission_denied: { category: 'authorization' },
-  forbidden: { category: 'authorization' },
+  missing_scope: { category: "authorization" },
+  app_permission_denied: { category: "authorization" },
+  forbidden: { category: "authorization" },
 
   // config
-  missing_config: { category: 'config' },
-  invalid_config: { category: 'config' },
-  unbound_env: { category: 'config' },
+  missing_config: { category: "config" },
+  invalid_config: { category: "config" },
+  unbound_env: { category: "config" },
 
   // network
-  timeout: { category: 'network' },
-  connection_refused: { category: 'network' },
-  dns_failure: { category: 'network' },
-  ssl_error: { category: 'network' },
+  timeout: { category: "network" },
+  connection_refused: { category: "network" },
+  dns_failure: { category: "network" },
+  ssl_error: { category: "network" },
 
   // api
-  not_found: { category: 'api' },
-  already_exists: { category: 'api' },
-  conflict: { category: 'api' },
-  rate_limited: { category: 'api' },
-  server_error: { category: 'api' },
+  not_found: { category: "api" },
+  already_exists: { category: "api" },
+  conflict: { category: "api" },
+  rate_limited: { category: "api" },
+  server_error: { category: "api" },
 
   // policy
-  content_blocked: { category: 'policy' },
-  challenge_required: { category: 'policy' },
-  access_denied: { category: 'policy' },
+  content_blocked: { category: "policy" },
+  challenge_required: { category: "policy" },
+  access_denied: { category: "policy" },
 
   // internal
-  decode_failure: { category: 'internal' },
-  unknown: { category: 'internal' },
-  contract_violation: { category: 'internal' },
+  decode_failure: { category: "internal" },
+  unknown: { category: "internal" },
+  contract_violation: { category: "internal" },
 
   // confirmation
-  high_risk_write: { category: 'confirmation' },
-}
+  high_risk_write: { category: "confirmation" },
+};
 
-/** 查 subtype 的 category;未登记抛错(实现阶段容错:回退 internal)。 */
+/** 查 subtype 的 category;未登记回退 internal(defineCli 启动期已对 errorOnStatus 做登记校验)。 */
 export function categoryOfSubtype(subtype: string): Category {
-  return SUBTYPE_REGISTRY[subtype]?.category ?? 'internal'
+  return SUBTYPE_REGISTRY[subtype]?.category ?? "internal";
 }
 
 // ============================================================================
@@ -113,28 +113,28 @@ export function categoryOfSubtype(subtype: string): Category {
 
 /** 扩展字段白名单:这些 Problem 扩展字段会序列化进 wire(详见 envelope.ts)。 */
 export interface Problem {
-  category: Category
-  subtype: string
+  category: Category;
+  subtype: string;
   /** 上游数字码(HTTP status / API code)。 */
-  code?: number
+  code?: number;
   /** 给人看,不保证稳定。 */
-  message: string
+  message: string;
   /** 给 agent 的可执行恢复指令。 */
-  hint?: string
+  hint?: string;
   /** 是否可重试。 */
-  retryable?: boolean
+  retryable?: boolean;
   /** 保留底层错误(errors.Is/Unwrap 可用)。 */
-  cause?: unknown
+  cause?: unknown;
 
   // —— 扩展字段(按 subtype 出现,白名单序列化)——
   /** ValidationError:出错的参数名(flag 带 --,位置参数用原名)。 */
-  param?: string
+  param?: string;
   /** ValidationError:多参数校验详情数组。 */
-  params?: Array<{ param: string; message: string }>
+  params?: Array<{ param: string; message: string }>;
   /** PermissionError:机器可读的缺失 scope 列表。 */
-  missingScopes?: string[]
+  missingScopes?: string[];
   /** 可选:服务端控制台 URL。 */
-  consoleUrl?: string
+  consoleUrl?: string;
 }
 
 // ============================================================================
@@ -143,30 +143,30 @@ export interface Problem {
 
 /** 所有类型化错误的基类,持有 Problem。 */
 export class CliError extends Error {
-  readonly category: Category
-  readonly subtype: string
-  readonly code?: number
-  readonly hint?: string
-  readonly retryable?: boolean
-  readonly param?: string
-  readonly params?: Array<{ param: string; message: string }>
-  readonly missingScopes?: string[]
-  readonly consoleUrl?: string
+  readonly category: Category;
+  readonly subtype: string;
+  readonly code?: number;
+  readonly hint?: string;
+  readonly retryable?: boolean;
+  readonly param?: string;
+  readonly params?: Array<{ param: string; message: string }>;
+  readonly missingScopes?: string[];
+  readonly consoleUrl?: string;
 
   constructor(p: Problem) {
-    super(p.message)
-    this.name = new.target.name
-    this.category = p.category
-    this.subtype = p.subtype
-    if (p.code !== undefined) this.code = p.code
-    if (p.hint !== undefined) this.hint = p.hint
-    if (p.retryable !== undefined) this.retryable = p.retryable
-    if (p.param !== undefined) this.param = p.param
-    if (p.params !== undefined) this.params = p.params
-    if (p.missingScopes !== undefined) this.missingScopes = p.missingScopes
-    if (p.consoleUrl !== undefined) this.consoleUrl = p.consoleUrl
+    super(p.message);
+    this.name = new.target.name;
+    this.category = p.category;
+    this.subtype = p.subtype;
+    if (p.code !== undefined) this.code = p.code;
+    if (p.hint !== undefined) this.hint = p.hint;
+    if (p.retryable !== undefined) this.retryable = p.retryable;
+    if (p.param !== undefined) this.param = p.param;
+    if (p.params !== undefined) this.params = p.params;
+    if (p.missingScopes !== undefined) this.missingScopes = p.missingScopes;
+    if (p.consoleUrl !== undefined) this.consoleUrl = p.consoleUrl;
     // ES2022 cause:保留底层错误,让 errors.is/Unwrap 仍能工作
-    if (p.cause !== undefined) (this as { cause?: unknown }).cause = p.cause
+    if (p.cause !== undefined) (this as { cause?: unknown }).cause = p.cause;
   }
 
   /** 导出为 Problem(序列化用)。 */
@@ -175,15 +175,15 @@ export class CliError extends Error {
       category: this.category,
       subtype: this.subtype,
       message: this.message,
-    }
-    if (this.code !== undefined) p.code = this.code
-    if (this.hint !== undefined) p.hint = this.hint
-    if (this.retryable !== undefined) p.retryable = this.retryable
-    if (this.param !== undefined) p.param = this.param
-    if (this.params !== undefined) p.params = this.params
-    if (this.missingScopes !== undefined) p.missingScopes = this.missingScopes
-    if (this.consoleUrl !== undefined) p.consoleUrl = this.consoleUrl
-    return p
+    };
+    if (this.code !== undefined) p.code = this.code;
+    if (this.hint !== undefined) p.hint = this.hint;
+    if (this.retryable !== undefined) p.retryable = this.retryable;
+    if (this.param !== undefined) p.param = this.param;
+    if (this.params !== undefined) p.params = this.params;
+    if (this.missingScopes !== undefined) p.missingScopes = this.missingScopes;
+    if (this.consoleUrl !== undefined) p.consoleUrl = this.consoleUrl;
+    return p;
   }
 }
 
@@ -193,43 +193,43 @@ export class CliError extends Error {
 
 /** ① 参数错误(用户输入不对)exit 2。 */
 export class ValidationError extends CliError {
-  constructor(p: Omit<Problem, 'category'> & { category?: never }) {
-    super({ ...p, category: 'validation' })
+  constructor(p: Omit<Problem, "category"> & { category?: never }) {
+    super({ ...p, category: "validation" });
   }
 }
 
 /** ② 需要登录(token 不存在或失效)exit 3。 */
 export class AuthenticationError extends CliError {
-  constructor(p: Omit<Problem, 'category'> & { category?: never }) {
-    super({ ...p, category: 'authentication' })
+  constructor(p: Omit<Problem, "category"> & { category?: never }) {
+    super({ ...p, category: "authentication" });
   }
 }
 
 /** ③ 权限不足(token 有效但缺 scope)exit 3。 */
 export class PermissionError extends CliError {
-  constructor(p: Omit<Problem, 'category'> & { category?: never }) {
-    super({ ...p, category: 'authorization' })
+  constructor(p: Omit<Problem, "category"> & { category?: never }) {
+    super({ ...p, category: "authorization" });
   }
 }
 
 /** ④ 配置错误(本地配置缺失 / 未绑定)exit 3。 */
 export class ConfigError extends CliError {
-  constructor(p: Omit<Problem, 'category'> & { category?: never }) {
-    super({ ...p, category: 'config' })
+  constructor(p: Omit<Problem, "category"> & { category?: never }) {
+    super({ ...p, category: "config" });
   }
 }
 
 /** ⑤ 网络错误(DNS/超时/拒绝/传输层)exit 4。 */
 export class NetworkError extends CliError {
-  constructor(p: Omit<Problem, 'category'> & { category?: never }) {
-    super({ ...p, category: 'network' })
+  constructor(p: Omit<Problem, "category"> & { category?: never }) {
+    super({ ...p, category: "network" });
   }
 }
 
 /** ⑥ API 错误(服务端业务错误,HTTP 非 2xx)exit 1。 */
 export class APIError extends CliError {
-  constructor(p: Omit<Problem, 'category'> & { category?: never }) {
-    super({ ...p, category: 'api' })
+  constructor(p: Omit<Problem, "category"> & { category?: never }) {
+    super({ ...p, category: "api" });
   }
 }
 
@@ -239,28 +239,28 @@ export class APIError extends CliError {
  */
 export class NotFoundError extends APIError {
   constructor(message: string, opts?: { hint?: string; code?: number }) {
-    super({ subtype: 'not_found', code: opts?.code ?? 404, message, hint: opts?.hint })
+    super({ subtype: "not_found", code: opts?.code ?? 404, message, hint: opts?.hint });
   }
 }
 
 /** ⑦ 策略拦截(风控/内容安全/安全挑战)exit 6。 */
 export class PolicyError extends CliError {
-  constructor(p: Omit<Problem, 'category'> & { category?: never }) {
-    super({ ...p, category: 'policy' })
+  constructor(p: Omit<Problem, "category"> & { category?: never }) {
+    super({ ...p, category: "policy" });
   }
 }
 
 /** ⑧ 内部错误(SDK 契约违反 / 解码失败 / 不该发生)exit 5。 */
 export class InternalError extends CliError {
-  constructor(p: Omit<Problem, 'category'> & { category?: never }) {
-    super({ ...p, category: 'internal' })
+  constructor(p: Omit<Problem, "category"> & { category?: never }) {
+    super({ ...p, category: "internal" });
   }
 }
 
 /** ⑨ 需要确认(高风险写入需要 --yes)exit 10。 */
 export class ConfirmationRequiredError extends CliError {
-  constructor(p: Omit<Problem, 'category'> & { category?: never }) {
-    super({ ...p, category: 'confirmation' })
+  constructor(p: Omit<Problem, "category"> & { category?: never }) {
+    super({ ...p, category: "confirmation" });
   }
 }
 
@@ -274,11 +274,11 @@ export class ConfirmationRequiredError extends CliError {
  * 普通业务命令禁用,正常失败必须 throw 9 类类型化错误。
  */
 export class BareError extends Error {
-  readonly exitCode: number
+  readonly exitCode: number;
   constructor(exitCode: number) {
-    super(`BareError(${exitCode})`)
-    this.name = 'BareError'
-    this.exitCode = exitCode
+    super(`BareError(${exitCode})`);
+    this.name = "BareError";
+    this.exitCode = exitCode;
   }
 }
 
@@ -292,10 +292,10 @@ export class BareError extends Error {
  * 应 instanceof CliError 透传,只有非类型化错误才走这里。
  */
 export function toCliError(err: unknown): CliError {
-  if (err instanceof CliError) return err
-  if (err instanceof BareError) return err as unknown as CliError // pipeline 单独处理 BareError
-  const message = err instanceof Error ? err.message : String(err)
-  return new InternalError({ subtype: 'unknown', message, cause: err })
+  if (err instanceof CliError) return err;
+  if (err instanceof BareError) return err as unknown as CliError; // pipeline 单独处理 BareError
+  const message = err instanceof Error ? err.message : String(err);
+  return new InternalError({ subtype: "unknown", message, cause: err });
 }
 
 /** errs 命名空间导出(对齐文档 `import { errs } from '@renxqoo/agent-data-cli'` 用法)。 */
@@ -314,4 +314,4 @@ export const errs = {
   BareError,
   exitCodeOf,
   categoryOfSubtype,
-}
+};

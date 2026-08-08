@@ -8,17 +8,17 @@
  *   只有 meta.pagination.nextToken、dryRun、missingScopes 等骨架字段转 snake。
  */
 
-import type { Meta } from './types.js'
-import { CliError } from './errs/index.js'
+import type { Meta } from "./types.js";
+import { CliError } from "./errs/index.js";
 
-export type Identity = 'user' | 'bot'
+export type Identity = "user" | "bot";
 
 export interface SerializeOptions {
-  identity?: Identity
+  identity?: Identity;
   /** D4: dry-run 模式标记(03-envelopes.md)。出现时为 true,正常请求省略。 */
-  dryRun?: boolean
+  dryRun?: boolean;
   /** D4: 系统级提示(版本更新/skill 漂移)。下划线前缀表示非业务字段。 */
-  notice?: Record<string, unknown>
+  notice?: Record<string, unknown>;
 }
 
 // ============================================================================
@@ -27,7 +27,7 @@ export interface SerializeOptions {
 
 /** 把单个 camelCase 标识符转 snake_case(仅处理骨架字段用)。 */
 function toSnake(key: string): string {
-  return key.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`)
+  return key.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`);
 }
 
 /**
@@ -37,24 +37,24 @@ function toSnake(key: string): string {
  * 不被白名单丢弃(H2)。下划线前缀字段(_rawOutput 等内部标记)不进 wire。
  */
 function transformMeta(meta: Meta): Record<string, unknown> {
-  const out: Record<string, unknown> = {}
-  if (meta.count !== undefined) out.count = meta.count
-  if (meta.rollback !== undefined) out.rollback = meta.rollback
+  const out: Record<string, unknown> = {};
+  if (meta.count !== undefined) out.count = meta.count;
+  if (meta.rollback !== undefined) out.rollback = meta.rollback;
   if (meta.pagination !== undefined) {
-    const p = meta.pagination
-    const pg: Record<string, unknown> = { complete: p.complete }
-    if (p.pages !== undefined) pg.pages = p.pages
-    if (p.items !== undefined) pg.items = p.items
-    if (p.nextToken !== undefined) pg.next_token = p.nextToken // ← 骨架转 snake
-    out.pagination = pg
+    const p = meta.pagination;
+    const pg: Record<string, unknown> = { complete: p.complete };
+    if (p.pages !== undefined) pg.pages = p.pages;
+    if (p.items !== undefined) pg.items = p.items;
+    if (p.nextToken !== undefined) pg.next_token = p.nextToken; // ← 骨架转 snake
+    out.pagination = pg;
   }
   // H2:其余业务 meta 字段原样透传(跳过已处理的骨架字段 + 下划线前缀内部字段)
   for (const [k, v] of Object.entries(meta)) {
-    if (k.startsWith('_')) continue // 内部标记(_rawOutput 等)不进 wire
-    if (k === 'count' || k === 'rollback' || k === 'pagination') continue // 骨架已处理
-    out[k] = v
+    if (k.startsWith("_")) continue; // 内部标记(_rawOutput 等)不进 wire
+    if (k === "count" || k === "rollback" || k === "pagination") continue; // 骨架已处理
+    out[k] = v;
   }
-  return out
+  return out;
 }
 
 // ============================================================================
@@ -66,19 +66,15 @@ function transformMeta(meta: Meta): Record<string, unknown> {
  * 结构:{ ok:true, [identity], data, meta, [dry_run], [_notice] }
  * data 原样输出(不转 case);meta 骨架转 snake。
  */
-export function serializeSuccess(
-  data: unknown,
-  meta?: Meta,
-  opts: SerializeOptions = {},
-): string {
-  const env: Record<string, unknown> = { ok: true }
-  if (opts.identity) env.identity = opts.identity
-  env.data = data
-  if (meta) env.meta = transformMeta(meta)
+export function serializeSuccess(data: unknown, meta?: Meta, opts: SerializeOptions = {}): string {
+  const env: Record<string, unknown> = { ok: true };
+  if (opts.identity) env.identity = opts.identity;
+  env.data = data;
+  if (meta) env.meta = transformMeta(meta);
   // D4:dry_run 出现时为 true;_notice 是信息性字段(下划线前缀=非业务字段)
-  if (opts.dryRun) env.dry_run = true
-  if (opts.notice) env._notice = opts.notice
-  return JSON.stringify(env)
+  if (opts.dryRun) env.dry_run = true;
+  if (opts.notice) env._notice = opts.notice;
+  return JSON.stringify(env);
 }
 
 // ============================================================================
@@ -91,12 +87,12 @@ export function serializeSuccess(
  * param/params 这类本身就是参数名形态(param 值可能是 --limit / id),原样保留。
  */
 function transformErrorExtensions(err: CliError): Record<string, unknown> {
-  const ext: Record<string, unknown> = {}
-  if (err.missingScopes !== undefined) ext.missing_scopes = err.missingScopes
-  if (err.consoleUrl !== undefined) ext.console_url = err.consoleUrl
-  if (err.param !== undefined) ext.param = err.param
-  if (err.params !== undefined) ext.params = err.params
-  return ext
+  const ext: Record<string, unknown> = {};
+  if (err.missingScopes !== undefined) ext.missing_scopes = err.missingScopes;
+  if (err.consoleUrl !== undefined) ext.console_url = err.consoleUrl;
+  if (err.param !== undefined) ext.param = err.param;
+  if (err.params !== undefined) ext.params = err.params;
+  return ext;
 }
 
 /**
@@ -108,14 +104,14 @@ export function serializeError(err: CliError, opts: SerializeOptions = {}): stri
     type: err.category,
     subtype: err.subtype,
     message: err.message,
-  }
-  if (err.code !== undefined) errorObj.code = err.code
-  if (err.hint !== undefined) errorObj.hint = err.hint
-  if (err.retryable !== undefined) errorObj.retryable = err.retryable
-  Object.assign(errorObj, transformErrorExtensions(err))
+  };
+  if (err.code !== undefined) errorObj.code = err.code;
+  if (err.hint !== undefined) errorObj.hint = err.hint;
+  if (err.retryable !== undefined) errorObj.retryable = err.retryable;
+  Object.assign(errorObj, transformErrorExtensions(err));
 
-  const env: Record<string, unknown> = { ok: false }
-  if (opts.identity) env.identity = opts.identity
-  env.error = errorObj
-  return JSON.stringify(env)
+  const env: Record<string, unknown> = { ok: false };
+  if (opts.identity) env.identity = opts.identity;
+  env.error = errorObj;
+  return JSON.stringify(env);
 }

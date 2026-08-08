@@ -17,15 +17,15 @@
  */
 export interface ConfigStore {
   /** 读命名空间的凭证文件;null = 文件不存在。 */
-  loadCredentials(namespace: string): Promise<Record<string, unknown> | null>
+  loadCredentials(namespace: string): Promise<Record<string, unknown> | null>;
   /** 写命名空间的凭证文件(权限 0600)。 */
-  saveCredentials(namespace: string, data: Record<string, unknown>): Promise<void>
+  saveCredentials(namespace: string, data: Record<string, unknown>): Promise<void>;
   /** 清命名空间的凭证。 */
-  clearCredentials(namespace: string): Promise<void>
+  clearCredentials(namespace: string): Promise<void>;
   /** 读全局 config.json。 */
-  loadConfig(): Promise<Record<string, unknown>>
+  loadConfig(): Promise<Record<string, unknown>>;
   /** 写全局 config.json。 */
-  saveConfig(data: Record<string, unknown>): Promise<void>
+  saveConfig(data: Record<string, unknown>): Promise<void>;
 }
 
 // ============================================================================
@@ -33,22 +33,22 @@ export interface ConfigStore {
 // ============================================================================
 
 export interface TokenResult {
-  token: string
-  type: 'api-key' | 'bearer' | 'basic' | 'custom'
-  scopes?: string[]
+  token: string;
+  type: "api-key" | "bearer" | "basic" | "custom";
+  scopes?: string[];
   /** 来源描述(如 'env:ORDERS_API_KEY')。 */
-  source: string
+  source: string;
   /** 过期时间戳(ms)。 */
-  expiresAt?: number
+  expiresAt?: number;
   /** OAuth 的刷新 token。 */
-  refreshToken?: string
+  refreshToken?: string;
 }
 
 export interface IdentityHint {
   /** user / bot。 */
-  identity: 'user' | 'bot'
-  userId?: string
-  name?: string
+  identity: "user" | "bot";
+  userId?: string;
+  name?: string;
 }
 
 // ============================================================================
@@ -57,13 +57,13 @@ export interface IdentityHint {
 
 export interface ProviderContext {
   /** 命名空间。 */
-  namespace: string
+  namespace: string;
   /** cli-sdk 的配置存储(provider 内部直接读写文件,不走 chain)。 */
-  configStore: ConfigStore
+  configStore: ConfigStore;
   /** 命令参数(读 --api-key 等)。 */
-  args: Record<string, unknown>
+  args: Record<string, unknown>;
   /** 环境变量。 */
-  env: NodeJS.ProcessEnv
+  env: NodeJS.ProcessEnv;
 }
 
 /**
@@ -72,13 +72,13 @@ export interface ProviderContext {
  */
 export interface CredentialProvider {
   /** provider 名(日志/溯源)。 */
-  name(): string
+  name(): string;
   /** 优先级,小值先试,默认 10。 */
-  priority?(): number
+  priority?(): number;
   /** null = 没有,chain 继续;非 null = 命中,用它的 token。 */
-  resolveToken(pctx: ProviderContext): Promise<TokenResult | null>
+  resolveToken(pctx: ProviderContext): Promise<TokenResult | null>;
   /** 可选:推断 identity(user/bot)填信封顶层。 */
-  resolveIdentity?(pctx: ProviderContext): Promise<IdentityHint | null>
+  resolveIdentity?(pctx: ProviderContext): Promise<IdentityHint | null>;
 }
 
 // ============================================================================
@@ -87,11 +87,11 @@ export interface CredentialProvider {
 
 /** OAuth 场景存盘的凭证形态(对齐 v1 StoredCredentials,字段转 camelCase)。 */
 export interface StoredOAuthCredentials {
-  token: string
-  refreshToken: string
-  expiresAt: number
-  scopes: string[]
-  user?: { userId: string; name: string }
-  storedAt: number
-  authMethod: 'oauth'
+  token: string;
+  refreshToken: string;
+  expiresAt: number;
+  scopes: string[];
+  user?: { userId: string; name: string };
+  storedAt: number;
+  authMethod: "oauth";
 }

@@ -5,27 +5,27 @@
  * v1 的 printGatewayJson 固定 GET → v2 用 ctx.get;美化打印用框架兜底(--no-json 自动表格)。
  */
 
-import { defineCommands, defineCommand, errs } from '@renxqoo/agent-data-cli'
+import { defineCommands, defineCommand, errs } from "@renxqoo/agent-data-cli";
 
 export const ordersCommands = defineCommands({
   list: defineCommand({
-    name: 'list',
-    description: '查询订单列表(仅本人订单)',
-    args: { limit: { type: 'number', desc: '返回数量上限' } },
+    name: "list",
+    description: "查询订单列表(仅本人订单)",
+    args: { limit: { type: "number", desc: "返回数量上限" } },
     async run(args, ctx) {
-      const res = await ctx.get('/proxy/api/orders', { ...(args.limit ? { limit: args.limit } : {}) })
-      return { data: res.data }
+      const res = await ctx.get("/proxy/api/orders", args.limit ? { limit: args.limit } : {});
+      return { data: res.data };
     },
   }),
 
   get: defineCommand<{ id: string }>({
-    name: 'get',
-    description: '查询单个订单详情(仅本人订单可见)',
-    args: { id: { type: 'string', required: true, positional: true, desc: '订单 ID' } },
+    name: "get",
+    description: "查询单个订单详情(仅本人订单可见)",
+    args: { id: { type: "string", required: true, positional: true, desc: "订单 ID" } },
     async run({ id }, ctx) {
-      const res = await ctx.get(`/proxy/api/orders/${encodeURIComponent(id)}`)
-      if (res.status === 404) throw new errs.NotFoundError(`订单 ${id} 不存在`)
-      return { data: res.data }
+      const res = await ctx.get(`/proxy/api/orders/${encodeURIComponent(id)}`);
+      if (res.status === 404) throw new errs.NotFoundError(`订单 ${id} 不存在`);
+      return { data: res.data };
     },
   }),
-})
+});

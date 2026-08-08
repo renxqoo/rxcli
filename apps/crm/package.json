@@ -2,39 +2,36 @@
   "name": "@renxqoo/cli",
   "version": "1.0.5",
   "description": "rxcli — agent 访问公司业务数据的命令行工具(订单/商品/发票/账号),基于 @renxqoo/agent-data-cli 框架",
+  "keywords": [
+    "agent",
+    "agent-data-cli",
+    "cli",
+    "crm",
+    "invoice",
+    "orders",
+    "rxcli"
+  ],
+  "homepage": "https://github.com/renxqoo/rxcli#readme",
+  "bugs": {
+    "url": "https://github.com/renxqoo/rxcli/issues"
+  },
   "license": "MIT",
   "author": "renxqoo <wangrenren611@gmail.com>",
-  "homepage": "https://github.com/renxqoo/rxcli#readme",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/renxqoo/rxcli.git",
     "directory": "apps/crm"
   },
-  "bugs": {
-    "url": "https://github.com/renxqoo/rxcli/issues"
-  },
-  "keywords": [
-    "cli",
-    "rxcli",
-    "agent",
-    "crm",
-    "orders",
-    "invoice",
-    "agent-data-cli"
-  ],
-  "type": "module",
   "bin": {
     "rxcli": "./dist/index.js"
   },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "files": [
     "dist",
     "skills"
   ],
-  "engines": {
-    "node": ">=18"
-  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:bin": "bun build ./src/index.ts --compile --outfile dist/rxcli",
@@ -49,6 +46,9 @@
     "@types/node": "^26.2.0",
     "typescript": "^5.9.2",
     "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "rxcli": {
     "plugin": true

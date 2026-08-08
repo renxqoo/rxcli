@@ -6,8 +6,8 @@
 
 ## 认证的两层分工
 
-| 层 | 干什么 | 谁负责 |
-|---|---|---|
+| 层                 | 干什么                                   | 谁负责                                               |
+| ------------------ | ---------------------------------------- | ---------------------------------------------------- |
 | **拿 token**(凭证) | 从哪取 key/token(flag/env/file/keychain) | provider chain(由 auth Plugin 调 `resolveWithChain`) |
 | **用 token**(注入) | 把 token 塞进请求 header(bearer/api-key) | auth Plugin 的 `beforeRequest` 调 `injectAuthHeader` |
 
@@ -19,16 +19,16 @@
 
 从主包 `@renxqoo/cli-sdk` import,无需子路径:
 
-| 基础块 | 作用 |
-|---|---|
-| `fileStore({ dir })` / `memoryStore()` | 凭证存储(`ConfigStore` 实现,落盘 `~/.rxcli/credentials/<ns>.json`) |
-| `defaultProviders()` / `flagProvider` / `envProvider` / `fileProvider` / `oauthProvider` | provider chain 的默认 provider(默认 4 个) |
-| `resolveWithChain(providers, pctx)` | 跑 chain 取 `TokenResult`(命中即停) |
-| `resolveIdentityWithChain(providers, pctx)` | 跑 chain 取 `IdentityHint`(信封顶层 user/bot) |
-| `injectAuthHeader(req, token, style)` | 按 authStyle(`bearer`/`x-api-key`/`basic`)注入 header |
-| `createOn401Hook({cfg, store, namespace})` | 401 singleflight refresh hook(返回的函数挂 Plugin 的 `_transportConfig.on401`) |
-| `deviceAuthorization` / `pollDeviceToken` / `refreshAccessToken` / `getUserInfo` / `revokeToken` / `registerClient` | OAuth device flow 端点 |
-| 类型:`Plugin` / `CredentialsApi` / `CommandContext` / `ProviderContext` / `TokenResult` / `IdentityHint` / `ConfigStore` / `CredentialProvider` / `AuthStyle` | — |
+| 基础块                                                                                                                                                        | 作用                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `fileStore({ dir })` / `memoryStore()`                                                                                                                        | 凭证存储(`ConfigStore` 实现,落盘 `~/.rxcli/credentials/<ns>.json`)             |
+| `defaultProviders()` / `flagProvider` / `envProvider` / `fileProvider` / `oauthProvider`                                                                      | provider chain 的默认 provider(默认 4 个)                                      |
+| `resolveWithChain(providers, pctx)`                                                                                                                           | 跑 chain 取 `TokenResult`(命中即停)                                            |
+| `resolveIdentityWithChain(providers, pctx)`                                                                                                                   | 跑 chain 取 `IdentityHint`(信封顶层 user/bot)                                  |
+| `injectAuthHeader(req, token, style)`                                                                                                                         | 按 authStyle(`bearer`/`x-api-key`/`basic`)注入 header                          |
+| `createOn401Hook({cfg, store, namespace})`                                                                                                                    | 401 singleflight refresh hook(返回的函数挂 Plugin 的 `_transportConfig.on401`) |
+| `deviceAuthorization` / `pollDeviceToken` / `refreshAccessToken` / `getUserInfo` / `revokeToken` / `registerClient`                                           | OAuth device flow 端点                                                         |
+| 类型:`Plugin` / `CredentialsApi` / `CommandContext` / `ProviderContext` / `TokenResult` / `IdentityHint` / `ConfigStore` / `CredentialProvider` / `AuthStyle` | —                                                                              |
 
 **注意:cli-sdk 不再导出 `createAuthPlugin`。** 它只出基础块。
 
@@ -40,54 +40,72 @@
 
 ```ts
 import {
-  type Plugin, type CommandContext, type ProviderContext,
-  fileStore, defaultProviders, resolveWithChain, resolveIdentityWithChain,
-  injectAuthHeader, createOn401Hook, AuthenticationError,
-} from '@renxqoo/cli-sdk'
+  type Plugin,
+  type CommandContext,
+  type ProviderContext,
+  fileStore,
+  defaultProviders,
+  resolveWithChain,
+  resolveIdentityWithChain,
+  injectAuthHeader,
+  createOn401Hook,
+  AuthenticationError,
+} from "@renxqoo/cli-sdk";
 
 export function createCrmAuth<State extends { user?: unknown }>(opts: {
-  namespace: string
-  authStyle?: 'bearer' | 'x-api-key' | 'basic'
-  oauth?: { baseUrl: string; clientId: string; clientSecret: string }
+  namespace: string;
+  authStyle?: "bearer" | "x-api-key" | "basic";
+  oauth?: { baseUrl: string; clientId: string; clientSecret: string };
 }): Plugin<State> & { _transportConfig?: { on401?: () => Promise<string | null> } } {
-  const store = fileStore({ dir })  // dir 必填,业务包声明(如 ~/.rxcli)
-  const providers = defaultProviders()
-  const authStyle = opts.authStyle ?? 'bearer'
+  const store = fileStore({ dir }); // dir 必填,业务包声明(如 ~/.rxcli)
+  const providers = defaultProviders();
+  const authStyle = opts.authStyle ?? "bearer";
   const on401 = opts.oauth
     ? createOn401Hook({ cfg: opts.oauth, store, namespace: opts.namespace })
-    : undefined
+    : undefined;
 
   return {
     name: `auth:${opts.namespace}`,
-    enforce: 'pre',
-    _transportConfig: on401 ? { on401 } : undefined,   // ★ 挂这里请求层才会用
+    enforce: "pre",
+    _transportConfig: on401 ? { on401 } : undefined, // ★ 挂这里请求层才会用
 
     async beforeCommand(ctx: CommandContext<State>) {
-      const pctx: ProviderContext = { namespace: opts.namespace, configStore: store, args: {}, env: process.env }
-      const resolved = await resolveWithChain(providers, pctx)   // ① provider chain 取 token
-      if (!resolved) throw new AuthenticationError({ subtype: 'no_credentials', message: '未配置凭证', hint: '设置 XXX_API_KEY 环境变量' })
+      const pctx: ProviderContext = {
+        namespace: opts.namespace,
+        configStore: store,
+        args: {},
+        env: process.env,
+      };
+      const resolved = await resolveWithChain(providers, pctx); // ① provider chain 取 token
+      if (!resolved)
+        throw new AuthenticationError({
+          subtype: "no_credentials",
+          message: "未配置凭证",
+          hint: "设置 XXX_API_KEY 环境变量",
+        });
       // ② 包装 store 成 ctx.credentials;③ 注入 scopes;④ 取 identity 填 state.user
       // ⑤ 缓存 token 供 beforeRequest 用
-      ;(ctx as any)._authToken = resolved.token.token
+      (ctx as any)._authToken = resolved.token.token;
     },
 
     async beforeRequest(ctx, req) {
-      const token = (ctx as any)._authToken
-      if (token) injectAuthHeader(req, token, authStyle)
+      const token = (ctx as any)._authToken;
+      if (token) injectAuthHeader(req, token, authStyle);
     },
-  }
+  };
 }
 ```
 
 **三个钩子的职责:**
 
-| 出口 | 在 auth Plugin 里做什么 |
-|---|---|
-| `beforeCommand` | 跑 provider chain 取 token;包装 `store` 成 `ctx.credentials`;调 `ctx.auth._setScopes` 注入 scopes;跑 `resolveIdentityWithChain` 填 identity + `ctx.state.user`;缓存 token |
-| `beforeRequest` | 用 `injectAuthHeader(req, token, authStyle)` 按 authStyle 注入 header |
-| `_transportConfig.on401` | `createOn401Hook(...)` 返回的 hook 挂这里;cli-sdk 请求层遇到 401 时调它,singleflight refresh 后自动重试 |
+| 出口                     | 在 auth Plugin 里做什么                                                                                                                                                   |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `beforeCommand`          | 跑 provider chain 取 token;包装 `store` 成 `ctx.credentials`;调 `ctx.auth._setScopes` 注入 scopes;跑 `resolveIdentityWithChain` 填 identity + `ctx.state.user`;缓存 token |
+| `beforeRequest`          | 用 `injectAuthHeader(req, token, authStyle)` 按 authStyle 注入 header                                                                                                     |
+| `_transportConfig.on401` | `createOn401Hook(...)` 返回的 hook 挂这里;cli-sdk 请求层遇到 401 时调它,singleflight refresh 后自动重试                                                                   |
 
 **关键纪律:**
+
 - 认证用 `beforeCommand` + `beforeRequest` 两个标准钩子,不发明新机制。
 - token 缓存挂 `ctx`(`_authToken`)而非闭包变量,避免并发命令间串。
 - 401 refresh 是请求层(框架)的能力,但**执行能力**(怎么 refresh、怎么落盘)由 auth Plugin 通过 `on401` 提供。没挂 `on401` 的 auth Plugin 不支持 401 自动续期。
@@ -118,12 +136,12 @@ resolveWithChain(providers, pctx) 按 priority 从小到大依次调用 provider
 
 `defaultProviders()` 返回这 4 个:
 
-| Provider | priority | 从哪取 | 适用 |
-|---|:---:|---|---|
-| `flagProvider` | 1 | `--api-key <key>` 全局 flag | 临时覆盖(单次命令) |
-| `envProvider` | 5 | `$<NS>_API_KEY` 环境变量(`NS` = 命名空间大写) | CI/容器 |
-| `fileProvider` | 10 | `~/.rxcli/credentials/<ns>.json` 的 `apiKey` 字段 | 持久化(默认主路径) |
-| `oauthProvider` | 20 | `~/.rxcli/credentials/<ns>.json` 的 OAuth token(含 refresh) | OAuth 流程(rxcli 中间层) |
+| Provider        | priority | 从哪取                                                      | 适用                     |
+| --------------- | :------: | ----------------------------------------------------------- | ------------------------ |
+| `flagProvider`  |    1     | `--api-key <key>` 全局 flag                                 | 临时覆盖(单次命令)       |
+| `envProvider`   |    5     | `$<NS>_API_KEY` 环境变量(`NS` = 命名空间大写)               | CI/容器                  |
+| `fileProvider`  |    10    | `~/.rxcli/credentials/<ns>.json` 的 `apiKey` 字段           | 持久化(默认主路径)       |
+| `oauthProvider` |    20    | `~/.rxcli/credentials/<ns>.json` 的 OAuth token(含 refresh) | OAuth 流程(rxcli 中间层) |
 
 > 业务包通常不用关心这些——`defaultProviders()` 默认装好这 4 个。只有要自定义鉴权时才自己 `providers = [...defaultProviders(), customProvider]`(注意:priority 决定插入位置)。
 
@@ -131,26 +149,26 @@ resolveWithChain(providers, pctx) 按 priority 从小到大依次调用 provider
 
 ```ts
 export interface CredentialProvider {
-  name(): string                                      // provider 名(日志/溯源)
-  priority?(): number                                 // 优先级,小值先试,默认 10
-  resolveToken(pctx: ProviderContext): Promise<TokenResult | null>  // null = 没有,chain 继续
-  resolveIdentity?(pctx: ProviderContext): Promise<IdentityHint | null>
+  name(): string; // provider 名(日志/溯源)
+  priority?(): number; // 优先级,小值先试,默认 10
+  resolveToken(pctx: ProviderContext): Promise<TokenResult | null>; // null = 没有,chain 继续
+  resolveIdentity?(pctx: ProviderContext): Promise<IdentityHint | null>;
 }
 
 export interface ProviderContext {
-  namespace: string                   // 命名空间
-  configStore: ConfigStore            // cli-sdk 的配置存储(直接读写文件,不走 chain)
-  args: Record<string, unknown>       // 命令参数(读 --api-key 等)
-  env: NodeJS.ProcessEnv              // 环境变量
+  namespace: string; // 命名空间
+  configStore: ConfigStore; // cli-sdk 的配置存储(直接读写文件,不走 chain)
+  args: Record<string, unknown>; // 命令参数(读 --api-key 等)
+  env: NodeJS.ProcessEnv; // 环境变量
 }
 
 export interface TokenResult {
-  token: string
-  type: 'api-key' | 'bearer' | 'basic' | 'custom'
-  scopes?: string[]
-  source: string                      // 来源描述(如 'env:ORDERS_API_KEY')
-  expiresAt?: number                  // 过期时间戳(ms)
-  refreshToken?: string               // OAuth 的刷新 token
+  token: string;
+  type: "api-key" | "bearer" | "basic" | "custom";
+  scopes?: string[];
+  source: string; // 来源描述(如 'env:ORDERS_API_KEY')
+  expiresAt?: number; // 过期时间戳(ms)
+  refreshToken?: string; // OAuth 的刷新 token
 }
 ```
 
@@ -162,13 +180,17 @@ export interface TokenResult {
 // src/hmac-provider.ts
 export class HmacProvider implements CredentialProvider {
   constructor(private opts: { namespace: string }) {}
-  name() { return 'hmac' }
-  priority() { return 15 }    // 在 file(10)之后,oauth(20)之前
+  name() {
+    return "hmac";
+  }
+  priority() {
+    return 15;
+  } // 在 file(10)之后,oauth(20)之前
 
   async resolveToken(pctx: ProviderContext): Promise<TokenResult | null> {
-    const creds = await pctx.configStore.loadCredentials(this.opts.namespace)
-    if (!creds?.accessKey || !creds?.secretKey) return null    // 没有,chain 继续
-    return { token: creds.accessKey, type: 'custom', source: 'config:hmac' }
+    const creds = await pctx.configStore.loadCredentials(this.opts.namespace);
+    if (!creds?.accessKey || !creds?.secretKey) return null; // 没有,chain 继续
+    return { token: creds.accessKey, type: "custom", source: "config:hmac" };
   }
 }
 ```
@@ -177,8 +199,8 @@ export class HmacProvider implements CredentialProvider {
 
 ```ts
 // 在 auth Plugin 工厂里(简化)
-const providers = [...defaultProviders(), new HmacProvider({ namespace: opts.namespace })]
-const resolved = await resolveWithChain(providers, pctx)
+const providers = [...defaultProviders(), new HmacProvider({ namespace: opts.namespace })];
+const resolved = await resolveWithChain(providers, pctx);
 ```
 
 如果 HMAC 还要算签名塞 header,在 auth Plugin 的 `beforeRequest` 里加,或单独写一个签名插件(enforce:'post',在所有 header 加完后签名):
@@ -202,10 +224,10 @@ defineCli({ plugins: [auth, signPlugin], ... })
 
 ## provider chain 与插件的关系
 
-| 扩展类型 | 机制 | 入口 |
-|---|---|---|
-| **认证**(取 token、注入 header、填 user) | provider chain(由 auth Plugin 调 `resolveWithChain`) | 自己写 auth Plugin(用基础块组装)→ 塞 plugins |
-| **非认证横切**(固定参数、签名、格式、错误、审计) | 普通插件钩子 | 直接写 Plugin 对象塞 plugins |
+| 扩展类型                                         | 机制                                                 | 入口                                         |
+| ------------------------------------------------ | ---------------------------------------------------- | -------------------------------------------- |
+| **认证**(取 token、注入 header、填 user)         | provider chain(由 auth Plugin 调 `resolveWithChain`) | 自己写 auth Plugin(用基础块组装)→ 塞 plugins |
+| **非认证横切**(固定参数、签名、格式、错误、审计) | 普通插件钩子                                         | 直接写 Plugin 对象塞 plugins                 |
 
 **provider chain 由 cli-sdk 的 `resolveWithChain`/`resolveIdentityWithChain` 提供**,业务包不直接调 `credentials.register()`(已取消)。认证全部走自写的 auth Plugin(它调 provider chain),非认证横切用普通插件,不走 provider chain。
 
@@ -249,13 +271,17 @@ cli-sdk 的 ConfigStore 统一管凭证文件(`fileStore({ dir })` 返回的实�
 
 ```ts
 // 读(优先走 provider chain,命中即返;都没命中返回 null)
-const creds = await ctx.credentials.get('orders')
+const creds = await ctx.credentials.get("orders");
 
 // 写(登录成功后,绕过 chain 直接落盘)
-await ctx.credentials.save('orders', { token: '...', refreshToken: '...', expiresAt: Date.now() + 3600000 })
+await ctx.credentials.save("orders", {
+  token: "...",
+  refreshToken: "...",
+  expiresAt: Date.now() + 3600000,
+});
 
 // 清(登出)
-await ctx.credentials.clear('orders')
+await ctx.credentials.clear("orders");
 ```
 
 > **注意区分两个层**:`ctx.credentials.*` 是命令运行时用的(走 provider chain);provider 内部用 `ProviderContext.configStore`(直接读写文件,不走 chain)。前者是业务包面向用户的 API,后者是 provider 实现者的 API。
@@ -266,20 +292,20 @@ await ctx.credentials.clear('orders')
 
 ```ts
 export interface ConfigStore {
-  loadCredentials(namespace: string): Promise<Record<string, unknown> | null>   // null = 文件不存在
-  saveCredentials(namespace: string, data: Record<string, unknown>): Promise<void>  // 权限 0600
-  clearCredentials(namespace: string): Promise<void>
-  loadConfig(): Promise<Record<string, unknown>>        // ~/.rxcli/config.json 全局配置
-  saveConfig(data: Record<string, unknown>): Promise<void>
+  loadCredentials(namespace: string): Promise<Record<string, unknown> | null>; // null = 文件不存在
+  saveCredentials(namespace: string, data: Record<string, unknown>): Promise<void>; // 权限 0600
+  clearCredentials(namespace: string): Promise<void>;
+  loadConfig(): Promise<Record<string, unknown>>; // ~/.rxcli/config.json 全局配置
+  saveConfig(data: Record<string, unknown>): Promise<void>;
 }
 ```
 
 **两层 API 对照(方法名故意不同,避免混用):**
 
-| 层 | API | 在哪用 | 走不走 chain |
-|---|---|---|---|
-| 业务运行时 | `ctx.credentials.get/save/clear` | 命令 `run` 内、签名插件 | ✅ 走 provider chain(get 命中即返) |
-| provider 实现 | `configStore.loadCredentials/saveCredentials/...` | `CredentialProvider` 内部、首引导 | ❌ 直读文件 |
+| 层            | API                                               | 在哪用                            | 走不走 chain                       |
+| ------------- | ------------------------------------------------- | --------------------------------- | ---------------------------------- |
+| 业务运行时    | `ctx.credentials.get/save/clear`                  | 命令 `run` 内、签名插件           | ✅ 走 provider chain(get 命中即返) |
+| provider 实现 | `configStore.loadCredentials/saveCredentials/...` | `CredentialProvider` 内部、首引导 | ❌ 直读文件                        |
 
 > provider 实现者用 `configStore.loadCredentials`;业务包/命令用 `ctx.credentials.get`。两者语义不同(一个直读、一个走链),方法名风格区分开,避免误用。
 
@@ -333,36 +359,35 @@ $ rxcli-orders list --verbose 2>&1 | grep -i auth
 
 ## 凭证系统的设计要点
 
-| 传统做法 | 本框架 |
-|---|---|
-| `loadCredentials()` 读固定文件 | `ctx.credentials.get(namespace)` 按命名空间读(走 provider chain) |
-| 固定优先级链 | `resolveWithChain` + `defaultProviders()`(默认 4 个 provider) |
-| OAuth token 续期硬编码 | 401 检测 + singleflight 复用在框架**请求层**;refresh 执行能力由 auth Plugin 的 `createOn401Hook` 提供。两者协作(详见 `04-errors.md` 的"关于 401 自动续期") |
-| 单一中间层 baseUrl | 业务包各自声明 baseUrl(defineCli 配置),ConfigStore 只管凭证 |
-| 封闭的 auth 工厂 | **无封闭工厂**:auth 是 Plugin(defineAuth 工厂或手写),开发者用框架基础块组装 |
-
+| 传统做法                       | 本框架                                                                                                                                                     |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `loadCredentials()` 读固定文件 | `ctx.credentials.get(namespace)` 按命名空间读(走 provider chain)                                                                                           |
+| 固定优先级链                   | `resolveWithChain` + `defaultProviders()`(默认 4 个 provider)                                                                                              |
+| OAuth token 续期硬编码         | 401 检测 + singleflight 复用在框架**请求层**;refresh 执行能力由 auth Plugin 的 `createOn401Hook` 提供。两者协作(详见 `04-errors.md` 的"关于 401 自动续期") |
+| 单一中间层 baseUrl             | 业务包各自声明 baseUrl(defineCli 配置),ConfigStore 只管凭证                                                                                                |
+| 封闭的 auth 工厂               | **无封闭工厂**:auth 是 Plugin(defineAuth 工厂或手写),开发者用框架基础块组装                                                                                |
 
 ---
 
 ## 常见鉴权方式接入指南
 
-| 鉴权方式 | 怎么写 auth Plugin | 业务包要做什么 |
-|---|---|---|
-| OAuth(rxcli 中间层) | authStyle `'bearer'` + `createOn401Hook`(给 `_transportConfig.on401`) | 复用 `createCrmAuth` 骨架,默认 provider 覆盖 |
-| Bearer token | 同上(去掉 on401) | 同上 |
-| API key(`X-Api-Key` header) | authStyle `'x-api-key'` | 同上,默认 provider 覆盖 |
-| Basic Auth | authStyle `'basic'` | provider 存 user/pass |
-| HMAC 签名 | auth Plugin 用自定义 `HmacProvider` 取 token;签名单独写 enforce:'post' 插件 | 实现 HmacProvider + 签名逻辑 |
-| mTLS | 自定义 provider(读证书路径) + beforeRequest 注入证书 | 实现证书加载 |
+| 鉴权方式                    | 怎么写 auth Plugin                                                          | 业务包要做什么                               |
+| --------------------------- | --------------------------------------------------------------------------- | -------------------------------------------- |
+| OAuth(rxcli 中间层)         | authStyle `'bearer'` + `createOn401Hook`(给 `_transportConfig.on401`)       | 复用 `createCrmAuth` 骨架,默认 provider 覆盖 |
+| Bearer token                | 同上(去掉 on401)                                                            | 同上                                         |
+| API key(`X-Api-Key` header) | authStyle `'x-api-key'`                                                     | 同上,默认 provider 覆盖                      |
+| Basic Auth                  | authStyle `'basic'`                                                         | provider 存 user/pass                        |
+| HMAC 签名                   | auth Plugin 用自定义 `HmacProvider` 取 token;签名单独写 enforce:'post' 插件 | 实现 HmacProvider + 签名逻辑                 |
+| mTLS                        | 自定义 provider(读证书路径) + beforeRequest 注入证书                        | 实现证书加载                                 |
 
 ### authStyle 配置
 
 API key 和 Bearer 都是默认 provider 支持的,区别在塞进哪个 header。authStyle 传给 `injectAuthHeader(req, token, style)`:
 
 ```ts
-injectAuthHeader(req, token, 'bearer')      // → Authorization: Bearer xxx(默认)
-injectAuthHeader(req, token, 'x-api-key')   // → X-Api-Key: xxx
-injectAuthHeader(req, token, 'basic')       // → Authorization: Basic base64(user:pass)
+injectAuthHeader(req, token, "bearer"); // → Authorization: Bearer xxx(默认)
+injectAuthHeader(req, token, "x-api-key"); // → X-Api-Key: xxx
+injectAuthHeader(req, token, "basic"); // → Authorization: Basic base64(user:pass)
 ```
 
 authStyle 在 auth Plugin 工厂里由 opts 传入(如 `createCrmAuth({ authStyle: 'bearer' })`)。

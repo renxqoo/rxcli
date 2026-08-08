@@ -28,14 +28,25 @@ metadata:
 每个命令的 **stdout 永远是单行紧凑 JSON 信封**(便于 agent/管道解析);人类可读提示打到 **stderr**(`ctx.log.info`)。
 
 - **成功**(stdout):
+
   ```json
   {"ok":true,"identity":"user","data":{...}}
   ```
+
   `identity` 仅在已解析出身份时出现(用户态命令为 `"user"`)。`data` 是命令的原始返回,字段名原样透传(不转大小写)。
 
 - **失败**(stderr,exit code 非零):
   ```json
-  {"ok":false,"error":{"type":"api","subtype":"not_found","message":"订单 o_xxx 不存在","code":404,"retryable":false}}
+  {
+    "ok": false,
+    "error": {
+      "type": "api",
+      "subtype": "not_found",
+      "message": "订单 o_xxx 不存在",
+      "code": 404,
+      "retryable": false
+    }
+  }
   ```
   常见 `type`:`validation` / `authentication` / `authorization` / `config` / `network` / `api` / `internal`。
 
@@ -63,12 +74,12 @@ rxcli auth register --token <注册令牌>
 
 ### 认证任务速查
 
-| 用户意图 | 命令 |
-|---|---|
-| 注册本机客户端(首次) | `rxcli auth register [--token <令牌>]` |
-| 登录(浏览器输公司账号) | `rxcli auth login` |
-| 查看当前登录态 | `rxcli auth status` |
-| 退出登录 | `rxcli auth logout` |
+| 用户意图               | 命令                                   |
+| ---------------------- | -------------------------------------- |
+| 注册本机客户端(首次)   | `rxcli auth register [--token <令牌>]` |
+| 登录(浏览器输公司账号) | `rxcli auth login`                     |
+| 查看当前登录态         | `rxcli auth status`                    |
+| 退出登录               | `rxcli auth logout`                    |
 
 ### 登录流程(设备授权)—— Agent 必须用 Split-Flow
 
@@ -81,7 +92,18 @@ rxcli auth register --token <注册令牌>
 1. 执行 `rxcli auth login --no-wait --json`(必须加 `--no-wait --json`)
    - 它会**立即返回**单行 JSON 信封后退出,不阻塞:
      ```json
-     {"ok":true,"data":{"device_code":"...","user_code":"XXXX-XXXX","verification_url":"https://...?user_code=XXXX-XXXX","verification_uri_complete":"...","verification_uri":"...","expires_in":300,"interval":5}}
+     {
+       "ok": true,
+       "data": {
+         "device_code": "...",
+         "user_code": "XXXX-XXXX",
+         "verification_url": "https://...?user_code=XXXX-XXXX",
+         "verification_uri_complete": "...",
+         "verification_uri": "...",
+         "expires_in": 300,
+         "interval": 5
+       }
+     }
      ```
      `verification_url` = `verification_uri_complete`(优先)或 `verification_uri`。
 2. 从 JSON 的 `data` 中提取 `verification_url` 和 `device_code`(**记住 device_code,第二步要用**)
@@ -105,6 +127,7 @@ rxcli auth register --token <注册令牌>
 #### URL 输出规则(opaque string)
 
 验证 URL 由 CLI 运行时动态产出(来自当前配置的中间层地址),视为不可修改的 opaque string:
+
 - 不要做任何修改(包括 URL 编码/解码、添加空格或标点、重新拼接 query)
 - 不要在 skill 文档里写死地址 —— 地址取决于环境变量或注册时配置的中间层
 
@@ -112,13 +135,13 @@ rxcli auth register --token <注册令牌>
 
 v2 是框架,业务包各自声明 baseUrl,**无 dev/test/prod 多环境概念**(已取消)。
 
-| 环境变量 | 作用 | 默认值 |
-|---|---|---|
+| 环境变量              | 作用                                                                   | 默认值                 |
+| --------------------- | ---------------------------------------------------------------------- | ---------------------- |
 | `RXCLI_AUTH_BASE_URL` | OAuth/auth 中间层(device flow / token / user_info / revoke / register) | `http://120.26.219.32` |
-| `RXCLI_API_BASE_URL` | 业务 API 网关(命令经中间层 `/proxy/api/*` 访问业务接口) | `http://120.26.219.32` |
-| `RXCLI_CLIENT_ID` | 覆盖 clientId(默认读 `~/.rxcli/config.json`) | — |
-| `RXCLI_CLIENT_SECRET` | 覆盖 clientSecret(默认读 config.json) | — |
-| `RXCLI_SKILLS_SOURCE` | skills 源 URL(空 → 用包内本地 skills) | — |
+| `RXCLI_API_BASE_URL`  | 业务 API 网关(命令经中间层 `/proxy/api/*` 访问业务接口)                | `http://120.26.219.32` |
+| `RXCLI_CLIENT_ID`     | 覆盖 clientId(默认读 `~/.rxcli/config.json`)                           | —                      |
+| `RXCLI_CLIENT_SECRET` | 覆盖 clientSecret(默认读 config.json)                                  | —                      |
+| `RXCLI_SKILLS_SOURCE` | skills 源 URL(空 → 用包内本地 skills)                                  | —                      |
 
 ```bash
 RXCLI_API_BASE_URL=http://your-gateway rxcli orders list
@@ -136,13 +159,13 @@ RXCLI_API_BASE_URL=http://your-gateway rxcli orders list
 
 业务命令需要对应的 scope,由登录用户的账号决定(公司应用签发)。缺权限会收到 **403**,映射为 `forbidden`(exit 3)。
 
-| 命令 | 所需 scope |
-|------|-----------|
-| `orders list` / `orders get` | `orders:read` |
-| `products list` / `products get` | `products:read` |
-| `invoices list` | `invoices:read` |
-| `account admin-users` | `admin` |
-| `account profile` | (登录即可,无 scope 要求) |
+| 命令                             | 所需 scope               |
+| -------------------------------- | ------------------------ |
+| `orders list` / `orders get`     | `orders:read`            |
+| `products list` / `products get` | `products:read`          |
+| `invoices list`                  | `invoices:read`          |
+| `account admin-users`            | `admin`                  |
+| `account profile`                | (登录即可,无 scope 要求) |
 
 > 遇到 403 `forbidden` 时:不是 bug,是该账号没有对应权限。可用 `rxcli account admin-users`(需 admin)查看某用户的 scopes。
 
@@ -150,22 +173,23 @@ RXCLI_API_BASE_URL=http://your-gateway rxcli orders list
 
 ### 常见错误
 
-| subtype | code | 原因 | 处理 |
-|------|------|------|------|
-| `forbidden` | 403 | 当前用户缺 scope | 换有权限的账号,或让管理员授权 |
-| `not_found` | 404 | 资源不存在,或不属于当前用户(查别人的也返回 404,不泄露存在性) | 确认 id / 权限 |
-| `token_expired` | 401 | 登录态失效(被踢下线或过期) | `auth login` 重新登录 |
-| `no_token` / `no_credentials` | 401/3 | 本地无 token | `auth login` 登录 |
-| `invalid_argument` / `missing_required` | 2 | 参数校验失败 | 按错误 hint 修正参数 |
-| `timeout` / `connection_refused` | 4 | 网络错误 | 检查中间层地址(`auth status` 的中间层) |
-| `server_error` | 5xx | 上游/中间层异常 | 稍后重试(retryable=true) |
-| — | 429 | 触发限流 | 等待 `Retry-After` 头指示的秒数后重试 |
+| subtype                                 | code  | 原因                                                         | 处理                                   |
+| --------------------------------------- | ----- | ------------------------------------------------------------ | -------------------------------------- |
+| `forbidden`                             | 403   | 当前用户缺 scope                                             | 换有权限的账号,或让管理员授权          |
+| `not_found`                             | 404   | 资源不存在,或不属于当前用户(查别人的也返回 404,不泄露存在性) | 确认 id / 权限                         |
+| `token_expired`                         | 401   | 登录态失效(被踢下线或过期)                                   | `auth login` 重新登录                  |
+| `no_token` / `no_credentials`           | 401/3 | 本地无 token                                                 | `auth login` 登录                      |
+| `invalid_argument` / `missing_required` | 2     | 参数校验失败                                                 | 按错误 hint 修正参数                   |
+| `timeout` / `connection_refused`        | 4     | 网络错误                                                     | 检查中间层地址(`auth status` 的中间层) |
+| `server_error`                          | 5xx   | 上游/中间层异常                                              | 稍后重试(retryable=true)               |
+| —                                       | 429   | 触发限流                                                     | 等待 `Retry-After` 头指示的秒数后重试  |
 
 > 注:旧文档里的 `insufficient_scope` / `order_not_found` 等错误名已废弃,真实 subtype 见上表。
 
 ### 登录态失效的处理
 
 如果用户被管理员"踢下线",或长时间未使用导致 token 过期:
+
 - `orders list` 等命令返回 `token_expired` / `session not found`
 - 此时 `auth login` 仍可重新登录(同一个 client 凭据仍有效)
 - 只有 client 被"删除"或本机未注册时,才需要重新 `auth register`

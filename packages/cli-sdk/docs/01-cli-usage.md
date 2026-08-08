@@ -120,6 +120,7 @@ $ rxcli-orders list --status unpaid | rxcli-invoices generate
 ```
 
 下游命令代码(开发者写):
+
 ```ts
 async run(args, ctx) {
   for await (const rec of ctx.pipe.in()) {       // 异步迭代上游记录
@@ -144,10 +145,10 @@ rxcli-orders list --status unpaid \
 
 管道能可靠组合的根是 **stdout 纯净**:
 
-| 流 | 内容 | 谁写 |
-|---|---|---|
-| **stdout** | **只有**信封 JSON(成功 `{ok,data,meta}`,空数组也是合法 JSON) | cli-sdk 从 `run` 返回值序列化 |
-| **stderr** | 日志、进度、提示、警告、错误信封 | cli-sdk 的 `ctx.log` + 错误渲染 |
+| 流         | 内容                                                         | 谁写                            |
+| ---------- | ------------------------------------------------------------ | ------------------------------- |
+| **stdout** | **只有**信封 JSON(成功 `{ok,data,meta}`,空数组也是合法 JSON) | cli-sdk 从 `run` 返回值序列化   |
+| **stderr** | 日志、进度、提示、警告、错误信封                             | cli-sdk 的 `ctx.log` + 错误渲染 |
 
 **铁律:业务命令永远不能直接往 stdout 写非信封内容。** 一切非数据输出走 `ctx.log`(stderr)。否则 `rxcli-orders list | jq` 混进一行"加载中..."整个管道就废了。
 
@@ -220,16 +221,16 @@ skill 是给 agent 读的 Markdown 指令文档。其中"命令表"部分由 `de
 
 agent 靠 exit code 判断命令成败,不用解析 JSON:
 
-| Code | 含义 | agent 该怎么办 |
-|---|---|---|
-| 0 | 成功 | 读 stdout 拿数据 |
-| 1 | 服务端通用错误(API 返回非 2xx) | 读 stderr 的 error.message,可能重试 |
-| 2 | 参数错误(用户输入不对) | 修正 flag,重试 |
-| 3 | 认证/授权/配置错误(没登录 / 没 scope / 配置缺失) | 引导用户登录或补配置,见 error.hint |
-| 4 | 网络错误(DNS/超时/拒绝) | 稍后重试 |
-| 5 | SDK 内部错误(不该发生) | 报 bug |
-| 6 | 策略拦截(风控/内容安全) | 读 error.hint |
-| 10 | 需要确认(高风险写入要 --yes) | 加 --yes 或让用户确认 |
+| Code | 含义                                             | agent 该怎么办                      |
+| ---- | ------------------------------------------------ | ----------------------------------- |
+| 0    | 成功                                             | 读 stdout 拿数据                    |
+| 1    | 服务端通用错误(API 返回非 2xx)                   | 读 stderr 的 error.message,可能重试 |
+| 2    | 参数错误(用户输入不对)                           | 修正 flag,重试                      |
+| 3    | 认证/授权/配置错误(没登录 / 没 scope / 配置缺失) | 引导用户登录或补配置,见 error.hint  |
+| 4    | 网络错误(DNS/超时/拒绝)                          | 稍后重试                            |
+| 5    | SDK 内部错误(不该发生)                           | 报 bug                              |
+| 6    | 策略拦截(风控/内容安全)                          | 读 error.hint                       |
+| 10   | 需要确认(高风险写入要 --yes)                     | 加 --yes 或让用户确认               |
 
 **关键:错误信封在 stderr,不在 stdout。** 所以 `cmd | jq` 即使命令失败,jq 也不会收到错误 JSON(避免 agent 误把错误当数据处理)。详见 `03-envelopes.md` 和 `04-errors.md`。
 
@@ -256,6 +257,7 @@ $ rxcli-orders get o_notexist
 ```
 
 **agent 的处理流程:**
+
 1. 看 exit code(快速分类)
 2. 必要时读 stderr 的 `error.type` / `error.subtype` 做精确分支
 3. 读 `error.hint` 获取下一步动作(往往是直接可执行的命令)

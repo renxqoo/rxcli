@@ -132,50 +132,52 @@ rxcli skills sync                    # 仅本地兜底:拷贝到 ~/.agents/skill
 
 `install` 通过 skills.sh 把 skill 写入各 AI 工具的标准发现路径(universal + symlinked);`sync` 只写 `~/.agents/skills/`,适合离线或 install 不可达时兜底。装好后,Agent 启动时按 description 语义匹配用户意图。
 
-| Skill             | Description                                                    |
-| ----------------- | -------------------------------------------------------------- |
-| `rx-shared`       | 注册、登录、认证、错误处理(所有其它 skill 的前置,必读)       |
-| `rx-auth`         | 登录、查看状态、登出                                           |
-| `rx-orders`       | 查询订单列表 / 订单详情                                        |
-| `rx-products`     | 查询商品目录(列表 / 按分类过滤 / 详情)                       |
-| `rx-invoices`     | 查询发票列表                                                   |
-| `rx-account`      | 查看个人资料 / 管理员查全量用户                                |
+| Skill         | Description                                            |
+| ------------- | ------------------------------------------------------ |
+| `rx-shared`   | 注册、登录、认证、错误处理(所有其它 skill 的前置,必读) |
+| `rx-auth`     | 登录、查看状态、登出                                   |
+| `rx-orders`   | 查询订单列表 / 订单详情                                |
+| `rx-products` | 查询商品目录(列表 / 按分类过滤 / 详情)                 |
+| `rx-invoices` | 查询发票列表                                           |
+| `rx-account`  | 查看个人资料 / 管理员查全量用户                        |
 
 ## 命令
 
-| 命令                              | 说明                                     |
-| --------------------------------- | ---------------------------------------- |
-| `auth register [--token <t>]`     | 注册本机客户端(用注册令牌换独立凭据)   |
-| `auth login`                      | 经中间层登录(设备流程,浏览器输公司账号)|
-| `auth status`                     | 查看登录状态                             |
-| `auth logout`                     | 退出登录(吊销 session + 清本地凭证)    |
-| `orders list [--limit n]`         | 查询订单列表(仅本人订单)               |
-| `orders get <id>`                 | 查询订单详情(仅本人订单可见)           |
-| `products list [--category <c>]`  | 查询商品列表,可按分类过滤               |
-| `products get <id>`               | 查询商品详情                             |
-| `invoices list`                   | 查询发票列表(仅本人发票)               |
-| `account profile`                 | 查看当前用户资料                         |
-| `account admin-users`             | 管理员:全量用户列表                     |
-| `qrcode <url>`                    | 把 URL 生成二维码(终端 ASCII 或 PNG)   |
-| `skills list [name]`              | 列出 skill 或列举目录                    |
-| `skills read <name>[/path]`       | 读 skill 内容                            |
-| `skills sync`                     | 同步 skill 到 ~/.agents/skills/          |
+| 命令                             | 说明                                    |
+| -------------------------------- | --------------------------------------- |
+| `auth register [--token <t>]`    | 注册本机客户端(用注册令牌换独立凭据)    |
+| `auth login`                     | 经中间层登录(设备流程,浏览器输公司账号) |
+| `auth status`                    | 查看登录状态                            |
+| `auth logout`                    | 退出登录(吊销 session + 清本地凭证)     |
+| `orders list [--limit n]`        | 查询订单列表(仅本人订单)                |
+| `orders get <id>`                | 查询订单详情(仅本人订单可见)            |
+| `products list [--category <c>]` | 查询商品列表,可按分类过滤               |
+| `products get <id>`              | 查询商品详情                            |
+| `invoices list`                  | 查询发票列表(仅本人发票)                |
+| `account profile`                | 查看当前用户资料                        |
+| `account admin-users`            | 管理员:全量用户列表                     |
+| `qrcode <url>`                   | 把 URL 生成二维码(终端 ASCII 或 PNG)    |
+| `skills list [name]`             | 列出 skill 或列举目录                   |
+| `skills read <name>[/path]`      | 读 skill 内容                           |
+| `skills sync`                    | 同步 skill 到 ~/.agents/skills/         |
 
 ## 认证
 
-| 命令           | 说明                                       |
-| -------------- | ------------------------------------------ |
-| `auth login`   | OAuth 设备流程登录,浏览器输公司账号密码   |
-| `auth status`  | 显示当前登录用户、token 状态               |
-| `auth logout`  | 吊销当前 session(服务端 + 本地)          |
+| 命令          | 说明                                    |
+| ------------- | --------------------------------------- |
+| `auth login`  | OAuth 设备流程登录,浏览器输公司账号密码 |
+| `auth status` | 显示当前登录用户、token 状态            |
+| `auth logout` | 吊销当前 session(服务端 + 本地)         |
 
 登录流程:
+
 1. `auth login` 打印验证 URL
 2. 用户浏览器打开 URL,输入公司账号密码
 3. 中间层代调公司应用登录,拿 company_token 存 PG
 4. 中间层签发 JWT(RS256)给 CLI,存入 `~/.rxcli/credentials/crm.json`
 
 token 生命周期:
+
 - access token(1h)过期 → CLI 自动用 refresh token 续期(singleflight 复用,并发 401 只刷新一次)
 - refresh token(7d)过期 → 需重新 `auth login`
 - refresh token 重用检测 → 自动吊销 session(安全加固)
@@ -190,28 +192,28 @@ RXCLI_API_BASE_URL=https://gateway.example.com  \
 rxcli auth login
 ```
 
-| 环境变量              | 默认                            | 说明                          |
-| --------------------- | ------------------------------- | ----------------------------- |
-| `RXCLI_AUTH_BASE_URL` | `http://120.26.219.32`          | 鉴权中间层(device flow/token)|
-| `RXCLI_API_BASE_URL`  | `http://120.26.219.32`          | 业务 API 网关(/proxy/*)      |
-| `RXCLI_CLIENT_ID`     | (读 `~/.rxcli/config.json`)     | OAuth client id               |
-| `RXCLI_CLIENT_SECRET` | (读 `~/.rxcli/config.json`)     | OAuth client secret           |
-| `RXCLI_SKILLS_SOURCE` | (空=用包内本地 skills)          | skills 源 URL(install 向导用)|
+| 环境变量              | 默认                        | 说明                          |
+| --------------------- | --------------------------- | ----------------------------- |
+| `RXCLI_AUTH_BASE_URL` | `http://120.26.219.32`      | 鉴权中间层(device flow/token) |
+| `RXCLI_API_BASE_URL`  | `http://120.26.219.32`      | 业务 API 网关(/proxy/*)       |
+| `RXCLI_CLIENT_ID`     | (读 `~/.rxcli/config.json`) | OAuth client id               |
+| `RXCLI_CLIENT_SECRET` | (读 `~/.rxcli/config.json`) | OAuth client secret           |
+| `RXCLI_SKILLS_SOURCE` | (空=用包内本地 skills)      | skills 源 URL(install 向导用) |
 
 ## 本地存储
 
-| 文件                              | 内容                          | 权限  |
-| --------------------------------- | ----------------------------- | ----- |
-| `~/.rxcli/config.json`            | client 凭据(clientId/secret) | 0600  |
-| `~/.rxcli/credentials/crm.json`   | JWT + refresh token           | 0600  |
+| 文件                            | 内容                         | 权限 |
+| ------------------------------- | ---------------------------- | ---- |
+| `~/.rxcli/config.json`          | client 凭据(clientId/secret) | 0600 |
+| `~/.rxcli/credentials/crm.json` | JWT + refresh token          | 0600 |
 
 ## 输出格式
 
 默认按"是否终端"自动选择,业务包可在 `defineCli({ defaultFormat })` 改默认:
 
-| 场景 | 默认输出 |
-|---|---|
-| 终端(TTY) | 人类可读文本(自动表格,CJK 对齐) |
+| 场景         | 默认输出                           |
+| ------------ | ---------------------------------- |
+| 终端(TTY)    | 人类可读文本(自动表格,CJK 对齐)    |
 | 管道/脚本/CI | JSON 信封 `{"ok":true,"data":...}` |
 
 显式控制:`--json`(强制 JSON)/ `--no-json`(强制文本,管道保护:被管道时仍 JSON)。命令可选声明 `humanFormat` 精致化(¥/中文列名)。

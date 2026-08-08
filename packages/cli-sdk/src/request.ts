@@ -13,7 +13,7 @@
  * 请求方法(get/post/...)经过 plugin beforeRequest/afterRequest 包装(由 context.ts 调用本层)。
  */
 
-import type { RequestOptions, TransportResponse, ErrorOnStatus } from './types.js'
+import type { RequestOptions, TransportResponse, ErrorOnStatus } from "./types.js";
 import {
   APIError,
   NetworkError,
@@ -26,7 +26,7 @@ import {
   ConfirmationRequiredError,
   categoryOfSubtype,
   type Category,
-} from './errs/index.js'
+} from "./errs/index.js";
 
 // ============================================================================
 // errorOnStatus 匹配
@@ -34,23 +34,20 @@ import {
 
 /** 判断 status 是否匹配 errorOnStatus 的 key(支持 404 / '5xx' 形态)。 */
 function statusMatches(status: number, key: number | `${number}xx`): boolean {
-  if (typeof key === 'number') return status === key
-  const m = /^(\d)xx$/.exec(key)
-  if (!m) return false
-  return Math.floor(status / 100) === Number(m[1])
+  if (typeof key === "number") return status === key;
+  const m = /^(\d)xx$/.exec(key);
+  if (!m) return false;
+  return Math.floor(status / 100) === Number(m[1]);
 }
 
 /** 找到第一个匹配 status 的 subtype(注册序遍历)。 */
-function matchErrorOnStatus(
-  status: number,
-  errorOnStatus?: ErrorOnStatus,
-): string | undefined {
-  if (!errorOnStatus) return undefined
+function matchErrorOnStatus(status: number, errorOnStatus?: ErrorOnStatus): string | undefined {
+  if (!errorOnStatus) return undefined;
   for (const [key, subtype] of Object.entries(errorOnStatus)) {
-    const numKey = /^(\d)xx$/.test(key) ? (key as `${number}xx`) : Number(key)
-    if (statusMatches(status, numKey)) return subtype
+    const numKey = /^(\d)xx$/.test(key) ? (key as `${number}xx`) : Number(key);
+    if (statusMatches(status, numKey)) return subtype;
   }
-  return undefined
+  return undefined;
 }
 
 // ============================================================================
@@ -58,72 +55,72 @@ function matchErrorOnStatus(
 // ============================================================================
 
 interface RequestOptionsInternal extends RequestOptions {
-  baseUrl?: string
+  baseUrl?: string;
 }
 
 async function doFetch<T>(opts: RequestOptionsInternal): Promise<TransportResponse<T>> {
-  const url = (opts.baseUrl ?? '') + opts.path + buildQuery(opts.query)
-  const headers: Record<string, string> = { ...opts.headers }
-  let body: string | undefined
-  if (opts.body !== undefined && opts.method !== 'GET') {
-    headers['content-type'] = headers['content-type'] ?? 'application/json'
-    body = typeof opts.body === 'string' ? opts.body : JSON.stringify(opts.body)
+  const url = (opts.baseUrl ?? "") + opts.path + buildQuery(opts.query);
+  const headers: Record<string, string> = { ...opts.headers };
+  let body: string | undefined;
+  if (opts.body !== undefined && opts.method !== "GET") {
+    headers["content-type"] = headers["content-type"] ?? "application/json";
+    body = typeof opts.body === "string" ? opts.body : JSON.stringify(opts.body);
   }
 
-  let res: Response
+  let res: Response;
   try {
     res = await fetch(url, {
       method: opts.method,
       headers,
       body,
       ...(opts.timeout !== undefined ? { signal: AbortSignal.timeout(opts.timeout) } : {}),
-    })
+    });
   } catch (err) {
-    const isTimeout = err instanceof Error && err.name === 'TimeoutError'
-    const msg = err instanceof Error ? err.message : String(err)
+    const isTimeout = err instanceof Error && err.name === "TimeoutError";
+    const msg = err instanceof Error ? err.message : String(err);
     throw new NetworkError({
-      subtype: isTimeout ? 'timeout' : 'connection_refused',
+      subtype: isTimeout ? "timeout" : "connection_refused",
       message: isTimeout ? `请求超时(${opts.timeout}ms)` : `网络错误:${msg}`,
       retryable: true,
       cause: err,
-    })
+    });
   }
 
   // 解析 body
-  let data: unknown
-  const text = await res.text()
+  let data: unknown;
+  const text = await res.text();
   if (text) {
     try {
-      data = JSON.parse(text)
+      data = JSON.parse(text);
     } catch {
-      data = text // 非 JSON 响应原样返回字符串
+      data = text; // 非 JSON 响应原样返回字符串
     }
   } else {
-    data = undefined
+    data = undefined;
   }
 
-  const respHeaders: Record<string, string> = {}
+  const respHeaders: Record<string, string> = {};
   res.headers.forEach((v, k) => {
-    respHeaders[k.toLowerCase()] = v
-  })
+    respHeaders[k.toLowerCase()] = v;
+  });
 
-  return { status: res.status, data: data as T, headers: respHeaders }
+  return { status: res.status, data: data as T, headers: respHeaders };
 }
 
 /** 拼 query string(跳过 undefined/null 值)。 */
 function buildQuery(query?: Record<string, unknown>): string {
-  if (!query) return ''
-  const params = new URLSearchParams()
+  if (!query) return "";
+  const params = new URLSearchParams();
   for (const [k, v] of Object.entries(query)) {
-    if (v === undefined || v === null) continue
+    if (v === undefined || v === null) continue;
     if (Array.isArray(v)) {
-      for (const item of v) params.append(k, String(item))
+      for (const item of v) params.append(k, String(item));
     } else {
-      params.append(k, String(v))
+      params.append(k, String(v));
     }
   }
-  const s = params.toString()
-  return s ? `?${s}` : ''
+  const s = params.toString();
+  return s ? `?${s}` : "";
 }
 
 // ============================================================================
@@ -131,23 +128,23 @@ function buildQuery(query?: Record<string, unknown>): string {
 // ============================================================================
 
 /** 401 hook:由业务包自写的 auth Plugin 通过 _transportConfig.on401 注入(refresh + singleflight)。返回新 token 则重试。 */
-export type On401Hook = () => Promise<string | null | undefined>
+export type On401Hook = () => Promise<string | null | undefined>;
 
 export interface Transport {
-  get<T = unknown>(path: string, query?: Record<string, unknown>): Promise<TransportResponse<T>>
-  post<T = unknown>(path: string, body?: unknown): Promise<TransportResponse<T>>
-  put<T = unknown>(path: string, body?: unknown): Promise<TransportResponse<T>>
-  patch<T = unknown>(path: string, body?: unknown): Promise<TransportResponse<T>>
-  delete<T = unknown>(path: string): Promise<TransportResponse<T>>
-  request<T = unknown>(opts: RequestOptions): Promise<TransportResponse<T>>
+  get<T = unknown>(path: string, query?: Record<string, unknown>): Promise<TransportResponse<T>>;
+  post<T = unknown>(path: string, body?: unknown): Promise<TransportResponse<T>>;
+  put<T = unknown>(path: string, body?: unknown): Promise<TransportResponse<T>>;
+  patch<T = unknown>(path: string, body?: unknown): Promise<TransportResponse<T>>;
+  delete<T = unknown>(path: string): Promise<TransportResponse<T>>;
+  request<T = unknown>(opts: RequestOptions): Promise<TransportResponse<T>>;
 }
 
 export interface CreateTransportOptions {
-  baseUrl?: string
-  errorOnStatus?: ErrorOnStatus
-  on401?: On401Hook
-  defaultHeaders?: Record<string, string>
-  timeout?: number
+  baseUrl?: string;
+  errorOnStatus?: ErrorOnStatus;
+  on401?: On401Hook;
+  defaultHeaders?: Record<string, string>;
+  timeout?: number;
 }
 
 export function createTransport(opts: CreateTransportOptions = {}): Transport {
@@ -157,76 +154,76 @@ export function createTransport(opts: CreateTransportOptions = {}): Transport {
       baseUrl: opts.baseUrl,
       headers: { ...opts.defaultHeaders, ...reqOpts.headers },
       timeout: reqOpts.timeout ?? opts.timeout,
-    }
+    };
 
-    const first = await doFetch<T>(merged)
+    const first = await doFetch<T>(merged);
 
     // 401 处理:on401 hook 返回新 token → 重试一次;返回 null/undefined(refresh 失败)
     // → 抛 AuthenticationError(token_expired),不能透传 401 body 当成功数据(H4)。
     if (first.status === 401 && opts.on401) {
-      const newToken = await opts.on401()
+      const newToken = await opts.on401();
       if (newToken) {
         const retryOpts: RequestOptionsInternal = {
           ...merged,
           headers: { ...merged.headers, Authorization: `Bearer ${newToken}` },
-        }
+        };
         // 重试结果同样要走 errorOnStatus(否则重试仍是 401 时会被当成功数据返回)
-        const retried = await doFetch<T>(retryOpts)
-        return checkErrorOnStatus(retried)
+        const retried = await doFetch<T>(retryOpts);
+        return checkErrorOnStatus(retried);
       }
       // refresh 失败(无 refreshToken / refresh 失效):token 已失效,需重新登录
       throw new AuthenticationError({
-        subtype: 'token_expired',
+        subtype: "token_expired",
         code: 401,
-        message: '登录态已失效(token 过期或 refresh 失败)',
-        hint: 'run `rxcli auth login` 重新登录',
-      })
+        message: "登录态已失效(token 过期或 refresh 失败)",
+        hint: "run `rxcli auth login` 重新登录",
+      });
     }
 
-    return checkErrorOnStatus(first)
+    return checkErrorOnStatus(first);
   }
 
   /** errorOnStatus 自动 throw(仅匹配的 status 才 throw,其余原样返回给业务包判断)。 */
   function checkErrorOnStatus<T>(resp: TransportResponse<T>): TransportResponse<T> {
     if (opts.errorOnStatus && resp.status >= 400) {
-      const subtype = matchErrorOnStatus(resp.status, opts.errorOnStatus)
+      const subtype = matchErrorOnStatus(resp.status, opts.errorOnStatus);
       if (subtype) {
         throwBySubtype(
           subtype,
           resp.status,
           extractErrorMessage(resp.data) ?? `HTTP ${resp.status}`,
           resp.status === 429 ? extractRetryHint(resp.headers) : undefined,
-        )
+        );
       }
     }
-    return resp
+    return resp;
   }
 
   return {
     request,
-    get: (path, query) => request({ method: 'GET', path, query }),
-    post: (path, body) => request({ method: 'POST', path, body }),
-    put: (path, body) => request({ method: 'PUT', path, body }),
-    patch: (path, body) => request({ method: 'PATCH', path, body }),
-    delete: (path) => request({ method: 'DELETE', path }),
-  }
+    get: (path, query) => request({ method: "GET", path, query }),
+    post: (path, body) => request({ method: "POST", path, body }),
+    put: (path, body) => request({ method: "PUT", path, body }),
+    patch: (path, body) => request({ method: "PATCH", path, body }),
+    delete: (path) => request({ method: "DELETE", path }),
+  };
 }
 
 // —— 辅助:从响应体提取错误消息 ——
 function extractErrorMessage(data: unknown): string | undefined {
-  if (!data || typeof data !== 'object') return undefined
-  const obj = data as Record<string, unknown>
-  return typeof obj.message === 'string'
+  if (!data || typeof data !== "object") return undefined;
+  const obj = data as Record<string, unknown>;
+  return typeof obj.message === "string"
     ? obj.message
-    : typeof obj.error === 'string'
+    : typeof obj.error === "string"
       ? obj.error
-      : undefined
+      : undefined;
 }
 
 // —— 辅助:429 Retry-After hint ——
 function extractRetryHint(headers: Record<string, string>): string | undefined {
-  const ra = headers['retry-after']
-  return ra ? `Retry-After: ${ra}s` : undefined
+  const ra = headers["retry-after"];
+  return ra ? `Retry-After: ${ra}s` : undefined;
 }
 
 /**
@@ -244,17 +241,12 @@ const CATEGORY_CONSTRUCTORS: Record<Category, typeof APIError> = {
   policy: PolicyError,
   internal: InternalError,
   confirmation: ConfirmationRequiredError,
-}
+};
 
-function throwBySubtype(
-  subtype: string,
-  status: number,
-  message: string,
-  hint?: string,
-): never {
-  const category: Category = categoryOfSubtype(subtype)
-  const retryable = status === 429 || status >= 500
-  const common = { subtype, code: status, message, ...(hint ? { hint } : {}), retryable }
-  const Ctor = CATEGORY_CONSTRUCTORS[category] ?? APIError
-  throw new Ctor(common)
+function throwBySubtype(subtype: string, status: number, message: string, hint?: string): never {
+  const category: Category = categoryOfSubtype(subtype);
+  const retryable = status === 429 || status >= 500;
+  const common = { subtype, code: status, message, ...(hint ? { hint } : {}), retryable };
+  const Ctor = CATEGORY_CONSTRUCTORS[category] ?? APIError;
+  throw new Ctor(common);
 }

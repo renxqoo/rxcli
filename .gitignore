@@ -33,3 +33,6 @@ pnpm-debug.log*
 
 # ZCode 工作目录(会话记录/计划,不入库)
 .zcode/
+
+# husky 内部生成目录(husky init 产物,不入库)
+.husky/_/

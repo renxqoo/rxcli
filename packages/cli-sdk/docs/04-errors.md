@@ -18,17 +18,17 @@
 
 ## 9 个 Category
 
-| Category | 何时用 | Exit Code | 类型化构造器 |
-|---|---|:---:|---|
-| `validation` | 用户输入的参数/flag 不合法 | 2 | `errs.ValidationError` |
-| `authentication` | 没有有效 token / 需要登录 | 3 | `errs.AuthenticationError` |
-| `authorization` | token 有效但缺 scope / 权限不足 | 3 | `errs.PermissionError` |
-| `config` | 本地配置缺失 / 未绑定 | 3 | `errs.ConfigError` |
-| `network` | DNS / 连接拒绝 / 超时 / 传输层 | 4 | `errs.NetworkError` |
-| `api` | 服务端业务错误(HTTP 非 2xx,无特定分类) | 1 | `errs.APIError` / `errs.NotFoundError` 等 |
-| `policy` | 风控 / 内容安全 / 安全挑战 | 6 | `errs.PolicyError` |
-| `internal` | SDK 契约违反 / 解码失败 / 不该发生 | 5 | `errs.InternalError` |
-| `confirmation` | 高风险写入需要 `--yes` 确认 | 10 | `errs.ConfirmationRequiredError` |
+| Category         | 何时用                                 | Exit Code | 类型化构造器                              |
+| ---------------- | -------------------------------------- | :-------: | ----------------------------------------- |
+| `validation`     | 用户输入的参数/flag 不合法             |     2     | `errs.ValidationError`                    |
+| `authentication` | 没有有效 token / 需要登录              |     3     | `errs.AuthenticationError`                |
+| `authorization`  | token 有效但缺 scope / 权限不足        |     3     | `errs.PermissionError`                    |
+| `config`         | 本地配置缺失 / 未绑定                  |     3     | `errs.ConfigError`                        |
+| `network`        | DNS / 连接拒绝 / 超时 / 传输层         |     4     | `errs.NetworkError`                       |
+| `api`            | 服务端业务错误(HTTP 非 2xx,无特定分类) |     1     | `errs.APIError` / `errs.NotFoundError` 等 |
+| `policy`         | 风控 / 内容安全 / 安全挑战             |     6     | `errs.PolicyError`                        |
+| `internal`       | SDK 契约违反 / 解码失败 / 不该发生     |     5     | `errs.InternalError`                      |
+| `confirmation`   | 高风险写入需要 `--yes` 确认            |    10     | `errs.ConfirmationRequiredError`          |
 
 > **`authentication` vs `authorization`**:前者是"没登录"(没 token),后者是"登录了但没权限"(token 有效但缺 scope)。这是 gRPC/Google APIs 的标准区分(`Unauthenticated` vs `PermissionDenied`)。
 
@@ -42,92 +42,92 @@
 
 ```ts
 interface Problem {
-  category: Category        // 9 类之一
-  subtype: string           // 稳定标识符(见下文 subtype 表)
-  code?: number             // 上游数字码(HTTP status / API code)
-  message: string           // 给人看,不保证稳定
-  hint?: string             // 给 agent 的可执行指令
-  retryable?: boolean       // 是否可重试
-  cause?: unknown           // 保留底层错误(errors.Is/Unwrap 可用)
+  category: Category; // 9 类之一
+  subtype: string; // 稳定标识符(见下文 subtype 表)
+  code?: number; // 上游数字码(HTTP status / API code)
+  message: string; // 给人看,不保证稳定
+  hint?: string; // 给 agent 的可执行指令
+  retryable?: boolean; // 是否可重试
+  cause?: unknown; // 保留底层错误(errors.Is/Unwrap 可用)
 }
 ```
 
 ### 各构造器用法
 
 ```ts
-import { errs } from '@renxqoo/cli-sdk'
+import { errs } from "@renxqoo/cli-sdk";
 
 // ① 参数错误(用户输入不对)
 throw new errs.ValidationError({
-  subtype: 'invalid_argument',
-  param: '--limit',                    // 出错的参数名
-  message: '--limit 必须为正数',
-  hint: '使用 --limit 30 指定返回数量',
-})
+  subtype: "invalid_argument",
+  param: "--limit", // 出错的参数名
+  message: "--limit 必须为正数",
+  hint: "使用 --limit 30 指定返回数量",
+});
 
 // ② 需要登录(token 不存在或失效)
 throw new errs.AuthenticationError({
-  subtype: 'no_token',
-  message: '未登录',
-  hint: 'run `rxcli auth login` 登录',
-})
+  subtype: "no_token",
+  message: "未登录",
+  hint: "run `rxcli auth login` 登录",
+});
 
 // ③ 权限不足(token 有效但缺 scope)
 throw new errs.PermissionError({
-  subtype: 'missing_scope',
-  message: '缺少 orders:read 权限',
-  hint: 'run `rxcli auth login --scope orders:read` 重新登录获取权限',
-  missingScopes: ['orders:read'],      // 扩展字段(机器可读)
-})
+  subtype: "missing_scope",
+  message: "缺少 orders:read 权限",
+  hint: "run `rxcli auth login --scope orders:read` 重新登录获取权限",
+  missingScopes: ["orders:read"], // 扩展字段(机器可读)
+});
 
 // ④ 配置错误(本地配置缺失)
 throw new errs.ConfigError({
-  subtype: 'missing_config',
-  param: 'baseUrl',
-  message: '未配置后端地址',
-  hint: 'run `rxcli config set baseUrl https://...`',
-})
+  subtype: "missing_config",
+  param: "baseUrl",
+  message: "未配置后端地址",
+  hint: "run `rxcli config set baseUrl https://...`",
+});
 
 // ⑤ 网络错误(DNS/超时/拒绝)
 throw new errs.NetworkError({
-  subtype: 'timeout',
-  message: '请求超时',
-  retryable: true,                     // ← 可重试
-  cause: originalError,                // 保留底层
-})
+  subtype: "timeout",
+  message: "请求超时",
+  retryable: true, // ← 可重试
+  cause: originalError, // 保留底层
+});
 
 // ⑥ API 错误(服务端业务错误)
 throw new errs.APIError({
-  subtype: 'server_error',
+  subtype: "server_error",
   code: 500,
-  message: '服务端内部错误',
+  message: "服务端内部错误",
   retryable: true,
-})
+});
 
 // ⑥' 资源不存在(API 错误的特例,常用)
-throw new errs.NotFoundError('订单 o_1001 不存在')
+throw new errs.NotFoundError("订单 o_1001 不存在");
 // 等价于 new errs.APIError({ subtype: 'not_found', code: 404, message })
 
 // ⑦ 策略拦截(风控/内容安全)
 throw new errs.PolicyError({
-  subtype: 'content_blocked',
-  message: '内容触发安全策略',
-  hint: '修改内容后重试,或联系管理员',
-})
+  subtype: "content_blocked",
+  message: "内容触发安全策略",
+  hint: "修改内容后重试,或联系管理员",
+});
 
 // ⑧ 内部错误(SDK 不该出现的情况)
 throw new errs.InternalError({
-  subtype: 'decode_failure',
-  message: '响应解析失败',
+  subtype: "decode_failure",
+  message: "响应解析失败",
   cause: parseError,
-})
+});
 
 // ⑨ 需要确认(高风险写入)
 throw new errs.ConfirmationRequiredError({
-  subtype: 'high_risk_write',
-  message: '批量删除需要确认',
-  hint: '加 --yes 跳过确认',
-})
+  subtype: "high_risk_write",
+  message: "批量删除需要确认",
+  hint: "加 --yes 跳过确认",
+});
 ```
 
 ---
@@ -136,17 +136,25 @@ throw new errs.ConfirmationRequiredError({
 
 `ValidationError` 的 `param` / `params` 字段指明出错的参数。**规则:param 值 = 用户在命令行实际输入的形态:**
 
-| 参数种类 | param 写法 | 例子 |
-|---|---|---|
-| flag 参数 | 带 `--` 前缀 | `'--limit'`、`'--status'` |
-| 位置参数 | 用原名,**不带**前缀 | `'id'`、`'orderId'` |
+| 参数种类  | param 写法          | 例子                      |
+| --------- | ------------------- | ------------------------- |
+| flag 参数 | 带 `--` 前缀        | `'--limit'`、`'--status'` |
+| 位置参数  | 用原名,**不带**前缀 | `'id'`、`'orderId'`       |
 
 ```ts
 // flag 参数错误:param 带 --
-throw new errs.ValidationError({ subtype: 'invalid_argument', param: '--limit', message: '--limit 必须为正数' })
+throw new errs.ValidationError({
+  subtype: "invalid_argument",
+  param: "--limit",
+  message: "--limit 必须为正数",
+});
 
 // 位置参数错误:param 用原名,不带 --
-throw new errs.ValidationError({ subtype: 'missing_required', param: 'id', message: '缺少订单 ID' })
+throw new errs.ValidationError({
+  subtype: "missing_required",
+  param: "id",
+  message: "缺少订单 ID",
+});
 ```
 
 这样 agent / 人看到 `param` 就知道是命令行里的哪个 token,可直接对应到该改什么。多个参数出错用 `params` 数组。
@@ -163,17 +171,17 @@ throw new errs.ValidationError({ subtype: 'missing_required', param: 'id', messa
 
 ### 常用 subtype 参考(非穷举)
 
-| Category | 常用 subtype |
-|---|---|
-| validation | `invalid_argument`, `missing_required`, `out_of_range` |
-| authentication | `no_token`, `token_expired`, `token_revoked` |
-| authorization | `missing_scope`, `app_permission_denied`, `forbidden` |
-| config | `missing_config`, `invalid_config`, `unbound_env` |
-| network | `timeout`, `connection_refused`, `dns_failure`, `ssl_error` |
-| api | `not_found`, `already_exists`, `conflict`, `rate_limited`, `server_error` |
-| policy | `content_blocked`, `challenge_required`, `access_denied` |
-| internal | `decode_failure`, `unknown`, `contract_violation` |
-| confirmation | `high_risk_write` |
+| Category       | 常用 subtype                                                              |
+| -------------- | ------------------------------------------------------------------------- |
+| validation     | `invalid_argument`, `missing_required`, `out_of_range`                    |
+| authentication | `no_token`, `token_expired`, `token_revoked`                              |
+| authorization  | `missing_scope`, `app_permission_denied`, `forbidden`                     |
+| config         | `missing_config`, `invalid_config`, `unbound_env`                         |
+| network        | `timeout`, `connection_refused`, `dns_failure`, `ssl_error`               |
+| api            | `not_found`, `already_exists`, `conflict`, `rate_limited`, `server_error` |
+| policy         | `content_blocked`, `challenge_required`, `access_denied`                  |
+| internal       | `decode_failure`, `unknown`, `contract_violation`                         |
+| confirmation   | `high_risk_write`                                                         |
 
 业务包可定义自己的 subtype,但必须在业务包的 subtype 声明文件里登记(后续 cli-sdk 提供 lint 校验)。
 
@@ -184,6 +192,7 @@ throw new errs.ValidationError({ subtype: 'missing_required', param: 'id', messa
 `hint` 不是给人看的解释,是**给 agent 的可执行恢复指令**。规范:
 
 ✅ **好的 hint**(agent 能直接执行):
+
 ```
 "run `rxcli auth login` 登录"
 "run `rxcli auth login --scope orders:read` 重新获取权限"
@@ -192,6 +201,7 @@ throw new errs.ValidationError({ subtype: 'missing_required', param: 'id', messa
 ```
 
 ❌ **坏的 hint**(agent 不知道干啥):
+
 ```
 "请检查你的配置"           ← 检查什么?怎么检查?
 "出错了,稍后重试"          ← 重试什么?什么时候?
@@ -228,21 +238,22 @@ async run({ id }, ctx) {
 // 在 defineCli 里配置:哪些 status 自动 throw
 export default defineCli({
   // ...
-  errorOnStatus: {                     // 可选:status → subtype 映射
-    404: 'not_found',
-    403: 'forbidden',
-    '5xx': 'server_error',
+  errorOnStatus: {
+    // 可选:status → subtype 映射
+    404: "not_found",
+    403: "forbidden",
+    "5xx": "server_error",
   },
-})
+});
 ```
 
 `errorOnStatus` 的**值是 subtype 字符串**(不是构造器名)。**subtype 隐含 category**(见上面的"常用 subtype 参考"表,每个 subtype 归属固定 category),cli-sdk 据此自动选对应的类型化构造器 + exit code,业务包不用手写 if。上面示例对应的内置映射:
 
-| status | subtype | → category | → 构造器 | → exit |
-|---|---|---|---|:---:|
-| `404` | `not_found` | api | `APIError`(NotFoundError 是其别名) | 1 |
-| `403` | `forbidden` | authorization | `PermissionError` | 3 |
-| `5xx` | `server_error` | api | `APIError` | 1 |
+| status | subtype        | → category    | → 构造器                           | → exit |
+| ------ | -------------- | ------------- | ---------------------------------- | :----: |
+| `404`  | `not_found`    | api           | `APIError`(NotFoundError 是其别名) |   1    |
+| `403`  | `forbidden`    | authorization | `PermissionError`                  |   3    |
+| `5xx`  | `server_error` | api           | `APIError`                         |   1    |
 
 > 若配置了一个未在 subtype 注册表登记的 subtype,cli-sdk 在启动时校验失败(CI 里也会 fail,避免拼写错误悄悄上线)。
 
@@ -277,10 +288,10 @@ wrap 时用 `cause` 字段保留底层错误,让 `errors.is` / `errors.Unwrap` �
 
 ```ts
 throw new errs.NetworkError({
-  subtype: 'timeout',
-  message: '请求超时',
-  cause: originalFetchError,    // ← 保留
-})
+  subtype: "timeout",
+  message: "请求超时",
+  cause: originalFetchError, // ← 保留
+});
 ```
 
 ---
@@ -288,6 +299,7 @@ throw new errs.NetworkError({
 ## retryable 字段
 
 `retryable: true` 告诉 agent "这个错误重试可能成功"。典型场景:
+
 - 网络超时、429 限流、5xx 服务端临时错误 → `retryable: true`
 - 参数错误、未登录、权限不足、404 → `retryable: false`(省略字段)
 
@@ -300,6 +312,7 @@ agent 看到 `retryable: true` 可以自动重试(带退避)。
 `onError` 是插件钩子(见 `02-sdk-guide.md` 的"插件系统"),在错误抛出后、渲染前触发。**链式**:每个插件都跑一遍,不处理的返回原 error,处理的返回新 error。
 
 onError 插件可用来:
+
 - 把后端特有的错误码归一化成标准 subtype
 - 脱敏错误消息里的敏感信息(如 token 泄露到 message)
 - 给特定错误加 hint
@@ -337,7 +350,7 @@ defineCli({ plugins: [auth, errorNormalizePlugin], ... })
 
 ```ts
 // 谓词命令:stdout 已有完整答案(如 auth check 的 yes/no JSON),只想要对应的 exit code
-if (!loggedIn) throw new errs.BareError(3)   // exit 3,stderr 不渲染错误信封
+if (!loggedIn) throw new errs.BareError(3); // exit 3,stderr 不渲染错误信封
 ```
 
 - **只设 exit code,不渲染 stderr 错误信封**——因为 stdout 已经携带了答案
@@ -350,16 +363,16 @@ if (!loggedIn) throw new errs.BareError(3)   // exit 3,stderr 不渲染错误信
 
 cli-sdk 根据 Category 自动设 exit code,业务包不用管:
 
-| Category | Exit Code |
-|---|:---:|
-| (成功) | 0 |
-| `api` | 1 |
-| `validation` | 2 |
-| `authentication` / `authorization` / `config` | 3 |
-| `network` | 4 |
-| `internal` | 5 |
-| `policy` | 6 |
-| `confirmation` | 10 |
+| Category                                      | Exit Code |
+| --------------------------------------------- | :-------: |
+| (成功)                                        |     0     |
+| `api`                                         |     1     |
+| `validation`                                  |     2     |
+| `authentication` / `authorization` / `config` |     3     |
+| `network`                                     |     4     |
+| `internal`                                    |     5     |
+| `policy`                                      |     6     |
+| `confirmation`                                |    10     |
 
 > 注意:1(api)和 5(internal)在 lark-cli 里是分开的——api 是"服务端业务错误",internal 是"SDK 契约违反",后者更严重。我们沿用这个区分。
 
@@ -367,14 +380,14 @@ cli-sdk 根据 Category 自动设 exit code,业务包不用管:
 
 ## 常见错误场景对照
 
-| 场景 | 该 throw 什么 |
-|---|---|
-| 用户传了 `--limit abc`(非数字) | `ValidationError` subtype `invalid_argument` param `--limit` |
-| 用户没登录就调业务命令 | client 内部抛 `AuthenticationError`(业务包不用管) |
-| 登录了但没 orders:read scope | client 或命令抛 `PermissionError` subtype `missing_scope` missingScopes `['orders:read']` |
-| 调 `/orders/x` 返回 404 | `NotFoundError` |
-| 网络断开 | client 抛 `NetworkError` subtype `connection_refused` retryable |
-| 后端返回 500 | `APIError` subtype `server_error` retryable |
-| 后端返回 429 | `APIError` subtype `rate_limited` retryable + `Retry-After` hint |
-| 批量删除没加 --yes | `ConfirmationRequiredError` hint "加 --yes" |
-| 响应 JSON 解析失败 | `InternalError` subtype `decode_failure` |
+| 场景                           | 该 throw 什么                                                                             |
+| ------------------------------ | ----------------------------------------------------------------------------------------- |
+| 用户传了 `--limit abc`(非数字) | `ValidationError` subtype `invalid_argument` param `--limit`                              |
+| 用户没登录就调业务命令         | client 内部抛 `AuthenticationError`(业务包不用管)                                         |
+| 登录了但没 orders:read scope   | client 或命令抛 `PermissionError` subtype `missing_scope` missingScopes `['orders:read']` |
+| 调 `/orders/x` 返回 404        | `NotFoundError`                                                                           |
+| 网络断开                       | client 抛 `NetworkError` subtype `connection_refused` retryable                           |
+| 后端返回 500                   | `APIError` subtype `server_error` retryable                                               |
+| 后端返回 429                   | `APIError` subtype `rate_limited` retryable + `Retry-After` hint                          |
+| 批量删除没加 --yes             | `ConfirmationRequiredError` hint "加 --yes"                                               |
+| 响应 JSON 解析失败             | `InternalError` subtype `decode_failure`                                                  |

@@ -6,8 +6,8 @@
  *
  * transport 直接 mock global fetch(不走 ctx/plugin),聚焦请求层逻辑。
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { createTransport } from '../request.js'
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { createTransport } from "../request.js";
 import {
   ValidationError,
   AuthenticationError,
@@ -18,18 +18,18 @@ import {
   PolicyError,
   InternalError,
   ConfirmationRequiredError,
-} from '../errs/index.js'
+} from "../errs/index.js";
 
 // mock global fetch
-let fetchMock: ReturnType<typeof vi.fn>
+let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
-  fetchMock = vi.fn()
-  vi.stubGlobal('fetch', fetchMock)
-})
+  fetchMock = vi.fn();
+  vi.stubGlobal("fetch", fetchMock);
+});
 afterEach(() => {
-  vi.restoreAllMocks()
-  vi.unstubAllGlobals()
-})
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 function jsonResponse(status: number, body: unknown): Response {
   return {
@@ -37,163 +37,163 @@ function jsonResponse(status: number, body: unknown): Response {
     ok: status >= 200 && status < 300,
     headers: new Headers(),
     text: async () => JSON.stringify(body),
-  } as Response
+  } as Response;
 }
 
-describe('H3: errorOnStatus 按 subtype 隐含 category 选构造器(全 9 类)', () => {
+describe("H3: errorOnStatus 按 subtype 隐含 category 选构造器(全 9 类)", () => {
   // 04-errors.md:239-246 契约:subtype 隐含 category → 自动选构造器 + exit code。
   // 修复前 throwBySubtype 只有 authorization/authentication/api 三分支,其余全 default → APIError。
-  it('400 → invalid_argument(validation)→ ValidationError', async () => {
-    const t = createTransport({ errorOnStatus: { 400: 'invalid_argument' } })
-    fetchMock.mockResolvedValue(jsonResponse(400, { message: 'bad' }))
-    await expect(t.get('/x')).rejects.toBeInstanceOf(ValidationError)
-  })
+  it("400 → invalid_argument(validation)→ ValidationError", async () => {
+    const t = createTransport({ errorOnStatus: { 400: "invalid_argument" } });
+    fetchMock.mockResolvedValue(jsonResponse(400, { message: "bad" }));
+    await expect(t.get("/x")).rejects.toBeInstanceOf(ValidationError);
+  });
 
-  it('401 → no_token(authentication)→ AuthenticationError', async () => {
-    const t = createTransport({ errorOnStatus: { 401: 'no_token' } })
-    fetchMock.mockResolvedValue(jsonResponse(401, {}))
-    await expect(t.get('/x')).rejects.toBeInstanceOf(AuthenticationError)
-  })
+  it("401 → no_token(authentication)→ AuthenticationError", async () => {
+    const t = createTransport({ errorOnStatus: { 401: "no_token" } });
+    fetchMock.mockResolvedValue(jsonResponse(401, {}));
+    await expect(t.get("/x")).rejects.toBeInstanceOf(AuthenticationError);
+  });
 
-  it('403 → forbidden(authorization)→ PermissionError', async () => {
-    const t = createTransport({ errorOnStatus: { 403: 'forbidden' } })
-    fetchMock.mockResolvedValue(jsonResponse(403, {}))
-    await expect(t.get('/x')).rejects.toBeInstanceOf(PermissionError)
-  })
+  it("403 → forbidden(authorization)→ PermissionError", async () => {
+    const t = createTransport({ errorOnStatus: { 403: "forbidden" } });
+    fetchMock.mockResolvedValue(jsonResponse(403, {}));
+    await expect(t.get("/x")).rejects.toBeInstanceOf(PermissionError);
+  });
 
-  it('→ missing_config(config)→ ConfigError', async () => {
-    const t = createTransport({ errorOnStatus: { 550: 'missing_config' } })
-    fetchMock.mockResolvedValue(jsonResponse(550, {}))
-    await expect(t.get('/x')).rejects.toBeInstanceOf(ConfigError)
-  })
+  it("→ missing_config(config)→ ConfigError", async () => {
+    const t = createTransport({ errorOnStatus: { 550: "missing_config" } });
+    fetchMock.mockResolvedValue(jsonResponse(550, {}));
+    await expect(t.get("/x")).rejects.toBeInstanceOf(ConfigError);
+  });
 
-  it('→ timeout(network)→ NetworkError', async () => {
-    const t = createTransport({ errorOnStatus: { 408: 'timeout' } })
-    fetchMock.mockResolvedValue(jsonResponse(408, {}))
-    await expect(t.get('/x')).rejects.toBeInstanceOf(NetworkError)
-  })
+  it("→ timeout(network)→ NetworkError", async () => {
+    const t = createTransport({ errorOnStatus: { 408: "timeout" } });
+    fetchMock.mockResolvedValue(jsonResponse(408, {}));
+    await expect(t.get("/x")).rejects.toBeInstanceOf(NetworkError);
+  });
 
-  it('→ content_blocked(policy)→ PolicyError', async () => {
-    const t = createTransport({ errorOnStatus: { 451: 'content_blocked' } })
-    fetchMock.mockResolvedValue(jsonResponse(451, {}))
-    await expect(t.get('/x')).rejects.toBeInstanceOf(PolicyError)
-  })
+  it("→ content_blocked(policy)→ PolicyError", async () => {
+    const t = createTransport({ errorOnStatus: { 451: "content_blocked" } });
+    fetchMock.mockResolvedValue(jsonResponse(451, {}));
+    await expect(t.get("/x")).rejects.toBeInstanceOf(PolicyError);
+  });
 
-  it('→ decode_failure(internal)→ InternalError', async () => {
-    const t = createTransport({ errorOnStatus: { 500: 'decode_failure' } })
-    fetchMock.mockResolvedValue(jsonResponse(500, {}))
-    await expect(t.get('/x')).rejects.toBeInstanceOf(InternalError)
-  })
+  it("→ decode_failure(internal)→ InternalError", async () => {
+    const t = createTransport({ errorOnStatus: { 500: "decode_failure" } });
+    fetchMock.mockResolvedValue(jsonResponse(500, {}));
+    await expect(t.get("/x")).rejects.toBeInstanceOf(InternalError);
+  });
 
-  it('→ high_risk_write(confirmation)→ ConfirmationRequiredError', async () => {
-    const t = createTransport({ errorOnStatus: { 422: 'high_risk_write' } })
-    fetchMock.mockResolvedValue(jsonResponse(422, {}))
-    await expect(t.get('/x')).rejects.toBeInstanceOf(ConfirmationRequiredError)
-  })
+  it("→ high_risk_write(confirmation)→ ConfirmationRequiredError", async () => {
+    const t = createTransport({ errorOnStatus: { 422: "high_risk_write" } });
+    fetchMock.mockResolvedValue(jsonResponse(422, {}));
+    await expect(t.get("/x")).rejects.toBeInstanceOf(ConfirmationRequiredError);
+  });
 
-  it('→ not_found(api)→ APIError(原有逻辑保留)', async () => {
-    const t = createTransport({ errorOnStatus: { 404: 'not_found' } })
-    fetchMock.mockResolvedValue(jsonResponse(404, {}))
-    await expect(t.get('/x')).rejects.toBeInstanceOf(APIError)
-  })
+  it("→ not_found(api)→ APIError(原有逻辑保留)", async () => {
+    const t = createTransport({ errorOnStatus: { 404: "not_found" } });
+    fetchMock.mockResolvedValue(jsonResponse(404, {}));
+    await expect(t.get("/x")).rejects.toBeInstanceOf(APIError);
+  });
 
   // D2/D3:04-errors.md:247 承诺"未登记 subtype 启动时校验失败",
   // 但 categoryOfSubtype 实现为运行时容错(回退 internal)。这里固化现状:
   // 未登记 subtype → category internal → InternalError(而非崩溃)。
   // 文档与实现的差距留待后续补 CI 校验;此测试确保行为可预测。
-  it('D2: 未登记 subtype → 回退 internal(运行时容错,不崩)', async () => {
-    const t = createTransport({ errorOnStatus: { 400: 'totally_made_up_subtype' } })
-    fetchMock.mockResolvedValue(jsonResponse(400, {}))
-    await expect(t.get('/x')).rejects.toBeInstanceOf(InternalError)
-  })
+  it("D2: 未登记 subtype → 回退 internal(运行时容错,不崩)", async () => {
+    const t = createTransport({ errorOnStatus: { 400: "totally_made_up_subtype" } });
+    fetchMock.mockResolvedValue(jsonResponse(400, {}));
+    await expect(t.get("/x")).rejects.toBeInstanceOf(InternalError);
+  });
 
-  it('错误实例携带 code(原 status)+ message + retryable', async () => {
-    const t = createTransport({ errorOnStatus: { 429: 'rate_limited' } })
+  it("错误实例携带 code(原 status)+ message + retryable", async () => {
+    const t = createTransport({ errorOnStatus: { 429: "rate_limited" } });
     fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ message: 'too many' }), {
+      new Response(JSON.stringify({ message: "too many" }), {
         status: 429,
-        headers: { 'Retry-After': '30' },
+        headers: { "Retry-After": "30" },
       }),
-    )
+    );
     try {
-      await t.get('/x')
-      throw new Error('should have thrown')
+      await t.get("/x");
+      throw new Error("should have thrown");
     } catch (err) {
-      const e = err as APIError
-      expect(e.code).toBe(429)
-      expect(e.message).toBe('too many')
-      expect(e.retryable).toBe(true)
-      expect(e.hint).toContain('Retry-After')
+      const e = err as APIError;
+      expect(e.code).toBe(429);
+      expect(e.message).toBe("too many");
+      expect(e.retryable).toBe(true);
+      expect(e.hint).toContain("Retry-After");
     }
-  })
-})
+  });
+});
 
-describe('H4: 401 on401 返回 null(refresh 失败)应抛 AuthenticationError,不透传 401 当数据', () => {
-  it('on401 返回 null + 401 响应 → 抛 AuthenticationError(token_expired)', async () => {
+describe("H4: 401 on401 返回 null(refresh 失败)应抛 AuthenticationError,不透传 401 当数据", () => {
+  it("on401 返回 null + 401 响应 → 抛 AuthenticationError(token_expired)", async () => {
     // 无 errorOnStatus 配 401 时,修复前 401 body 会被当成功数据返回
     const t = createTransport({
       on401: async () => null, // refresh 失败
-    })
-    fetchMock.mockResolvedValue(jsonResponse(401, { error: 'expired' }))
-    await expect(t.get('/x')).rejects.toBeInstanceOf(AuthenticationError)
+    });
+    fetchMock.mockResolvedValue(jsonResponse(401, { error: "expired" }));
+    await expect(t.get("/x")).rejects.toBeInstanceOf(AuthenticationError);
     try {
-      await t.get('/y')
-      throw new Error('should have thrown')
+      await t.get("/y");
+      throw new Error("should have thrown");
     } catch (err) {
-      const e = err as AuthenticationError
-      expect(e.subtype).toBe('token_expired')
+      const e = err as AuthenticationError;
+      expect(e.subtype).toBe("token_expired");
     }
-  })
+  });
 
-  it('on401 返回新 token → 用新 token 重试一次', async () => {
+  it("on401 返回新 token → 用新 token 重试一次", async () => {
     const t = createTransport({
-      on401: async () => 'new-token',
-    })
+      on401: async () => "new-token",
+    });
     fetchMock
       .mockResolvedValueOnce(jsonResponse(401, {}))
-      .mockResolvedValueOnce(jsonResponse(200, { ok: true }))
-    const res = await t.get('/x')
-    expect(res.status).toBe(200)
+      .mockResolvedValueOnce(jsonResponse(200, { ok: true }));
+    const res = await t.get("/x");
+    expect(res.status).toBe(200);
     // 第二次请求(fetch 的第 2 次调用)应带新 token 的 Authorization header
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    const secondCallOpts = fetchMock.mock.calls[1]![1] as { headers: Record<string, string> }
-    const authHeader = secondCallOpts.headers.authorization ?? secondCallOpts.headers.Authorization
-    expect(authHeader).toBe('Bearer new-token')
-  })
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const secondCallOpts = fetchMock.mock.calls[1]![1] as { headers: Record<string, string> };
+    const authHeader = secondCallOpts.headers.authorization ?? secondCallOpts.headers.Authorization;
+    expect(authHeader).toBe("Bearer new-token");
+  });
 
-  it('on401 刷新成功但重试仍是 401 → 走 errorOnStatus 抛错,不当成功数据返回', async () => {
+  it("on401 刷新成功但重试仍是 401 → 走 errorOnStatus 抛错,不当成功数据返回", async () => {
     // 回归:重试响应必须同样经过 errorOnStatus,否则重试 401 的 body 会被当 data 返回(exit 0)
     const t = createTransport({
-      on401: async () => 'refreshed-token',
-      errorOnStatus: { 401: 'token_expired' },
-    })
+      on401: async () => "refreshed-token",
+      errorOnStatus: { 401: "token_expired" },
+    });
     // 第一次 401(触发 refresh)→ 重试也 401(新 token 仍被拒)
     fetchMock
-      .mockResolvedValueOnce(jsonResponse(401, { error: 'invalid_token' }))
-      .mockResolvedValueOnce(jsonResponse(401, { error: 'invalid_token' }))
-    await expect(t.get('/x')).rejects.toBeInstanceOf(AuthenticationError)
-  })
-})
+      .mockResolvedValueOnce(jsonResponse(401, { error: "invalid_token" }))
+      .mockResolvedValueOnce(jsonResponse(401, { error: "invalid_token" }));
+    await expect(t.get("/x")).rejects.toBeInstanceOf(AuthenticationError);
+  });
+});
 
-describe('请求层: 网络错误包装', () => {
-  it('fetch reject → NetworkError(retryable)', async () => {
-    const t = createTransport()
-    fetchMock.mockRejectedValue(new TypeError('fetch failed'))
-    await expect(t.get('/x')).rejects.toBeInstanceOf(NetworkError)
-  })
+describe("请求层: 网络错误包装", () => {
+  it("fetch reject → NetworkError(retryable)", async () => {
+    const t = createTransport();
+    fetchMock.mockRejectedValue(new TypeError("fetch failed"));
+    await expect(t.get("/x")).rejects.toBeInstanceOf(NetworkError);
+  });
 
-  it('fetch 超时 → NetworkError(timeout subtype)', async () => {
-    const t = createTransport({ timeout: 10 })
-    const timeoutErr = new Error('timeout')
-    timeoutErr.name = 'TimeoutError'
-    fetchMock.mockRejectedValue(timeoutErr)
+  it("fetch 超时 → NetworkError(timeout subtype)", async () => {
+    const t = createTransport({ timeout: 10 });
+    const timeoutErr = new Error("timeout");
+    timeoutErr.name = "TimeoutError";
+    fetchMock.mockRejectedValue(timeoutErr);
     try {
-      await t.get('/x')
-      throw new Error('should have thrown')
+      await t.get("/x");
+      throw new Error("should have thrown");
     } catch (err) {
-      const e = err as NetworkError
-      expect(e.subtype).toBe('timeout')
-      expect(e.retryable).toBe(true)
+      const e = err as NetworkError;
+      expect(e.subtype).toBe("timeout");
+      expect(e.retryable).toBe(true);
     }
-  })
-})
+  });
+});
