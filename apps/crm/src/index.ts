@@ -10,6 +10,8 @@
 
 import { defineCli, defineAuth } from '@renxqoo/agent-data-cli'
 import { AUTH_BASE_URL, API_BASE_URL, SKILLS_DIR } from './config.js'
+import { realpathSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { ordersCommands } from './commands/orders.js'
 import { productsCommands } from './commands/products.js'
 import { invoicesCommands } from './commands/invoices.js'
@@ -53,17 +55,28 @@ const app = defineCli<CrmState>({
   skillsSource: process.env.RXCLI_SKILLS_SOURCE,
 })
 
+// bin 入口判断:用 realpath 解析软链(npm 全局安装时 argv[1] 是 bin 软链,
+// import.meta.url 是真实路径),避免字符串比对在软链下失效导致命令静默不执行
+function isMainEntry(): boolean {
+  try {
+    return realpathSync(process.argv[1] ?? '') === fileURLToPath(import.meta.url)
+  } catch {
+    return false
+  }
+}
+
+const argv = process.argv.slice(2)
+
 // install 向导拦截(优先级最高):argv[0]==='install' 转给 cli-sdk 的向导,不走命令路由。
 // skillsSource 空=本地 skills/;设了(如 RXCLI_SKILLS_SOURCE=https://skills.sh/p/xxx)=npx skills add。
-const argv = process.argv.slice(2)
-if (import.meta.url === `file://${process.argv[1]}` && argv[0] === 'install') {
+if (isMainEntry() && argv[0] === 'install') {
   const { runInstallWizard } = await import('@renxqoo/agent-data-cli')
   await runInstallWizard({ skillsSource: process.env.RXCLI_SKILLS_SOURCE })
   process.exit(0)
 }
 
 // bin 入口:被直接执行时自动 run
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isMainEntry()) {
   app.run(argv).then(() => {
     /* exit code 已由 pipeline 设 */
   })

@@ -11,7 +11,7 @@
  *   - namespaces:key=子命名空间 → rxcli-<name> <ns> <cmd>
  */
 
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type {
   App,
@@ -394,6 +394,20 @@ function renderCommandHelp(binName: string, matched: { route: string[]; spec: Co
 }
 
 /**
+ * 取入口脚本路径(realpath 解软链)。npm 全局安装时 process.argv[1] 是 bin 软链,
+ * realpath 后才是真实文件路径(detectBinName/detectVersion/detectBizPackage 往上找 package.json 用)。
+ */
+function entryPath(): string | undefined {
+  const entry = process.argv[1]
+  if (!entry) return undefined
+  try {
+    return realpathSync(entry)
+  } catch {
+    return entry
+  }
+}
+
+/**
  * 自动探测 bin 名:从实际运行的入口(process.argv[1])往上找 package.json,读 bin 第一个 key。
  * 业务包的 dist/index.js 是入口,其 package.json 在包根目录(往上找能命中)。
  * 找不到(bun compile / 测试 / 无 bin)返回 undefined,调用方回退到 name。
@@ -401,8 +415,7 @@ function renderCommandHelp(binName: string, matched: { route: string[]; spec: Co
  */
 function detectBinName(): string | undefined {
   try {
-    // process.argv[1] 是实际运行的入口脚本(业务包的 dist/index.js)
-    const entry = process.argv[1]
+    const entry = entryPath()
     if (!entry) return undefined
     let dir = dirname(entry)
     for (let i = 0; i < 10; i++) {
@@ -433,7 +446,7 @@ function detectBinName(): string | undefined {
  */
 function detectVersion(): string {
   try {
-    const entry = process.argv[1]
+    const entry = entryPath()
     if (entry) {
       let dir = dirname(entry)
       for (let i = 0; i < 10; i++) {
@@ -469,7 +482,7 @@ export interface BizPackageInfo {
 
 export function detectBizPackage(): BizPackageInfo | null {
   try {
-    const entry = process.argv[1]
+    const entry = entryPath()
     if (!entry) return null
     let dir = dirname(entry)
     for (let i = 0; i < 10; i++) {

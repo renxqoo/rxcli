@@ -1,6 +1,6 @@
 {
   "name": "@renxqoo/cli",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "rxcli — agent 访问公司业务数据的命令行工具(订单/商品/发票/账号),基于 @renxqoo/agent-data-cli 框架",
   "license": "MIT",
   "author": "renxqoo <wangrenren611@gmail.com>",
