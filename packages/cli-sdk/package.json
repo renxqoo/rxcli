@@ -1,0 +1,74 @@
+{
+  "name": "@renxqoo/agent-data-cli",
+  "version": "0.1.0",
+  "description": "Agent-native CLI framework — 让 AI agent 结构化获取业务数据的命令行框架(鉴权/信封/错误/凭证/管道/skill 全套能力)",
+  "license": "MIT",
+  "author": "renxqoo <wangrenren611@gmail.com>",
+  "homepage": "https://github.com/renxqoo/rxcli#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/renxqoo/agent-datac-cli.git",
+    "directory": "packages/cli-sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/renxqoo/rxcli/issues"
+  },
+  "keywords": [
+    "cli",
+    "agent",
+    "agent-native",
+    "framework",
+    "oauth",
+    "sdk",
+    "envelope",
+    "data",
+    "ai"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./errs": {
+      "types": "./dist/errs/index.d.ts",
+      "import": "./dist/errs/index.js"
+    },
+    "./credentials": {
+      "types": "./dist/credentials/index.d.ts",
+      "import": "./dist/credentials/index.js"
+    },
+    "./skills": {
+      "types": "./dist/skills/index.d.ts",
+      "import": "./dist/skills/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "docs",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.7.0",
+    "cac": "^7.0.0",
+    "qrcode": "^1.5.4",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "@types/qrcode": "^1.5.6",
+    "typescript": "^5.9.2",
+    "vitest": "^4.1.10"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "rxcli-monorepo",
+  "private": true,
+  "version": "0.0.0",
+  "description": "rxcli v2 —— agent-native CLI 框架(cli-sdk 基础包 + 业务包)",
+  "license": "MIT",
+  "author": "renxqoo",
+  "type": "module",
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "build": "pnpm -r run build",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm -r run test",
+    "docs:check": "echo 'TODO: 文档链接检查'"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  }
+}

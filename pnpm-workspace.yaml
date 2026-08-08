@@ -1,0 +1,5 @@
+# pnpm monorepo 工作区配置
+# packages/ 放基础库(cli-sdk);apps/ 放业务应用(orders 等独立 npm 包)
+packages:
+  - "packages/*"
+  - "apps/*"
