@@ -2,7 +2,7 @@
 
 > agent 访问公司业务数据的命令行工具 —— 订单 / 商品 / 发票 / 账号。
 >
-> 基于 [`@renxqoo/agentdatacli`](../cli-sdk) 框架,演示如何用 SDK 搭建一个 agent-native 业务包。
+> 基于 [`@renxqoo/agent-data-cli`](../cli-sdk) 框架,演示如何用 SDK 搭建一个 agent-native 业务包。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org/)
@@ -202,7 +202,7 @@ agent: (读 rx-orders skill) → rxcli orders list → 解析信封 → 返回�
 
 ## 开发
 
-本包是 [rxcli monorepo](https://github.com/renxqoo/rxcli) 的业务应用,依赖 `@renxqoo/agentdatacli` 框架。
+本包是 [rxcli monorepo](https://github.com/renxqoo/rxcli) 的业务应用,依赖 `@renxqoo/agent-data-cli` 框架。
 
 ```bash
 # 在 monorepo 根目录
@@ -217,12 +217,12 @@ pnpm test
 pnpm build
 ```
 
-> **注意**:`crm` 解析 `@renxqoo/agentdatacli` 的 **dist**(不是源码)。改了 cli-sdk 源码后,必须先 `pnpm build`(在 packages/cli-sdk),crm 才能看到变化。
+> **注意**:`crm` 解析 `@renxqoo/agent-data-cli` 的 **dist**(不是源码)。改了 cli-sdk 源码后,必须先 `pnpm build`(在 packages/cli-sdk),crm 才能看到变化。
 
 ### 业务包入口(参考实现)
 
 ```ts
-import { defineCli, defineAuth } from '@renxqoo/agentdatacli'
+import { defineCli, defineAuth } from '@renxqoo/agent-data-cli'
 
 const auth = await defineAuth({
   credentialNamespace: 'crm',
