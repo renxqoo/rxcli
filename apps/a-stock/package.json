@@ -1,0 +1,58 @@
+{
+  "name": "@renxqoo/rxstock",
+  "version": "1.0.0",
+  "description": "rxstock — A 股股票数据命令行工具(行情/K 线/财务/板块/资金流),基于 @renxqoo/agent-data-cli 框架,数据来源公开渠道,仅供学习研究",
+  "keywords": [
+    "a-stock",
+    "agent",
+    "agentdatacli",
+    "astock",
+    "a股",
+    "cli",
+    "kline",
+    "quote",
+    "rxcli",
+    "stock"
+  ],
+  "homepage": "https://github.com/renxqoo/rxcli#readme",
+  "bugs": {
+    "url": "https://github.com/renxqoo/rxcli/issues"
+  },
+  "license": "MIT",
+  "author": "renxqoo <wangrenren611@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/renxqoo/rxcli.git",
+    "directory": "apps/a-stock"
+  },
+  "bin": {
+    "rxstock": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "skills"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@renxqoo/agent-data-cli": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "typescript": "^5.9.2",
+    "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "rxcli": {
+    "plugin": true
+  }
+}
