@@ -38,35 +38,38 @@ agent / 终端用户
 
 ## 安装
 
-无需全局安装,用 `npx` 即用即跑:
-
-```bash
-npx @renxqoo/cli <命令>
-```
-
-> `npx` 会自动下载并执行,不污染全局环境。首次运行会有几秒下载时间。
-
-想全局安装也可以(装完后 `rxcli` 命令直接可用):
+### 方式一:全局安装(推荐)
 
 ```bash
 npm install -g @renxqoo/cli
 ```
 
+安装后 `rxcli` 命令全局可用:
+
+```bash
+rxcli orders list
+rxcli auth login
+```
+
+### 方式二:npx 即用即跑(不污染全局)
+
+```bash
+npx @renxqoo/cli orders list
+npx @renxqoo/cli auth login
+```
+
+> `npx` 会自动下载并执行,首次运行会有几秒下载时间。
+
 ### 首次使用
 
 ```bash
-npx @renxqoo/cli install          # 引导:装 skills + 注册 + 登录
+rxcli install          # 引导:装 skills + 注册 + 登录
 # 或手动分步:
-npx @renxqoo/cli auth register    # 用注册令牌注册(从管理员获取)
-npx @renxqoo/cli auth login       # 浏览器登录
+rxcli auth register    # 用注册令牌注册(从管理员获取)
+rxcli auth login       # 浏览器登录
 ```
 
-全局安装后可省略 `npx @renxqoo/cli`,直接用 `rxcli`:
-
-```bash
-rxcli install
-rxcli orders list
-```
+> npx 用户把 `rxcli` 替换成 `npx @renxqoo/cli` 即可。下文示例统一用 `rxcli` 简写。
 
 ---
 

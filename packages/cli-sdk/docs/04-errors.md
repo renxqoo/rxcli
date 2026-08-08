@@ -206,7 +206,7 @@ throw new errs.ValidationError({ subtype: 'missing_required', param: 'id', messa
 
 业务命令 `run` 里调 `ctx.get`/`ctx.post` 等(返回 `TransportResponse`,含 `status`)。两种处理模式:
 
-> **关于 401 自动续期**:业务包通常不处理 401——cli-sdk 请求层内部检测到 401 会自动触发 token refresh(singleflight 复用,见 `07-migration.md`),refresh 的执行能力由 oauthProvider 提供(见 `05-credentials.md`)。两者协作:请求层管"检测 + 单次复用",provider 管"怎么换 token"。业务包无感,只管 `ctx.get`。下面两种模式针对的是**非鉴权类**的业务 status(404/403/5xx 等)。
+> **关于 401 自动续期**:业务包通常不处理 401——cli-sdk 请求层内部检测到 401 会自动触发 token refresh(singleflight 复用),refresh 的执行能力由 oauthProvider 提供(见 `05-credentials.md`)。两者协作:请求层管"检测 + 单次复用",provider 管"怎么换 token"。业务包无感,只管 `ctx.get`。下面两种模式针对的是**非鉴权类**的业务 status(404/403/5xx 等)。
 
 ### 模式 A:命令自己判断 status,throw 类型化错误
 

@@ -2,7 +2,7 @@
  * @renxqoo/agentdatacli/credentials —— ConfigStore 实现
  *
  * 设计依据:docs/05-credentials.md "凭证存储"。
- * 从 v1 config.ts 移植,改造点:
+ * 实现,改造点:
  *   - 按 namespace 分文件(v1 是单 credentials.json,v2 每个业务包一个文件)
  *   - **取消多环境**(v1 单体 CLI 的遗留概念):v2 是框架,业务包各自声明 baseUrl,无 dev/test/prod
  *
@@ -14,7 +14,7 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync, chmodSync, unlinkSy
 import type { ConfigStore } from './types.js'
 
 // ============================================================================
-// fileStore:磁盘实现(从 v1 移植 + 按 namespace 分文件)
+// fileStore:磁盘实现(移植 + 按 namespace 分文件)
 // ============================================================================
 
 export interface FileStoreOptions {

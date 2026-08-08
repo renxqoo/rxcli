@@ -17,7 +17,7 @@
 
 ## skill reader:list / read / sync
 
-cli-sdk 提供 skill 内容读取器(沿用 v1,对齐 lark-cli 的 `skillcontent/reader.go`,带路径穿越校验)。agent 用这些命令自服务发现能力:
+cli-sdk 提供 skill 内容读取器(沿用前版设计,对齐 lark-cli 的 `skillcontent/reader.go`,带路径穿越校验)。agent 用这些命令自服务发现能力:
 
 ### `skills list` — 列出所有 skill
 
@@ -350,8 +350,8 @@ vi skills/orders/references/orders-list.md   # 手写,gen 不碰
 
 ## skill 与 lark-cli 的关系
 
-v1 的 `skills/reader.ts` 和 lark-cli 的 `skillcontent/reader.go` 几乎逐行一致(都是 list/read + 路径校验 + frontmatter 解析)。v2 直接沿用这套(已验证),只增加:
-- **命令文档自动生成**(v2 新增,lark-cli 用别的方式)
-- **跨包 skill 聚合**(v2 的 `@renxqoo/cli` meta 包负责,lark-cli 是单仓)
+本框架的 `skills/reader.ts` 和 lark-cli 的 `skillcontent/reader.go` 几乎逐行一致(都是 list/read + 路径校验 + frontmatter 解析)。直接沿用这套(已验证),只增加:
+- **命令文档自动生成**(框架新增,lark-cli 用别的方式)
+- **跨包 skill 聚合**(业务包负责,lark-cli 是单仓)
 
-详见 `07-migration.md` 的 skill 部分。
+

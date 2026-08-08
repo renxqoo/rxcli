@@ -347,7 +347,7 @@ function createAuthCommands<State>(o: AuthCommandOpts): CommandGroup {
 }
 
 // ============================================================================
-// 轮询 + 落盘(从 v1 pollAndPersist + persistLogin 移植)
+// 轮询 + 落盘(pollAndPersist + persistLogin 实现)
 // ============================================================================
 
 /**

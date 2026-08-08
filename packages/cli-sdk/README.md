@@ -242,7 +242,6 @@ const myPlugin: Plugin = {
 | [`04-errors.md`](docs/04-errors.md) | 9 类错误、何时 throw |
 | [`05-credentials.md`](docs/05-credentials.md) | provider chain、自定义凭证 |
 | [`06-skills.md`](docs/06-skills.md) | skill 系统、命令文档自动生成 |
-| [`07-migration.md`](docs/07-migration.md) | v1 → v2 迁移 |
 
 ---
 

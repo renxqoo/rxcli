@@ -1,9 +1,8 @@
 /**
  * @renxqoo/agentdatacli —— OAuth device flow + 401 singleflight refresh
  *
- * 设计依据:docs/07-migration.md "401 singleflight refresh(必须保留)"、
- *           docs/05-credentials.md "provider chain"。
- * 从 v1 api.ts 移植(deviceAuthorization/pollDeviceToken/refreshAccessToken/getUserInfo/revoke/registerClient)。
+ * 设计依据:docs/05-credentials.md "provider chain"。
+ * 实现:deviceAuthorization/pollDeviceToken/refreshAccessToken/getUserInfo/revoke/registerClient。
  *
  * 关键修正 v1 坑:v1 的 singleflight 续期拿到新 token 后**没有写回 credentials.json**,
  * 导致连续多次 CLI 调用反复刷新、甚至触发 refresh_token 重用检测。
@@ -46,7 +45,7 @@ export function injectAuthHeader(req: RequestOptions, token: string, style: Auth
 }
 
 // ============================================================================
-// OAuth 端点类型(从 v1 api.ts 移植,字段保持 snake_case 对齐 wire)
+// OAuth 端点类型(字段保持 snake_case 对齐 wire)
 // ============================================================================
 
 export interface DeviceAuthInfo {
@@ -84,7 +83,7 @@ export type PollResult =
   | { status: 'error'; message: string }
 
 // ============================================================================
-// OAuth 端点函数(从 v1 api.ts 移植,纯 fetch)
+// OAuth 端点函数(纯 fetch)
 // ============================================================================
 
 function basicAuth(cfg: OAuthClientConfig): string {
@@ -236,7 +235,7 @@ export async function registerClient(
 }
 
 // ============================================================================
-// 401 singleflight refresh(从 v1 移植 + 落盘修正)
+// 401 singleflight refresh(移植 + 落盘修正)
 // ============================================================================
 
 /**

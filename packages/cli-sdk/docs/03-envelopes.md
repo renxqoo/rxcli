@@ -240,11 +240,11 @@ if (!loggedIn) throw new errs.BareError(3)   // exit 3,stderr 不输出信封
 
 ---
 
-## 与 v1 对比
+## 为什么用信封模型
 
-v1 是同步 `console.log(JSON.stringify(body, null, 2))`,没有信封概念。v2 改成信封模型:
+传统 CLI 常见做法是同步 `console.log(JSON.stringify(body, null, 2))`,没有信封概念。本框架改成信封模型:
 
-| | v1 `printGatewayJson` | v2 `run` 返回值 → 框架序列化 |
+| | 传统 console.log | 信封模型(`run` 返回值 → 框架序列化) |
 |---|---|---|
 | 输出 | 裸 JSON body,美化打印 | 信封 `{ok, data, meta}` |
 | 错误 | exitCode=1 + console.error message | stderr 错误信封 + 类型化 exit code |
@@ -252,7 +252,6 @@ v1 是同步 `console.log(JSON.stringify(body, null, 2))`,没有信封概念。v
 | stdout 纯净 | ❌(美化打印有空格,管道易混) | ✅(紧凑 JSON) |
 | agent 可分支 | ❌(只有 message 字符串) | ✅(wire-stable type/subtype) |
 
-迁移详见 `07-migration.md`。
 
 ---
 

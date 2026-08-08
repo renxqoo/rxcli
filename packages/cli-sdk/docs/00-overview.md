@@ -1,30 +1,30 @@
 # 00 · 架构总览
 
-> 本文档是 rxcli v2 的设计锚点。所有后续文档(命令使用、SDK 指南、信封、错误、凭证、skill、迁移)都以本文档的全局决策为准,实现阶段不允许偏离。
+> 本文档是 rxcli 的设计锚点。所有后续文档(命令使用、SDK 指南、信封、错误、凭证、skill)都以本文档的全局决策为准,实现阶段不允许偏离。
 
 ---
 
 ## 一句话定位
 
-**`@renxqoo/cli-sdk` 是一个 agent-native CLI 基础包:业务包依赖它,只用声明"调哪个后端接口、字段怎么处理",就能获得鉴权、脱敏、信封、错误分类、管道组合、skill 发现等全套能力。**
+**`@renxqoo/agentdatacli` 是一个 agent-native CLI 框架包:业务包依赖它,只用声明"调哪个后端接口、字段怎么处理",就能获得鉴权、脱敏、信封、错误分类、管道组合、skill 发现等全套能力。**
 
-它解决的核心矛盾是:**后端接口千差万别(REST/GraphQL/RPC、OAuth/API-key/mTLS、各种字段命名),但"把数据交给 agent 的方式"是通用的。** cli-sdk 把前者交给业务包,后者收敛成框架能力。
+它解决的核心矛盾是:**后端接口千差万别(REST/GraphQL/RPC、OAuth/API-key/mTLS、各种字段命名),但"把数据交给 agent 的方式"是通用的。** 框架把前者交给业务包,后者收敛成框架能力。
 
 ---
 
-## 与 v1 的差异
+## 设计要点
 
-| 维度 | rxcli v1 | rxcli v2 |
-|---|---|---|
-| 形态 | 单体 CLI,所有命令写死在一个仓 | **monorepo + SDK 框架**:cli-sdk 基础包 + 业务包独立 npm |
-| 业务包接入 | 在仓里加 `commands/xxx.ts` | 别人写独立 npm 包,依赖 cli-sdk |
-| 编程风格 | commander 命令式注册 | **function 风格 + 配置对象声明** |
-| 输出 | 同步 `console.log` JSON | **统一信封**(成功 stdout / 错误 stderr) |
-| 错误 | `process.exitCode = 1` + 打 message | **9 类类型化错误 + exit code 映射 + 结构化信封** |
-| 凭证 | 固定一个中间层 + config.json | **provider chain**,可扩展任意鉴权方式 |
-| 管道 | 不支持 | **unix 管道**,传引用+ID,本地过滤交 jq |
-| 上百接口 | 手写每个命令 | **拆文件组装**(v1 不做 resource 生成器,后续再说) |
-| skill | 静态文档 | **从 defineCommands 自动生成命令文档** + 人工语义区 |
+| 维度 | 做法 |
+|---|---|
+| 形态 | **monorepo + SDK 框架**:agentdatacli 框架包 + 业务包独立 npm |
+| 业务包接入 | 别人写独立 npm 包,依赖 agentdatacli |
+| 编程风格 | **function 风格 + 配置对象声明**(defineCli/defineCommand) |
+| 输出 | **统一信封**(成功 stdout / 错误 stderr) |
+| 错误 | **9 类类型化错误 + exit code 映射 + 结构化信封** |
+| 凭证 | **provider chain**,可扩展任意鉴权方式 |
+| 管道 | **unix 管道**,传引用+ID,本地过滤交 jq |
+| 上百接口 | **拆文件组装**(按业务域 namespaces 聚合) |
+| skill | **从 defineCommands 自动生成命令文档** + 人工语义区 |
 
 ---
 
@@ -70,7 +70,7 @@
 |---|---|---|
 | **mmx**(MiniMax CLI, TS) | client 能力复用、SDK/CLI 共享请求层、凭证解析优先级链、exit code 体系 | 单一后端的 SDK 形态范本 |
 | **lark-cli**(飞书 CLI, Go) | 结构化错误信封(RFC 7807)、成功信封 + pagination meta、provider chain、skill 系统、stdout/stderr 纪律、命令文档自动生成 | agent-first CLI 框架的治理范本 |
-| **rxcli v1**(本作者前一版) | device flow 登录、401 singleflight refresh、gateway 中间层代理、skill reader | 直接演进基础,迁移而非重发明 |
+| ** rxcli 前版**(本作者前一版) | device flow 登录、401 singleflight refresh、gateway 中间层代理、skill reader | 直接演进基础,迁移而非重发明 |
 
 **注意:借鉴的是模式,不是复制代码。** lark-cli 是 Go,我们是 TS;mmx 是单一后端产品,我们是框架。每个借鉴点都按 TS 框架场景做了改造(详见各专题文档)。
 
@@ -79,7 +79,7 @@
 ## monorepo 结构
 
 ```
-rxcli-v2/
+ rxcli/
 ├── pnpm-workspace.yaml          packages: ['packages/*', 'apps/*']
 ├── tsconfig.base.json           共享 TS 配置
 ├── package.json                 根(私有,只放脚本和共享 devDeps)
@@ -125,12 +125,12 @@ rxcli-v2/
 | 11 | 管道 | unix 管道;**传引用+ID**;本地过滤交 jq | `01-cli-usage.md` |
 | 12 | 过滤 | `--limit/--offset` 透传后端;`--filter`/选字段**交 jq** | `01-cli-usage.md` |
 | 13 | 全局 flag | `--json` + 服务端查询参数;其余交 jq/sort | `01-cli-usage.md` |
-| 14 | 脱敏 | v1 不做特性;以后经 beforeOutput 插件实现 | `02-sdk-guide.md` |
+| 14 | 脱敏 | 前版不做特性;以后经 beforeOutput 插件实现 | `02-sdk-guide.md` |
 | 15 | skill | list/read/sync + **defineCommands 自动生成命令文档** | `06-skills.md` |
 | 16 | 测试 | vitest + `createTestCtx` | `02-sdk-guide.md` |
 | 17 | 类型 | 命令三泛型 `<Args, Result>` + 业务包级 `<State>`;`ctx.state` 强类型防乱塞;请求泛型 `ctx.get<T>()` 可选 | `02-sdk-guide.md` |
 | 18 | 插件钩子 | 5 个:beforeCommand/beforeRequest/afterRequest/beforeOutput/onError;**enforce 三档**(pre/normal/post);onError 链式 | `02-sdk-guide.md` |
-| 19 | v1 不做 | resource() 生成器、写入确认、OpenAPI 自动注册 | 本文档 |
+| 19 | 前版不做 | resource() 生成器、写入确认、OpenAPI 自动注册 | 本文档 |
 
 ### 几个决策的"为什么"(简版,详见专题文档)
 
@@ -158,7 +158,6 @@ rxcli-v2/
 | `04-errors.md` | 业务包开发者 | 9 类错误、何时 throw、hint、onError 插件链 |
 | `05-credentials.md` | 业务包开发者 | **写 auth Plugin**(provider chain / injectAuthHeader / oauth)、provider chain、自定义凭证 |
 | `06-skills.md` | 业务包开发者 | skill 系统、命令文档自动生成 |
-| `07-migration.md` | v1 迁移者 | v1 → v2 的概念映射、代码归属、重写对照 |
 
 ---
 

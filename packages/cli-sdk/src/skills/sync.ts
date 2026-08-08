@@ -2,7 +2,7 @@
  * @renxqoo/agentdatacli/skills —— skill 同步(到 ~/.agents/skills/)
  *
  * 设计依据:docs/06-skills.md "skill 同步机制"。
- * 从 v1 commands/skills.ts 的 sync action 移植。
+ * 实现 skills 同步。
  * 把业务包的 skills 目录全量同步到 ~/.agents/skills/(主流 agent 工具的标准发现路径)。
  */
 

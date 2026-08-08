@@ -2,7 +2,7 @@
  * @renxqoo/agentdatacli/skills —— skill 内容读取器
  *
  * 设计依据:docs/06-skills.md、docs/01-cli-usage.md "skill 自服务发现"。
- * 从 v1 skills/reader.ts 移植(已对齐 lark-cli skillcontent/reader.go)。
+ * 对齐 lark-cli skillcontent/reader.go 实现。
  *
  * 改造点(v1 → v2):
  *   - skillsRoot 不再写死探测,改由参数传入(业务包各自的 skills 目录不同)

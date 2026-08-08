@@ -327,22 +327,20 @@ $ rxcli-orders list --verbose 2>&1 | grep -i auth
 > Auth: Bearer [REDACTED]     # ← 永远看不到真实 token
 ```
 
-> 注:v1 不实现完整的字段级脱敏特性(决策清单 #14),但**凭证本身的日志脱敏是底线**,从第一版就强制。
+> 注:本框架不实现完整的字段级脱敏特性(决策清单 #14),但**凭证本身的日志脱敏是底线**,从第一版就强制。
 
 ---
 
-## 与 v1 的迁移映射
+## 凭证系统的设计要点
 
-| v1 | v2 |
+| 传统做法 | 本框架 |
 |---|---|
 | `loadCredentials()` 读固定文件 | `ctx.credentials.get(namespace)` 按命名空间读(走 provider chain) |
-| `resolveCredential` 固定优先级链 | `resolveWithChain` + `defaultProviders()`(默认 4 个 provider) |
-| OAuth token 续期硬编码在 api.ts | 401 检测 + singleflight 复用在 cli-sdk **请求层**;refresh 执行能力由 auth Plugin 的 `createOn401Hook` 提供。两者协作(详见 `04-errors.md` 的"关于 401 自动续期"及 `07-migration.md`) |
+| 固定优先级链 | `resolveWithChain` + `defaultProviders()`(默认 4 个 provider) |
+| OAuth token 续期硬编码 | 401 检测 + singleflight 复用在框架**请求层**;refresh 执行能力由 auth Plugin 的 `createOn401Hook` 提供。两者协作(详见 `04-errors.md` 的"关于 401 自动续期") |
 | 单一中间层 baseUrl | 业务包各自声明 baseUrl(defineCli 配置),ConfigStore 只管凭证 |
-| `createClient` 工厂配 authStyle | 自己写 auth Plugin(`injectAuthHeader(req, token, authStyle)` 配) |
-| v1 无 `createAuthPlugin` | v2 **不再有封闭工厂**:auth 是 Plugin,开发者用 cli-sdk 基础块组装 |
+| 封闭的 auth 工厂 | **无封闭工厂**:auth 是 Plugin(defineAuth 工厂或手写),开发者用框架基础块组装 |
 
-迁移详见 `07-migration.md`。
 
 ---
 

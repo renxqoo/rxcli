@@ -325,7 +325,7 @@ res.data            // unknown
 
 业务包**不接触**鉴权细节(token/refresh/header 注入)。这些由两部分自动完成:
 1. **auth 插件**(业务包自己写,用 cli-sdk 基础块组装):beforeCommand 填 `ctx.state.user`、缓存 token,beforeRequest 注入 token header
-2. **cli-sdk 请求层**:401 自动 refresh(singleflight,见 `07-migration.md`)——前提是 auth 插件把 `createOn401Hook` 的结果挂到 `_transportConfig.on401`
+2. **cli-sdk 请求层**:401 自动 refresh(singleflight)——前提是 auth 插件把 `createOn401Hook` 的结果挂到 `_transportConfig.on401`
 
 业务包只管 `ctx.get(...)` 发请求,token/header 自动带上。详见 `05-credentials.md`。
 
@@ -794,7 +794,7 @@ list: defineCommand({
 
 ## 上百接口怎么办:拆文件组装
 
-接口多时,按业务域拆文件,在入口组装(决策清单 #19:v1 不做 resource 生成器)。组装规则用**显式 `namespaces` 字段**:
+接口多时,按业务域拆文件,在入口组装(决策清单 #19:不做 resource 生成器)。组装规则用**显式 `namespaces` 字段**:
 
 - **顶层命令**放 `commands`(其 key 就是命令名)→ `rxcli-crm <cmd>`
 - **子命名空间组**放 `namespaces`(其 key 即子命名空间)→ `rxcli-crm <ns> <cmd>`
