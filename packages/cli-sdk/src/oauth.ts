@@ -11,7 +11,7 @@
 
 import type { ConfigStore, StoredOAuthCredentials } from "./credentials/types.js";
 import type { RequestOptions } from "./types.js";
-import { APIError, AuthenticationError, InternalError } from "./errs/index.js";
+import { APIError, AuthenticationError, InternalError, NetworkError } from "./errs/index.js";
 
 // ============================================================================
 // header 注入工具(供开发者写 auth Plugin 用)
@@ -59,9 +59,11 @@ export interface DeviceAuthInfo {
 
 export interface TokenInfo {
   access_token: string;
-  refresh_token: string;
+  /** refresh grant 的响应可以不轮换 refresh_token。 */
+  refresh_token?: string;
   expires_in: number;
-  scope: string;
+  /** 未返回表示沿用原 scope。 */
+  scope?: string;
 }
 
 export interface UserInfo {
@@ -90,6 +92,26 @@ function basicAuth(cfg: OAuthClientConfig): string {
   return "Basic " + Buffer.from(`${cfg.clientId}:${cfg.clientSecret}`).toString("base64");
 }
 
+async function oauthFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: init.signal ?? AbortSignal.timeout(30_000),
+    });
+  } catch (err) {
+    const timeout =
+      err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
+    throw new NetworkError({
+      subtype: timeout ? "timeout" : "connection_refused",
+      message: timeout
+        ? "OAuth 请求超时(30000ms)"
+        : `OAuth 网络错误: ${err instanceof Error ? err.message : String(err)}`,
+      retryable: true,
+      cause: err,
+    });
+  }
+}
+
 /**
  * 安全解析响应 JSON(M8)。
  * 非 JSON 响应(网关 HTML 错误页 / 空响应)→ 抛 InternalError(decode_failure),
@@ -97,7 +119,17 @@ function basicAuth(cfg: OAuthClientConfig): string {
  * 空响应体返回 undefined(调用方按 !res.ok 分支处理)。
  */
 async function safeJson(res: Response): Promise<unknown> {
-  const text = await res.text();
+  let text: string;
+  try {
+    text = await res.text();
+  } catch (err) {
+    throw new NetworkError({
+      subtype: "connection_refused",
+      message: `读取 OAuth 响应失败: ${err instanceof Error ? err.message : String(err)}`,
+      retryable: true,
+      cause: err,
+    });
+  }
   if (!text) return undefined;
   try {
     return JSON.parse(text);
@@ -110,6 +142,53 @@ async function safeJson(res: Response): Promise<unknown> {
   }
 }
 
+function responseObject(body: unknown, endpoint: string): Record<string, unknown> {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new InternalError({
+      subtype: "contract_violation",
+      message: `${endpoint} 响应结构无效: expected object`,
+      cause: body,
+    });
+  }
+  return body as Record<string, unknown>;
+}
+
+function requiredString(body: Record<string, unknown>, key: string, endpoint: string): string {
+  const value = body[key];
+  if (typeof value !== "string" || !value) {
+    throw new InternalError({
+      subtype: "contract_violation",
+      message: `${endpoint} 响应缺少字符串字段 ${key}`,
+      cause: body,
+    });
+  }
+  return value;
+}
+
+function requiredNumber(body: Record<string, unknown>, key: string, endpoint: string): number {
+  const value = body[key];
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new InternalError({
+      subtype: "contract_violation",
+      message: `${endpoint} 响应缺少数字字段 ${key}`,
+      cause: body,
+    });
+  }
+  return value;
+}
+
+function parseTokenInfo(body: unknown, endpoint: string): TokenInfo {
+  const obj = responseObject(body, endpoint);
+  const token: TokenInfo = {
+    access_token: requiredString(obj, "access_token", endpoint),
+    expires_in: requiredNumber(obj, "expires_in", endpoint),
+  };
+  if (typeof obj.refresh_token === "string" && obj.refresh_token)
+    token.refresh_token = obj.refresh_token;
+  if (typeof obj.scope === "string") token.scope = obj.scope;
+  return token;
+}
+
 /**
  * 申请设备码。
  * @param scope OAuth scope;空/未传 = 不带 scope(有些鉴权不需要 scope)。
@@ -120,7 +199,7 @@ export async function deviceAuthorization(
 ): Promise<DeviceAuthInfo> {
   const params = new URLSearchParams();
   if (scope) params.set("scope", scope);
-  const res = await fetch(`${cfg.baseUrl}/device_authorization`, {
+  const res = await oauthFetch(`${cfg.baseUrl}/device_authorization`, {
     method: "POST",
     headers: {
       authorization: basicAuth(cfg),
@@ -136,7 +215,17 @@ export async function deviceAuthorization(
       message: "device_authorization failed",
       cause: body,
     });
-  return body as DeviceAuthInfo;
+  const obj = responseObject(body, "device_authorization");
+  return {
+    device_code: requiredString(obj, "device_code", "device_authorization"),
+    user_code: requiredString(obj, "user_code", "device_authorization"),
+    verification_uri: requiredString(obj, "verification_uri", "device_authorization"),
+    ...(typeof obj.verification_uri_complete === "string"
+      ? { verification_uri_complete: obj.verification_uri_complete }
+      : {}),
+    expires_in: requiredNumber(obj, "expires_in", "device_authorization"),
+    interval: requiredNumber(obj, "interval", "device_authorization"),
+  };
 }
 
 /**
@@ -150,7 +239,7 @@ export async function pollDeviceToken(
   cfg: OAuthClientConfig,
   deviceCode: string,
 ): Promise<PollResult> {
-  const res = await fetch(`${cfg.baseUrl}/token`, {
+  const res = await oauthFetch(`${cfg.baseUrl}/token`, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -160,9 +249,13 @@ export async function pollDeviceToken(
       client_secret: cfg.clientSecret,
     }).toString(),
   });
-  const body = (await safeJson(res)) as { error?: string; error_description?: string };
+  const rawBody = await safeJson(res);
+  const body =
+    rawBody && typeof rawBody === "object"
+      ? (rawBody as { error?: string; error_description?: string })
+      : {};
   if (res.ok) {
-    return { status: "ok", token: body as unknown as TokenInfo };
+    return { status: "ok", token: parseTokenInfo(rawBody, "device token") };
   }
   switch (body.error) {
     case "authorization_pending":
@@ -183,7 +276,7 @@ export async function refreshAccessToken(
   cfg: OAuthClientConfig,
   refreshToken: string,
 ): Promise<TokenInfo> {
-  const res = await fetch(`${cfg.baseUrl}/token`, {
+  const res = await oauthFetch(`${cfg.baseUrl}/token`, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -202,15 +295,23 @@ export async function refreshAccessToken(
       cause: body,
     });
   }
-  return body as TokenInfo;
+  return parseTokenInfo(body, "refresh token");
 }
 
 /** 查当前用户。 */
 export async function getUserInfo(cfg: OAuthClientConfig, accessToken: string): Promise<UserInfo> {
-  const res = await fetch(`${cfg.baseUrl}/user_info`, {
+  const res = await oauthFetch(`${cfg.baseUrl}/user_info`, {
     headers: { authorization: `Bearer ${accessToken}` },
   });
   const body = await safeJson(res);
+  if (res.status === 401) {
+    throw new AuthenticationError({
+      subtype: "token_expired",
+      code: 401,
+      message: "登录态已失效",
+      cause: body,
+    });
+  }
   if (!res.ok)
     throw new APIError({
       subtype: "server_error",
@@ -218,12 +319,16 @@ export async function getUserInfo(cfg: OAuthClientConfig, accessToken: string): 
       message: "user_info failed",
       cause: body,
     });
-  return body as UserInfo;
+  const obj = responseObject(body, "user_info");
+  return {
+    open_id: requiredString(obj, "open_id", "user_info"),
+    name: requiredString(obj, "name", "user_info"),
+  };
 }
 
 /** 吊销 token(logout 用)。响应固定 200,不关心是否真实吊销。 */
 export async function revokeToken(cfg: OAuthClientConfig, accessToken: string): Promise<void> {
-  await fetch(`${cfg.baseUrl}/revoke`, {
+  const res = await oauthFetch(`${cfg.baseUrl}/revoke`, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -231,6 +336,13 @@ export async function revokeToken(cfg: OAuthClientConfig, accessToken: string): 
       token_type_hint: "access_token",
     }).toString(),
   });
+  if (!res.ok) {
+    throw new APIError({
+      subtype: "server_error",
+      code: res.status,
+      message: "revoke failed",
+    });
+  }
 }
 
 /** 动态注册:用注册令牌换独立 clientId/clientSecret。 */
@@ -238,7 +350,7 @@ export async function registerClient(
   baseUrl: string,
   registrationToken: string,
 ): Promise<{ clientId: string; clientSecret: string }> {
-  const res = await fetch(`${baseUrl}/register`, {
+  const res = await oauthFetch(`${baseUrl}/register`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ registrationToken }),
@@ -252,7 +364,11 @@ export async function registerClient(
       cause: body,
     });
   }
-  return body as { clientId: string; clientSecret: string };
+  const obj = responseObject(body, "register");
+  return {
+    clientId: requiredString(obj, "clientId", "register"),
+    clientSecret: requiredString(obj, "clientSecret", "register"),
+  };
 }
 
 // ============================================================================
@@ -274,8 +390,8 @@ export function createOn401Hook(opts: {
   store: ConfigStore;
   namespace: string;
 }): () => Promise<string | null> {
-  // 进程内:refreshToken → 正在进行的刷新 Promise(singleflight)
-  const refreshInflight = new Map<string, Promise<TokenInfo>>();
+  // 进程内:refreshToken → 刷新并完成落盘的 Promise(singleflight)
+  const refreshInflight = new Map<string, Promise<string | null>>();
 
   return async function on401(): Promise<string | null> {
     // 读当前凭证拿 refreshToken
@@ -285,37 +401,34 @@ export function createOn401Hook(opts: {
     const refreshToken = creds?.refreshToken;
     if (!refreshToken) return null;
 
-    // singleflight:同一 refreshToken 复用同一个 Promise
+    // singleflight 覆盖 refresh + save 的完整临界区。
     let p = refreshInflight.get(refreshToken);
     if (!p) {
-      p = refreshAccessToken(opts.cfg, refreshToken).finally(() =>
-        refreshInflight.delete(refreshToken),
-      );
+      p = (async () => {
+        try {
+          const newToken = await refreshAccessToken(opts.cfg, refreshToken);
+          const updated: StoredOAuthCredentials = {
+            token: newToken.access_token,
+            refreshToken: newToken.refresh_token ?? refreshToken,
+            expiresAt: Date.now() + newToken.expires_in * 1000,
+            scopes: newToken.scope
+              ? newToken.scope.split(/\s+/).filter(Boolean)
+              : (creds?.scopes ?? []),
+            storedAt: Date.now(),
+            authMethod: "oauth",
+            ...(creds?.user ? { user: creds.user } : {}),
+          };
+          await opts.store.saveCredentials(
+            opts.namespace,
+            updated as unknown as Record<string, unknown>,
+          );
+          return newToken.access_token;
+        } catch {
+          return null;
+        }
+      })().finally(() => refreshInflight.delete(refreshToken));
       refreshInflight.set(refreshToken, p);
     }
-
-    try {
-      const newToken = await p;
-      // 修正 v1 坑:续期成功后落盘
-      const updated: StoredOAuthCredentials = {
-        token: newToken.access_token,
-        refreshToken: newToken.refresh_token,
-        expiresAt: Date.now() + newToken.expires_in * 1000,
-        scopes: newToken.scope
-          ? newToken.scope.split(/\s+/).filter(Boolean)
-          : (creds?.scopes ?? []),
-        storedAt: Date.now(),
-        authMethod: "oauth",
-        ...(creds?.user ? { user: creds.user } : {}),
-      };
-      await opts.store.saveCredentials(
-        opts.namespace,
-        updated as unknown as Record<string, unknown>,
-      );
-      return newToken.access_token;
-    } catch {
-      // refresh 失败(refreshToken 失效)→ 返回 null,请求层会抛 AuthenticationError
-      return null;
-    }
+    return p;
   };
 }

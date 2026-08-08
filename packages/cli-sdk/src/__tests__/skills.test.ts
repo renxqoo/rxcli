@@ -1,9 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { Readable } from "node:fs";
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { cleanSubPath, parseFrontmatter, listPath } from "../skills/reader.js";
+import { cleanSubPath, listPath } from "../skills/reader.js";
 import { syncSkills } from "../skills/sync.js";
 import {
   signatureLine,
@@ -83,6 +82,19 @@ describe("gen: 命令签名生成", () => {
       }),
     };
     expect(signatureLine("rxcli", cmd)).toBe("rxcli force [--yes]");
+  });
+
+  it("array flag 的元素类型签名是 string", () => {
+    const cmd = {
+      path: "search",
+      spec: defineCommand({
+        name: "search",
+        description: "search",
+        args: { tag: { type: "array" } },
+        async run() {},
+      }),
+    };
+    expect(signatureLine("rxcli", cmd)).toBe("rxcli search [--tag <string>...]");
   });
 });
 
@@ -230,6 +242,35 @@ describe("M4: syncSkills 全量同步(清理源端已删除的 skill)", () => {
     makeSkill(tmpRoot, "alpha");
     syncSkills(tmpRoot, tmpDest);
     expect(existsSync(join(tmpDest, "other-tool-data"))).toBe(true);
+  });
+
+  it("不删除另一个业务包同步到同一 destDir 的 skill", () => {
+    const otherRoot = mkdtempSync(join(tmpdir(), "rxcli-other-src-"));
+    try {
+      makeSkill(tmpRoot, "orders");
+      makeSkill(otherRoot, "products");
+      syncSkills(tmpRoot, tmpDest);
+      syncSkills(otherRoot, tmpDest);
+      expect(existsSync(join(tmpDest, "orders", "SKILL.md"))).toBe(true);
+      expect(existsSync(join(tmpDest, "products", "SKILL.md"))).toBe(true);
+    } finally {
+      rmSync(otherRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("同名 skill 的一个 owner 删除后恢复另一 owner 的副本", () => {
+    const otherRoot = mkdtempSync(join(tmpdir(), "rxcli-other-src-"));
+    try {
+      makeSkill(tmpRoot, "shared", "from-a");
+      makeSkill(otherRoot, "shared", "from-b");
+      syncSkills(otherRoot, tmpDest);
+      syncSkills(tmpRoot, tmpDest);
+      rmSync(join(tmpRoot, "shared"), { recursive: true, force: true });
+      syncSkills(tmpRoot, tmpDest);
+      expect(readFileSync(join(tmpDest, "shared", "SKILL.md"), "utf8")).toContain("from-b");
+    } finally {
+      rmSync(otherRoot, { recursive: true, force: true });
+    }
   });
 });
 

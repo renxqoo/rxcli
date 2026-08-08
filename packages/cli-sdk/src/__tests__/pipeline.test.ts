@@ -58,7 +58,7 @@ const getCommand = defineCommand<{ id: string }>({
 describe("pipeline: 成功路径(runCommand + 信封)", () => {
   it("list 返回数组 data + 分页 meta,stdout 是信封", async () => {
     const ctx = createTestCtx({
-      request: async (opts) => ({
+      request: async () => ({
         status: 200,
         data: {
           items: [
@@ -179,6 +179,29 @@ describe("pipeline: onError 插件链(错误归一化)", () => {
     expect(env.ok).toBe(true); // 吞掉后变成功
     expect(env.data).toBeNull();
   });
+
+  it("onError hook 自己抛错时仍返回结构化错误,而不是让 runCommand reject", async () => {
+    const brokenHook: Plugin = {
+      name: "broken-error-hook",
+      async onError() {
+        throw new Error("hook crashed");
+      },
+    };
+    const ctx = createTestCtx({ request: async () => ({ status: 404, data: {}, headers: {} }) });
+    const code = await runCommand({
+      spec: getCommand,
+      args: { id: "x" },
+      ctx,
+      plugins: [brokenHook],
+    });
+
+    expect(code).toBe(5);
+    expect(JSON.parse(stderrBuf).error).toMatchObject({
+      type: "internal",
+      subtype: "unknown",
+      message: "hook crashed",
+    });
+  });
 });
 
 describe("pipeline: void 返回(纯副作用命令)", () => {
@@ -196,6 +219,78 @@ describe("pipeline: void 返回(纯副作用命令)", () => {
     const env = JSON.parse(stdoutBuf);
     expect(env.ok).toBe(true);
     expect(env.data).toBeNull();
+  });
+});
+
+describe("pipeline: CommandResult runtime contract", () => {
+  it("rejects an object result without an own data field", async () => {
+    const broken = defineCommand({
+      name: "broken",
+      description: "broken",
+      async run() {
+        return {} as never;
+      },
+    });
+    const code = await runCommand({ spec: broken, args: {}, ctx: createTestCtx(), plugins: [] });
+    expect(code).toBe(5);
+    expect(JSON.parse(stderrBuf).error.subtype).toBe("contract_violation");
+  });
+
+  it("rejects undefined returned by beforeOutput", async () => {
+    const command = defineCommand({
+      name: "output",
+      description: "output",
+      async run() {
+        return { data: { ok: true } };
+      },
+    });
+    const plugin: Plugin = {
+      name: "broken-output",
+      async beforeOutput() {
+        return undefined as never;
+      },
+    };
+    const code = await runCommand({
+      spec: command,
+      args: {},
+      ctx: createTestCtx(),
+      plugins: [plugin],
+    });
+    expect(code).toBe(5);
+    expect(JSON.parse(stderrBuf).error.subtype).toBe("contract_violation");
+  });
+});
+
+describe("pipeline: lazy argument validation", () => {
+  it("routes parse errors through onError and human-readable rendering", async () => {
+    let seen: unknown;
+    const observer: Plugin = {
+      name: "observer",
+      async onError(_ctx, err) {
+        seen = err;
+        return err;
+      },
+    };
+    const command = defineCommand({
+      name: "list",
+      description: "list",
+      async run() {
+        return { data: null };
+      },
+    });
+    const code = await runCommand({
+      spec: command,
+      args: () => {
+        throw new errs.ValidationError({ subtype: "invalid_argument", message: "bad limit" });
+      },
+      ctx: createTestCtx(),
+      plugins: [observer],
+      humanReadable: true,
+    });
+    expect(code).toBe(2);
+    expect(seen).toBeInstanceOf(errs.ValidationError);
+    expect(stderrBuf).toContain("error: bad limit");
+    expect(() => JSON.parse(stderrBuf)).toThrow();
   });
 });
 

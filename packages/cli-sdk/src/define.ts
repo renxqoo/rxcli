@@ -2,9 +2,9 @@
  * @renxqoo/agent-data-cli —— defineCli(App 工厂)+ defineCommand + defineCommands
  *
  * 设计依据:docs/02-sdk-guide.md "命令:defineCommand"、"装载方式"。
- * 启动模型(已批准):cac + App.run(argv)。
+ * 启动模型:轻量路由/参数解析 + App.run(argv)。
  *   defineCli 返回 App 对象 { name, run(argv) };
- *   run 内部用 cac 装配命令(遍历 commands + namespaces),解析 argv → pipeline.runCommand。
+ *   run 内部遍历 commands + namespaces 装配不可变 registry,解析 argv → pipeline.runCommand。
  *
  * 命名空间规则(方案 C,已批准):
  *   - commands:key=命令名 → rxcli-<name> <cmd>
@@ -25,12 +25,13 @@ import type {
 import { createTransport } from "./request.js";
 import { createContext } from "./context.js";
 import { createPipeReader, emptyPipe } from "./pipe.js";
-import { parseArgs, signatureOfArgs } from "./args.js";
+import { MISSING_FLAG_VALUE, parseArgs, signatureOfArgs } from "./args.js";
 import { runCommand } from "./pipeline.js";
 import { serializeError } from "./envelope.js";
 import { toCliError, exitCodeOf, errs, SUBTYPE_REGISTRY } from "./errs/index.js";
 import { createBuiltinSkillsCommands } from "./skills/builtin.js";
 import { qrcodeCommand } from "./qrcode.js";
+import { runBeforeRequest } from "./plugin.js";
 
 // ============================================================================
 // defineCommand / defineCommands(identity + 运行时校验)
@@ -46,6 +47,7 @@ export function defineCommand<Args = any, Result = unknown>(
   if (!spec.name) throw new Error("defineCommand: name 必填");
   if (typeof spec.run !== "function")
     throw new Error(`defineCommand(${spec.name}): run 必填且为函数`);
+  validateArgsSpec(spec.name, spec.args);
   return spec;
 }
 
@@ -55,8 +57,27 @@ export function defineCommands(group: CommandGroup): CommandGroup {
     if (!cmd.name) throw new Error(`defineCommands(${key}): 命令缺少 name`);
     if (typeof cmd.run !== "function")
       throw new Error(`defineCommands(${key}.${cmd.name}): run 必填且为函数`);
+    validateArgsSpec(cmd.name, cmd.args);
   }
   return group;
+}
+
+function validateArgsSpec(commandName: string, spec: ArgsSpec | undefined): void {
+  let sawOptionalPositional = false;
+  for (const [name, arg] of Object.entries(spec ?? {})) {
+    if (arg.required && arg.default !== undefined) {
+      throw new Error(
+        `defineCommand(${commandName}): 参数 ${name} 不能同时声明 required 和 default`,
+      );
+    }
+    if (!arg.positional) continue;
+    if (!arg.required) sawOptionalPositional = true;
+    else if (sawOptionalPositional) {
+      throw new Error(
+        `defineCommand(${commandName}): 必填位置参数 ${name} 不能位于可选位置参数之后`,
+      );
+    }
+  }
 }
 
 // ============================================================================
@@ -80,7 +101,8 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
   const defaultFormat = options.defaultFormat ?? "auto";
   // plugins 可选(README 入门示例 defineCli({name, commands}) 不带 plugins);
   // 缺省 [] 避免 executeOne 里 opts.plugins.find 在 undefined 上崩。
-  const plugins = options.plugins ?? [];
+  const sourcePlugins = options.plugins ?? [];
+  const plugins = sourcePlugins;
   // binName:终端命令名(help/SKILL.md 签名用)
   // 优先级:显式传 binName > 自动探测 package.json 的 bin > 回退 name
   const binName = options.binName ?? detectBinName() ?? name;
@@ -92,31 +114,39 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
   const mergedNamespaces: Record<string, CommandGroup> = {};
   const mergedCommands: CommandGroup = {};
 
-  // (1) 先收 plugin 贡献(默认值)
+  const routeOwners = new Map<string, Plugin<State>>();
+  const routeKey = (route: string[]) => JSON.stringify(route);
+
+  // (1) 先收 plugin 贡献(默认值)。同一路由后注册的 plugin 赢并成为 owner。
   for (const p of plugins) {
     if (p.provides?.namespaces) {
       for (const [ns, group] of Object.entries(p.provides.namespaces)) {
         mergedNamespaces[ns] ??= {};
         for (const [cmd, spec] of Object.entries(group)) {
           mergedNamespaces[ns]![cmd] = spec;
-          (p._ownedRoutes ??= []).push([ns, cmd]);
+          routeOwners.set(routeKey([ns, cmd]), p);
         }
       }
     }
     if (p.provides?.commands) {
       for (const [cmd, spec] of Object.entries(p.provides.commands)) {
         mergedCommands[cmd] = spec;
-        (p._ownedRoutes ??= []).push([cmd]);
+        routeOwners.set(routeKey([cmd]), p);
       }
     }
   }
   // (2) 再收 defineCli 显式声明(后写覆盖 = 业务赢)
   for (const [ns, group] of Object.entries(options.namespaces ?? {})) {
     mergedNamespaces[ns] = { ...mergedNamespaces[ns], ...group };
+    for (const cmd of Object.keys(group)) routeOwners.delete(routeKey([ns, cmd]));
   }
   for (const [cmd, spec] of Object.entries(options.commands)) {
     mergedCommands[cmd] = spec;
+    routeOwners.delete(routeKey([cmd]));
   }
+
+  const ownedRoutes = new Map<Plugin<State>, string[][]>(plugins.map((plugin) => [plugin, []]));
+  for (const [key, owner] of routeOwners) ownedRoutes.get(owner)!.push(JSON.parse(key) as string[]);
 
   const commands = mergedCommands;
 
@@ -136,12 +166,13 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
   // gen/help 用 binName(终端命令名);命名空间用 name
   const namespaces = { ...mergedNamespaces };
   if (skillsDir) {
-    namespaces.skills = createBuiltinSkillsCommands(binName, skillsDir, {
+    const builtins = createBuiltinSkillsCommands(binName, skillsDir, {
       name,
       binName,
       commands,
       namespaces: mergedNamespaces,
     });
+    namespaces.skills = { ...builtins, ...mergedNamespaces.skills };
   }
 
   for (const [nsName, group] of Object.entries(namespaces)) {
@@ -155,20 +186,20 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
     async run(argv: string[]): Promise<void> {
       try {
         // —— 顶层 flag:--version / -v 单独处理(只打印版本,不是 help 全文)——
-        if (argv.includes("-v") || argv.includes("--version")) {
+        if (hasFlagBeforeSeparator(argv, "-v", "--version")) {
           process.stdout.write(`${binName}/${detectVersion()}\n`);
           process.exitCode = 0;
           return;
         }
 
-        // —— 路由:自己匹配 route(cac 不支持多级命令匹配)——
+        // —— 路由:匹配最长 route ——
         // 从 argv 头部取连续非 flag token,匹配最长的 route
         const { matched, rest } = matchRoute(argv, routed);
 
         if (!matched) {
           // 无匹配:help / 空 argv → 显示 help(exit 0);其余视为未知命令 → 错误信封(exit 2)
           // agent-native CLI 不允许"拼错命令 exit 0"(会被 agent 误判为成功)。
-          if (argv.includes("-h") || argv.includes("--help") || argv.length === 0) {
+          if (hasFlagBeforeSeparator(argv, "-h", "--help") || argv.length === 0) {
             process.stdout.write(renderHelp(binName, description, routed) + "\n");
             process.exitCode = 0;
           } else {
@@ -182,7 +213,7 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
         }
 
         // 匹配到命令:若用户显式要帮助(-h/--help),显示该命令帮助而非执行
-        if (rest.includes("-h") || rest.includes("--help")) {
+        if (hasFlagBeforeSeparator(rest, "-h", "--help")) {
           process.stdout.write(renderCommandHelp(binName, matched) + "\n");
           process.exitCode = 0;
           return;
@@ -194,7 +225,10 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
         // 提取全局 flag json(--no-json→false / --json→true / 不传→undefined)
         // 从 rawOptions 剔除:json 是框架 flag,不进命令 args
         const jsonFlag = options.json;
-        delete options.json;
+        if (!matched.spec.args?.json) delete options.json;
+        // --api-key 是框架级一次性凭证，不属于命令 args；只传给 plugin provider chain。
+        const apiKeyFlag = options["api-key"];
+        delete options["api-key"];
         // 输出格式决策(优先级:显式 flag > defaultFormat > 管道保护):
         //   --json       → JSON(强制)
         //   --no-json    → 文本(强制,但管道保护:stdin 非 TTY 时仍 JSON)
@@ -227,6 +261,8 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
           baseUrl,
           route: matched.route,
           humanReadable,
+          pluginArgs: apiKeyFlag === undefined ? undefined : { apiKey: apiKeyFlag },
+          ownedRoutes,
         });
         process.exitCode = exitCode;
       } catch (err) {
@@ -246,7 +282,7 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
 }
 
 // ============================================================================
-// 路由匹配 + flag 解析(自己实现,cac 不支持多级命令匹配)
+// 路由匹配 + flag 解析
 // ============================================================================
 
 interface MatchResult {
@@ -302,10 +338,15 @@ function parseFlags(
   const booleanKeys = new Set<string>(["help", "version", "json"]);
   // 需要 value 的 flag(number/string/array):它们的下一个 token 即使以 - 开头(负数)也视为值
   const valueKeys = new Set<string>();
+  const arrayKeys = new Set<string>();
+  valueKeys.add("api-key");
   if (argsSpec) {
     for (const [k, s] of Object.entries(argsSpec)) {
       if (s.type === "boolean") booleanKeys.add(k);
-      else valueKeys.add(k);
+      else {
+        valueKeys.add(k);
+        if (s.type === "array") arrayKeys.add(k);
+      }
     }
   }
 
@@ -331,7 +372,7 @@ function parseFlags(
     const eqIdx = t.indexOf("=");
     if (eqIdx >= 0) {
       const key = t.slice(2, eqIdx);
-      options[key] = t.slice(eqIdx + 1);
+      setParsedOption(options, key, t.slice(eqIdx + 1), arrayKeys);
       continue;
     }
     const key = t.slice(2);
@@ -349,17 +390,40 @@ function parseFlags(
     }
     // M2:若是 value flag 且下一个 token 是负数(如 -1),视为值而非 positional/flag
     if (valueKeys.has(key) && i + 1 < tokens.length && isNegativeNumber(tokens[i + 1]!)) {
-      options[key] = tokens[++i];
+      setParsedOption(options, key, tokens[++i], arrayKeys);
       continue;
     }
     if (i + 1 < tokens.length && !tokens[i + 1]!.startsWith("-")) {
       // --key value:value 是下一个非 flag token
-      options[key] = tokens[++i];
+      setParsedOption(options, key, tokens[++i], arrayKeys);
     } else {
-      options[key] = true;
+      options[key] = valueKeys.has(key) ? MISSING_FLAG_VALUE : true;
     }
   }
   return { options, positionals };
+}
+
+function setParsedOption(
+  options: Record<string, unknown>,
+  key: string,
+  value: unknown,
+  arrayKeys: Set<string>,
+): void {
+  if (!arrayKeys.has(key)) {
+    options[key] = value;
+    return;
+  }
+  const existing = options[key];
+  options[key] =
+    existing === undefined
+      ? [value]
+      : [...(Array.isArray(existing) ? existing : [existing]), value];
+}
+
+function hasFlagBeforeSeparator(argv: string[], ...flags: string[]): boolean {
+  const end = argv.indexOf("--");
+  const searchable = end < 0 ? argv : argv.slice(0, end);
+  return searchable.some((arg) => flags.includes(arg));
 }
 
 /** 判断 token 是否负数字符串(如 -1、-1.5),用于 --key -1 的负数 value 识别(M2)。 */
@@ -560,12 +624,11 @@ interface ExecuteOneOptions<State> {
   route: string[];
   /** --no-json 文本输出模式(已做管道保护:被管道时为 false)。 */
   humanReadable?: boolean;
+  pluginArgs?: Record<string, unknown>;
+  ownedRoutes?: ReadonlyMap<Plugin<State>, string[][]>;
 }
 
 async function executeOne<State>(opts: ExecuteOneOptions<State>): Promise<number> {
-  // 解析 + 校验 args(spec 校验:类型/required/positional/default)
-  const args = parseArgs(opts.argsSpec, opts.rawOptions, opts.rawPositionals);
-
   // auth 插件持有的 transport 配置(on401 hook,用 oauth singleflight)
   // 从 plugins 里找带 _transportConfig 的 auth 插件
   const authPlugin = opts.plugins.find(
@@ -576,10 +639,12 @@ async function executeOne<State>(opts: ExecuteOneOptions<State>): Promise<number
   const on401 = authPlugin?._transportConfig?.on401;
 
   // 创建 transport(注入 auth 的 on401 hook)
+  let retryRequest: ((req: import("./types.js").RequestOptions) => Promise<void>) | undefined;
   const transport = createTransport({
     baseUrl: opts.baseUrl,
     errorOnStatus: opts.errorOnStatus,
     ...(on401 ? { on401 } : {}),
+    beforeRetry: async (req) => retryRequest?.(req),
   });
 
   // 管道:检测 stdin(阶段 1 给基础能力;阶段 3 完整接入)
@@ -591,16 +656,29 @@ async function executeOne<State>(opts: ExecuteOneOptions<State>): Promise<number
     plugins: opts.plugins,
     pipe,
   });
+  retryRequest = (req) => runBeforeRequest(opts.plugins, ctx, req);
 
   // runCommand 从 ctx 读 auth 插件填的 _identity(信封顶层 user/bot)
   return runCommand<State>({
     spec: opts.spec,
-    args,
+    args: () => {
+      if (opts.pluginArgs?.apiKey === MISSING_FLAG_VALUE) {
+        throw new errs.ValidationError({
+          subtype: "missing_required",
+          param: "--api-key",
+          message: "参数 --api-key 缺少值",
+        });
+      }
+      return parseArgs(opts.argsSpec, opts.rawOptions, opts.rawPositionals);
+    },
     ctx,
     plugins: opts.plugins,
     identity: () => readIdentity(ctx),
     route: opts.route,
     humanReadable: opts.humanReadable,
+    pluginArgs: opts.pluginArgs,
+    ownedRoutes: opts.ownedRoutes,
+    source: opts.name,
   });
 }
 

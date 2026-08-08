@@ -5,7 +5,7 @@
  * 这些测试从 apps/crm 迁入(原测 createAuthConfig / pollAndPersist / createAuthCommands),
  * 改为测 cli-sdk 的 defineAuth 工厂。
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { defineAuth } from "../auth/index.js";
 import { pollAndPersist } from "../auth/index.js";
 import { createTestCtx } from "../test-utils.js";
@@ -235,5 +235,25 @@ describe("M3: pollAndPersist 轮询间隔(RFC 8628)", () => {
     expect(delays[1]).toBe(6000); // M3:slow_down 后 +5000
     vi.useRealTimers();
     sleepSpy.mockRestore();
+  });
+
+  it("不会在 device code 过期后再发起 poll", async () => {
+    vi.useFakeTimers();
+    const poller = vi.fn().mockResolvedValue({ status: "pending" });
+    const promise = pollAndPersist(
+      createTestCtx(),
+      { baseUrl: "http://t", clientId: "c", clientSecret: "s" },
+      memoryStore(),
+      "crm",
+      "dc",
+      1,
+      5000,
+      poller,
+    );
+    const assertion = expect(promise).rejects.toMatchObject({ subtype: "token_expired" });
+    await vi.runAllTimersAsync();
+    await assertion;
+    expect(poller).not.toHaveBeenCalled();
+    vi.useRealTimers();
   });
 });

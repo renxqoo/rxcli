@@ -35,6 +35,7 @@
 {
   "ok": true,
   "identity": "user",
+  "source": "orders",
   "data": { ... },
   "meta": {
     "count": 30,
@@ -51,7 +52,8 @@
 | ---------- | :------: | --------------- | ---------------------------------------------------------------------- |
 | `ok`       | ✅ 必有  | **wire-stable** | 成功永远是 `true`。agent 靠它判断                                      |
 | `identity` | ❌ 可选  | wire-stable     | 调用者身份:`user` / `bot`。未解析出身份时省略                          |
-| `data`     | ❌ 可选  | informational   | 业务数据。命令无数据输出时(如纯写入)可省略                             |
+| `source`   | ❌ 可选  | wire-stable     | 来源业务 namespace；`defineCli` 执行时自动写入，供 pipe 稳定分流       |
+| `data`     | ✅ 必有  | informational   | 业务数据。命令无数据输出时为 `null`                                    |
 | `meta`     | ❌ 可选  | mixed           | 元信息,见下文                                                          |
 | `dry_run`  | ❌ 可选  | wire-stable     | `true` 表示 dry-run 模式(只构造请求未发送)。出现时为 true,正常请求省略 |
 | `_notice`  | ❌ 可选  | informational   | 系统级提示(版本更新、skill 漂移)。下划线前缀表示非业务字段             |

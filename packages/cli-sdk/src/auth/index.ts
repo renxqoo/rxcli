@@ -36,7 +36,6 @@ import {
   injectAuthHeader,
   deviceAuthorization,
   pollDeviceToken,
-  refreshAccessToken,
   getUserInfo,
   revokeToken,
   registerClient,
@@ -55,6 +54,7 @@ import {
   type IdentityHint,
 } from "../credentials/index.js";
 import type { StoredOAuthCredentials } from "../credentials/types.js";
+import { credentialArgsKey } from "../context.js";
 
 // ============================================================================
 // 工厂入参/出参类型
@@ -121,10 +121,16 @@ export async function defineAuth<State = Record<string, never>>(
   }
   const oauth: OAuthClientConfig = { baseUrl: opts.baseUrl, clientId, clientSecret };
   const providers = defaultProviders();
-  const on401 = createOn401Hook({ cfg: oauth, store, namespace: credNs });
+  const refreshOn401 = createOn401Hook({ cfg: oauth, store, namespace: credNs });
+  let currentToken: string | undefined;
+  const on401 = async () => {
+    const refreshed = await refreshOn401();
+    if (refreshed) currentToken = refreshed;
+    return refreshed;
+  };
 
   // —— 构造 auth 命令组(login/status/logout/register)——
-  const commands = createAuthCommands<State>({
+  const commands = createAuthCommands({
     oauth,
     store,
     credentialNamespace: credNs,
@@ -142,10 +148,13 @@ export async function defineAuth<State = Record<string, never>>(
     provides: { namespaces: { [cmdNs]: commands } },
 
     async beforeCommand(ctx: CommandContext<State>): Promise<void> {
+      const credentialArgs = (
+        ctx as CommandContext<State> & { [credentialArgsKey]?: Record<string, unknown> }
+      )[credentialArgsKey];
       const pctx: ProviderContext = {
         namespace: credNs,
         configStore: store,
-        args: {},
+        args: { apiKey: credentialArgs?.apiKey },
         env: process.env,
       };
 
@@ -185,10 +194,11 @@ export async function defineAuth<State = Record<string, never>>(
           }
         : (ctx.state as Record<string, unknown>).user;
       (ctx as unknown as { _authToken?: string })._authToken = resolved.token.token;
+      currentToken = resolved.token.token;
     },
 
     async beforeRequest(ctx: CommandContext<State>, req): Promise<void> {
-      const token = (ctx as unknown as { _authToken?: string })._authToken;
+      const token = currentToken ?? (ctx as unknown as { _authToken?: string })._authToken;
       if (token) injectAuthHeader(req, token, authStyle);
     },
   };
@@ -209,7 +219,7 @@ interface AuthCommandOpts {
   poller?: (oauth: OAuthClientConfig, deviceCode: string) => Promise<PollResult>;
 }
 
-function createAuthCommands<State>(o: AuthCommandOpts): CommandGroup {
+function createAuthCommands(o: AuthCommandOpts): CommandGroup {
   const { oauth, store, scope, baseUrl } = o;
   const credNs = o.credentialNamespace;
   const cmdNs = o.commandNamespace;
@@ -296,7 +306,8 @@ function createAuthCommands<State>(o: AuthCommandOpts): CommandGroup {
             `已登录:${user.name} (${user.open_id})\n中间层:${oauth.baseUrl}\ntoken ${expired ? "已过期(下次调用会自动刷新)" : "有效"}`,
           );
           return { data: { loggedIn: true, user: { id: user.open_id, name: user.name }, expired } };
-        } catch {
+        } catch (err) {
+          if (!(err instanceof AuthenticationError)) throw err;
           ctx.log.info("登录态已失效。请重新登录。");
           throw new errs.AuthenticationError({
             subtype: "token_expired",
@@ -400,15 +411,17 @@ export async function pollAndPersist(
   let interval = intervalMs;
   const deadline = Date.now() + ttlSec * 1000;
   while (Date.now() < deadline) {
-    await sleep(interval);
+    const remaining = deadline - Date.now();
+    await sleep(Math.min(interval, remaining));
+    if (Date.now() >= deadline) break;
     const r = await poller(oauth, deviceCode);
     if (r.status === "ok") {
       // 查身份 → 落盘
       const base: StoredOAuthCredentials = {
         token: r.token.access_token,
-        refreshToken: r.token.refresh_token,
+        refreshToken: r.token.refresh_token ?? "",
         expiresAt: Date.now() + r.token.expires_in * 1000,
-        scopes: r.token.scope.split(/\s+/).filter(Boolean),
+        scopes: r.token.scope?.split(/\s+/).filter(Boolean) ?? [],
         storedAt: Date.now(),
         authMethod: "oauth",
       };

@@ -59,7 +59,7 @@ interface RequestOptionsInternal extends RequestOptions {
 }
 
 async function doFetch<T>(opts: RequestOptionsInternal): Promise<TransportResponse<T>> {
-  const url = (opts.baseUrl ?? "") + opts.path + buildQuery(opts.query);
+  const url = appendQuery((opts.baseUrl ?? "") + opts.path, opts.query);
   const headers: Record<string, string> = { ...opts.headers };
   let body: string | undefined;
   if (opts.body !== undefined && opts.method !== "GET") {
@@ -108,8 +108,8 @@ async function doFetch<T>(opts: RequestOptionsInternal): Promise<TransportRespon
 }
 
 /** 拼 query string(跳过 undefined/null 值)。 */
-function buildQuery(query?: Record<string, unknown>): string {
-  if (!query) return "";
+function appendQuery(path: string, query?: Record<string, unknown>): string {
+  if (!query) return path;
   const params = new URLSearchParams();
   for (const [k, v] of Object.entries(query)) {
     if (v === undefined || v === null) continue;
@@ -120,7 +120,49 @@ function buildQuery(query?: Record<string, unknown>): string {
     }
   }
   const s = params.toString();
-  return s ? `?${s}` : "";
+  if (!s) return path;
+  const hashIndex = path.indexOf("#");
+  const base = hashIndex >= 0 ? path.slice(0, hashIndex) : path;
+  const hash = hashIndex >= 0 ? path.slice(hashIndex) : "";
+  const separator = base.includes("?")
+    ? base.endsWith("?") || base.endsWith("&")
+      ? ""
+      : "&"
+    : "?";
+  return `${base}${separator}${s}${hash}`;
+}
+
+function findHeaderKey(headers: Record<string, string>, name: string): string | undefined {
+  const target = name.toLowerCase();
+  return Object.keys(headers).find((key) => key.toLowerCase() === target);
+}
+
+function setHeader(headers: Record<string, string>, name: string, value: string): void {
+  const existing = findHeaderKey(headers, name);
+  if (existing) headers[existing] = value;
+  else headers[name.toLowerCase()] = value;
+}
+
+function mergeHeaders(
+  defaults?: Record<string, string>,
+  request?: Record<string, string>,
+): Record<string, string> {
+  const merged: Record<string, string> = {};
+  for (const [name, value] of Object.entries(defaults ?? {})) setHeader(merged, name, value);
+  for (const [name, value] of Object.entries(request ?? {})) setHeader(merged, name, value);
+  return merged;
+}
+
+function applyRefreshedToken(headers: Record<string, string>, token: string): void {
+  const apiKey = findHeaderKey(headers, "x-api-key");
+  if (apiKey) {
+    headers[apiKey] = token;
+    return;
+  }
+  const authorization = findHeaderKey(headers, "authorization");
+  const current = authorization ? headers[authorization] : undefined;
+  const scheme = current?.match(/^\s*(Basic|Bearer)\s/i)?.[1] ?? "Bearer";
+  setHeader(headers, "authorization", `${scheme} ${token}`);
 }
 
 // ============================================================================
@@ -145,6 +187,8 @@ export interface CreateTransportOptions {
   on401?: On401Hook;
   defaultHeaders?: Record<string, string>;
   timeout?: number;
+  /** 401 刷新后的重试准备钩子；context 用它重跑所有 beforeRequest。 */
+  beforeRetry?: (req: RequestOptions) => Promise<void>;
 }
 
 export function createTransport(opts: CreateTransportOptions = {}): Transport {
@@ -152,7 +196,7 @@ export function createTransport(opts: CreateTransportOptions = {}): Transport {
     const merged: RequestOptionsInternal = {
       ...reqOpts,
       baseUrl: opts.baseUrl,
-      headers: { ...opts.defaultHeaders, ...reqOpts.headers },
+      headers: mergeHeaders(opts.defaultHeaders, reqOpts.headers),
       timeout: reqOpts.timeout ?? opts.timeout,
     };
 
@@ -165,10 +209,20 @@ export function createTransport(opts: CreateTransportOptions = {}): Transport {
       if (newToken) {
         const retryOpts: RequestOptionsInternal = {
           ...merged,
-          headers: { ...merged.headers, Authorization: `Bearer ${newToken}` },
+          headers: { ...merged.headers },
         };
+        applyRefreshedToken(retryOpts.headers!, newToken);
+        await opts.beforeRetry?.(retryOpts);
         // 重试结果同样要走 errorOnStatus(否则重试仍是 401 时会被当成功数据返回)
         const retried = await doFetch<T>(retryOpts);
+        if (retried.status === 401) {
+          throw new AuthenticationError({
+            subtype: "token_expired",
+            code: 401,
+            message: "刷新凭证后仍被拒绝,请重新登录",
+            hint: "run `rxcli auth login` 重新登录",
+          });
+        }
         return checkErrorOnStatus(retried);
       }
       // refresh 失败(无 refreshToken / refresh 失效):token 已失效,需重新登录
@@ -177,6 +231,19 @@ export function createTransport(opts: CreateTransportOptions = {}): Transport {
         code: 401,
         message: "登录态已失效(token 过期或 refresh 失败)",
         hint: "run `rxcli auth login` 重新登录",
+      });
+    }
+
+    if (first.status === 401) {
+      const configured = matchErrorOnStatus(401, opts.errorOnStatus);
+      if (configured) {
+        throwBySubtype(configured, 401, extractErrorMessage(first.data) ?? "HTTP 401");
+      }
+      throw new AuthenticationError({
+        subtype: "no_token",
+        code: 401,
+        message: extractErrorMessage(first.data) ?? "请求未通过认证",
+        hint: "请登录或提供有效凭证后重试",
       });
     }
 

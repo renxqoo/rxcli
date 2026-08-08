@@ -13,7 +13,7 @@
  * 本读取器负责扫描、列举、读取,带路径穿越校验(cleanSubPath)。
  */
 
-import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, statSync, existsSync, realpathSync, mkdirSync } from "node:fs";
 import { join, sep, normalize } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { NotFoundError, InternalError } from "../errs/index.js";
@@ -119,6 +119,7 @@ export function readReference(
       message: `reference "${relpath}" is a directory, not a file`,
     });
   }
+  assertInsideSkill(skillsRoot, name, full);
   return { content: readFileSync(full), cleaned };
 }
 
@@ -135,16 +136,48 @@ export function splitArg(arg: string): [string, string] {
 
 /** 校验 skill 名存在(防把 skill 名当路径用)。skill 不存在视为 not_found。 */
 function ensureSkill(skillsRoot: string, name: string): void {
-  if (!name || /[\\/]/.test(name) || name === "." || name === "..") {
-    throw new NotFoundError(
-      `unknown skill "${name}". run 'rxcli skills list' to see available skills`,
-    );
-  }
+  validateSkillName(name);
   const full = join(skillsRoot, name);
   if (!existsSync(full) || !statSync(full).isDirectory()) {
     throw new NotFoundError(
       `unknown skill "${name}". run 'rxcli skills list' to see available skills`,
     );
+  }
+  assertInside(realpathSync(skillsRoot), realpathSync(full), `skill "${name}"`);
+}
+
+/** 校验可用于新建目录的 skill 名；禁止把名称当路径。 */
+export function validateSkillName(name: string): void {
+  if (!name || /[\\/]/.test(name) || name === "." || name === ".." || name.includes("\0")) {
+    throw new NotFoundError(
+      `unknown skill "${name}". run 'rxcli skills list' to see available skills`,
+    );
+  }
+}
+
+/** 为 gen 准备一个物理上仍位于 skillsRoot 内的目录，拒绝 symlink 逃逸。 */
+export function prepareSkillDir(skillsRoot: string, name: string): string {
+  validateSkillName(name);
+  mkdirSync(skillsRoot, { recursive: true });
+  const root = realpathSync(skillsRoot);
+  const candidate = join(skillsRoot, name);
+  if (!existsSync(candidate)) mkdirSync(candidate);
+  const resolved = realpathSync(candidate);
+  assertInside(root, resolved, `skill "${name}"`);
+  return resolved;
+}
+
+function assertInsideSkill(skillsRoot: string, name: string, candidate: string): void {
+  const skillRoot = realpathSync(join(skillsRoot, name));
+  assertInside(skillRoot, realpathSync(candidate), `path in skill "${name}"`);
+}
+
+function assertInside(parent: string, candidate: string, label: string): void {
+  if (candidate !== parent && !candidate.startsWith(parent + sep)) {
+    throw new InternalError({
+      subtype: "contract_violation",
+      message: `${label} resolves outside its allowed directory`,
+    });
   }
 }
 

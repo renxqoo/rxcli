@@ -216,6 +216,7 @@ describe("CLI 端到端", () => {
     expect(process.exitCode).toBe(0);
     expect(JSON.parse(stdoutBuf)).toEqual({
       ok: true,
+      source: "todos",
       data: [{ id: "t_1" }],
     });
   });
@@ -267,3 +268,5 @@ export default defineConfig({
 3. **createTestCtx 不传 state 但访问 ctx.state.X** —— TS 编译报错(`{}` 类型没 X)。传 `state: {} as MyState`。
 4. **测试后没恢复 process.exitCode** —— 影响后续测试。加 `afterEach(() => { process.exitCode = undefined })`。
 5. **mock fetch 没返回 headers 对象** —— 框架读 headers 会抛。用 `new Headers()` 或 `{}`。
+6. **只测 `command.run`** —— 会绕过 argv/schema、plugin lifecycle、信封与 source。参数、401、route ownership、输出契约至少各保留一个 `app.run(argv)` 端到端测试。
+7. **返回 `{}` 仍断言成功** —— runtime 会报 `internal/contract_violation`；纯副作用返回 `void`，空业务结果返回 `{ data: null }`。

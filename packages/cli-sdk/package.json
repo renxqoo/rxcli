@@ -27,7 +27,8 @@
   "files": [
     "dist",
     "docs",
-    "README.md"
+    "README.md",
+    "skills"
   ],
   "type": "module",
   "main": "./dist/index.js",
@@ -52,13 +53,13 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepack": "pnpm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
     "@clack/prompts": "^0.7.0",
-    "cac": "^7.0.0",
     "qrcode": "^1.5.4",
     "yaml": "^2.9.0"
   },

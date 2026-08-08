@@ -11,7 +11,7 @@ description: 用 @renxqoo/agent-data-cli 框架从零构建 agent-native 命令�
 
 - 知道 agent-data-cli 给了你哪些"白送的"能力
 - 5 分钟内写出一个能跑的无鉴权 CLI(单文件 <30 行)
-- 输出符合 agent 解析的 `{ok,data,meta}` 信封
+- 输出符合 agent 解析的 `{ok,source,data,meta}` 信封
 - 给 agent 写一份 SKILL.md 让它自服务发现
 - 需要登录时,知道去哪读鉴权方案(渐进式披露)
 
@@ -158,8 +158,8 @@ export default app;
 
 ```bash
 pnpm tsc                # 编译到 dist/
-node dist/index.js list
-# {"ok":true,"data":[...]}    ← 默认 JSON 信封(给 agent)
+node dist/index.js list --json
+# {"ok":true,"source":"rx-todos","data":[...]}    ← JSON 信封(给 agent)
 node dist/index.js list --no-json
 # 表格(给人看)
 ```
@@ -178,7 +178,7 @@ node dist/index.js list --no-json
 │      ↓                                          │
 │ 框架给:                                          │
 │   - 请求层 ctx.get/post/...(鉴权时带 401 续期) │
-│   - 信封:stdout={ok,data,meta} / stderr=错误   │
+│   - 信封:stdout={ok,source,data,meta}/stderr=错误│
 │   - 9 类类型化错误 + exit code 映射             │
 │   - 参数解析 + 类型校验 + 默认值                 │
 │   - --json / --no-json 双模输出                 │
@@ -190,7 +190,8 @@ node dist/index.js list --no-json
 
 **契约铁律:**
 
-- stdout 永远只有信封 JSON(成功)或 SKILL.md 原文(成功侧的明示例外)
+- JSON/管道模式的 stdout 只有信封 JSON(成功)或 SKILL.md 原文(成功侧的明示例外)
+- 人类模式(`--no-json` 或 auto+TTY)的 stdout 是框架渲染的文本
 - stderr 是日志 + 错误信封
 - 业务命令**不能**直接 `console.log` 到 stdout(会破坏管道)
 
@@ -212,9 +213,11 @@ defineCli({
   errorOnStatus: { 404: "not_found" }, // 可选:status→自动 throw
   defaultFormat: "auto", // 可选:'auto' | 'json' | 'human'(详见 §6)
   skillsDir: "./skills", // 可选:启用 skill 系统
-  skillsSource: process.env.X_SKILLS_SOURCE, // 可选:install 向导用它决定 skills 来源
 });
 ```
+
+> `skillsSource` 目前不是 `defineCli` 的运行时输入。需要 install 向导时，把它显式传给
+> `runInstallWizard({ skillsSource })`；只写在 `defineCli` 中不会安装任何 skill。
 
 > ⚠️ **`plugins: [auth]` 里的 `auth` 必须是已 resolve 的 Plugin,不能是 Promise。**
 > `defineAuth` 是 **`async`** 函数(返回 `Promise<Plugin>`),所以**永远 `await`**:
@@ -251,6 +254,8 @@ defineCommand({
 ```
 
 **`args` 类型 4 种**:`string` / `number` / `boolean` / `array`。`positional:true` 表示无 flag(直接 `<id>`)。**每个 arg 都填 `desc`**——进自动生成的命令文档。
+
+装配期会拒绝矛盾 schema：同一参数不能同时 `required:true` 和 `default`；可选 positional 后面不能再声明必填 positional。`array` flag 可重复传入（如 `--tag a --tag b`），结果为 `string[]`。未知 flag、缺少 flag 值、非有限数字都会在命令执行前变成 `validation` 错误；用 `--` 把后续 `--help` 等字面量作为 positional。
 
 > **boolean 默认值坑**:不带 `default` 的 boolean(如上 `dryRun`),用户没传 flag 时 `args.dryRun` 是 **`undefined`,不是 `false`**。所以用 `if (args.dryRun)` 判断(真值检查),别写 `=== false`。要拿到确定的 `false`,加 `default: false`。
 
@@ -314,7 +319,7 @@ async run(args, ctx): Promise<CommandResult | void> {
 }
 ```
 
-纯副作用命令可 `return` 或不 return(`void` 合法)。**绝不直接 `console.log` 到 stdout**——要数据就 `return { data }`,要日志就 `ctx.log.info(...)`(写 stderr)。
+纯副作用命令可 `return` 或不 return(`void` 合法，框架输出 `data:null`)。其他返回值必须有自有 `data` 字段；`data:null` 合法，`{}` / `{ data: undefined }` 会得到 `internal/contract_violation`。`beforeOutput` 也不能返回 `undefined`。**绝不直接 `console.log` 到 stdout**——要数据就 `return { data }`,要日志就 `ctx.log.info(...)`(写 stderr)。
 
 ---
 
@@ -378,12 +383,12 @@ defineCli({
 
 | 内容                                              | 流         | 谁写                             |
 | ------------------------------------------------- | ---------- | -------------------------------- |
-| 成功信封 `{ok:true, data, meta}`                  | **stdout** | 框架(从你的 `return` 序列化)     |
+| 成功信封 `{ok:true, source, data, meta}`          | **stdout** | 框架(从你的 `return` 序列化)     |
 | 错误信封 `{ok:false, error:{type, subtype, ...}}` | **stderr** | 框架(从你的 `throw errs.*` 渲染) |
 | 日志(info/warn/error)                             | stderr     | `ctx.log.info(...)`              |
 | SKILL.md 原文(`skills read` 输出)                 | stdout     | 框架(**明示例外**:不走信封)      |
 
-> 成功信封还可能带可选顶层 `identity: 'user' \| 'bot'`(auth Plugin 填,标明调用者身份)和 `dry_run`(`--dry-run` 时)。业务包通常不用关心——只需 `return { data, meta }`,其余框架补。
+> `source` 由 `defineCli.name` 写入，管道下游据此生成稳定的 `PipeRecord.type`。成功信封还可能带可选顶层 `identity: 'user' \| 'bot'`(auth Plugin 填,标明调用者身份)和 `dry_run`(`--dry-run` 时)。业务包通常不用关心——只需 `return { data, meta }`,其余框架补。
 
 **`--json` / `--no-json`**:默认 `auto`(TTY→文本表格;管道/CI→JSON);`--json` 强制 JSON,`--no-json` 强制文本(被管道时仍 JSON,保护 agent)。
 
@@ -448,6 +453,8 @@ const result = await todosCommands.list.run({ limit: 20 }, ctx);
 7. **手写 SKILL.md 命令表** → 用 `skills gen <name>` 自动生成(语义部分手写)。
 8. **boolean 不带 default 用 `=== false` 判断** → 未传时是 `undefined`。用 `if (args.x)`(见 §3②)。
 9. **配了 `errorOnStatus` 还手写 `if (res.status===404)`** → 死代码(框架已 throw,走不到)。见 §5 模式 2。
+10. **返回 `{}` / `{ data: undefined }`** → 违反稳定信封契约。纯副作用用 `return`，有结果就返回 `{ data }`（空结果用 `data:null`）。
+11. **把 `skillsSource` 只写进 `defineCli`** → 当前不会触发安装。显式传给 `runInstallWizard({ skillsSource })`。
 
 > **鉴权相关坑**(要登录才看):credentialNamespace 撞名(静默共用凭证)、业务 SKILL.md 教 agent 直接跑 `auth login`(会卡死)——见 §0 命名必查 + `references/auth-patterns.md`。
 
@@ -478,3 +485,4 @@ const result = await todosCommands.list.run({ limit: 20 }, ctx);
 - [ ] **带鉴权的 CLI**:入口处理了 `install` 向导(拦截 `argv[0]==='install'`)
 - [ ] **带鉴权的 CLI**:`defineAuth` 已 `await`(`const auth = await defineAuth(...)`,不是 `defineAuth(...)`)——见 §3① / §9 第 1 条
 - [ ] 没往 stdout 写非信封内容
+- [ ] 端到端测试断言成功信封含 `source: defineCli.name`

@@ -17,6 +17,9 @@ import type {
 import type { Transport } from "./request.js";
 import { runBeforeRequest, runAfterRequest } from "./plugin.js";
 
+/** 框架内部:只让 auth 模块读取一次性凭证参数，避免暴露给所有 plugin hook。 */
+export const credentialArgsKey: unique symbol = Symbol("rxcli.credentialArgs");
+
 // ============================================================================
 // 默认 log(强制 stderr)
 // ============================================================================

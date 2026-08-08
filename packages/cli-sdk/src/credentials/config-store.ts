@@ -10,8 +10,19 @@
  */
 
 import { join } from "node:path";
-import { mkdirSync, readFileSync, writeFileSync, existsSync, chmodSync, unlinkSync } from "node:fs";
+import {
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  existsSync,
+  chmodSync,
+  unlinkSync,
+  renameSync,
+  rmSync,
+} from "node:fs";
+import { randomUUID } from "node:crypto";
 import type { ConfigStore } from "./types.js";
+import { ConfigError } from "../errs/index.js";
 
 // ============================================================================
 // fileStore:磁盘实现(移植 + 按 namespace 分文件)
@@ -38,31 +49,81 @@ export function fileStore(opts: FileStoreOptions): ConfigStore {
   const ensureDir = () => {
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
     if (!existsSync(credsDir)) mkdirSync(credsDir, { recursive: true, mode: 0o700 });
+    try {
+      chmodSync(dir, 0o700);
+      chmodSync(credsDir, 0o700);
+    } catch {
+      /* 非 POSIX 忽略 */
+    }
   };
 
-  const credsPath = (namespace: string) => join(credsDir, `${namespace}.json`);
+  const writeJsonAtomic = (path: string, data: Record<string, unknown>) => {
+    const temp = `${path}.${process.pid}.${randomUUID()}.tmp`;
+    try {
+      writeFileSync(temp, JSON.stringify(data, null, 2) + "\n", { mode: 0o600 });
+      try {
+        chmodSync(temp, 0o600);
+      } catch {
+        /* 非 POSIX 忽略 */
+      }
+      renameSync(temp, path);
+    } catch (cause) {
+      rmSync(temp, { force: true });
+      throw new ConfigError({
+        subtype: "invalid_config",
+        message: `写入配置失败: ${path}`,
+        cause,
+      });
+    }
+  };
+
+  const readJson = <T extends null | Record<string, never>>(
+    path: string,
+    missing: T,
+  ): Record<string, unknown> | T => {
+    if (!existsSync(path)) return missing;
+    try {
+      const parsed = JSON.parse(readFileSync(path, "utf8"));
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+        throw new Error("not object");
+      return parsed as Record<string, unknown>;
+    } catch (cause) {
+      throw new ConfigError({
+        subtype: "invalid_config",
+        message: `配置文件损坏或不可读: ${path}`,
+        cause,
+      });
+    }
+  };
+
+  const credsPath = (namespace: string) => {
+    if (
+      !namespace ||
+      namespace === "." ||
+      namespace === ".." ||
+      namespace.includes("/") ||
+      namespace.includes("\\") ||
+      namespace.includes("\0")
+    ) {
+      throw new ConfigError({
+        subtype: "invalid_config",
+        message: `非法凭证命名空间: ${JSON.stringify(namespace)}`,
+      });
+    }
+    return join(credsDir, `${namespace}.json`);
+  };
 
   return {
     async loadCredentials(namespace) {
       ensureDir();
       const p = credsPath(namespace);
-      if (!existsSync(p)) return null;
-      try {
-        return JSON.parse(readFileSync(p, "utf8")) as Record<string, unknown>;
-      } catch {
-        return null;
-      }
+      return readJson(p, null);
     },
 
     async saveCredentials(namespace, data) {
       ensureDir();
       const p = credsPath(namespace);
-      writeFileSync(p, JSON.stringify(data, null, 2) + "\n", { mode: 0o600 });
-      try {
-        chmodSync(p, 0o600);
-      } catch {
-        /* 非 POSIX 忽略 */
-      }
+      writeJsonAtomic(p, data);
     },
 
     async clearCredentials(namespace) {
@@ -72,30 +133,24 @@ export function fileStore(opts: FileStoreOptions): ConfigStore {
         // 删除凭证文件(unlinkSync 已在顶部静态导入,避免每次动态 import)
         try {
           unlinkSync(p);
-        } catch {
-          /* 忽略 */
+        } catch (cause) {
+          throw new ConfigError({
+            subtype: "invalid_config",
+            message: `清除凭证失败: ${p}`,
+            cause,
+          });
         }
       }
     },
 
     async loadConfig() {
       ensureDir();
-      if (!existsSync(configPath)) return {};
-      try {
-        return JSON.parse(readFileSync(configPath, "utf8")) as Record<string, unknown>;
-      } catch {
-        return {};
-      }
+      return readJson(configPath, {});
     },
 
     async saveConfig(data) {
       ensureDir();
-      writeFileSync(configPath, JSON.stringify(data, null, 2) + "\n", { mode: 0o600 });
-      try {
-        chmodSync(configPath, 0o600);
-      } catch {
-        /* 非 POSIX 忽略 */
-      }
+      writeJsonAtomic(configPath, data);
     },
   };
 }

@@ -113,4 +113,34 @@ describe("401 singleflight: 并发复用同一次 refresh + 落盘", () => {
     expect(result).toBeNull();
     fetchSpy.mockRestore();
   });
+
+  it("refresh 响应未轮换 refresh_token 时保留原 token", async () => {
+    const store = memoryStore({
+      credentials: {
+        orders: {
+          token: "old",
+          refreshToken: "keep-me",
+          expiresAt: 1,
+          scopes: ["orders:read"],
+          storedAt: 1,
+          authMethod: "oauth",
+        },
+      },
+    });
+    const on401 = createOn401Hook({
+      cfg: { baseUrl: "http://mock", clientId: "c", clientSecret: "s" },
+      store,
+      namespace: "orders",
+    });
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        new Response(JSON.stringify({ access_token: "new", expires_in: 3600 }), { status: 200 }),
+      );
+
+    await expect(on401()).resolves.toBe("new");
+    expect(store._snapshot().credentials.orders.refreshToken).toBe("keep-me");
+    expect(store._snapshot().credentials.orders.scopes).toEqual(["orders:read"]);
+    fetchSpy.mockRestore();
+  });
 });

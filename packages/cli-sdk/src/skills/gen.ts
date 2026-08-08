@@ -12,7 +12,7 @@
  */
 
 import { signatureOfArgs } from "../args.js";
-import type { CommandSpec, CommandGroup, DefineCliOptions, ArgsSpec, ArgSpec } from "../types.js";
+import type { CommandSpec, DefineCliOptions, ArgsSpec, ArgSpec } from "../types.js";
 
 // ============================================================================
 // AUTO-GEN 标记块

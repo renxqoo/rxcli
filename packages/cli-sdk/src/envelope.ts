@@ -15,6 +15,8 @@ export type Identity = "user" | "bot";
 
 export interface SerializeOptions {
   identity?: Identity;
+  /** 来源业务 namespace；pipe reader 用它构造稳定的 PipeRecord.type。 */
+  source?: string;
   /** D4: dry-run 模式标记(03-envelopes.md)。出现时为 true,正常请求省略。 */
   dryRun?: boolean;
   /** D4: 系统级提示(版本更新/skill 漂移)。下划线前缀表示非业务字段。 */
@@ -24,11 +26,6 @@ export interface SerializeOptions {
 // ============================================================================
 // 骨架字段映射表(只这些 key 转 snake_case;data 内字段不动)
 // ============================================================================
-
-/** 把单个 camelCase 标识符转 snake_case(仅处理骨架字段用)。 */
-function toSnake(key: string): string {
-  return key.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`);
-}
 
 /**
  * 转换 meta 对象:骨架层 camelCase→snake_case。
@@ -63,12 +60,13 @@ function transformMeta(meta: Meta): Record<string, unknown> {
 
 /**
  * 序列化成功信封到紧凑 JSON 字符串(stdout)。
- * 结构:{ ok:true, [identity], data, meta, [dry_run], [_notice] }
+ * 结构:{ ok:true, [identity], [source], data, meta, [dry_run], [_notice] }
  * data 原样输出(不转 case);meta 骨架转 snake。
  */
 export function serializeSuccess(data: unknown, meta?: Meta, opts: SerializeOptions = {}): string {
   const env: Record<string, unknown> = { ok: true };
   if (opts.identity) env.identity = opts.identity;
+  if (opts.source) env.source = opts.source;
   env.data = data;
   if (meta) env.meta = transformMeta(meta);
   // D4:dry_run 出现时为 true;_notice 是信息性字段(下划线前缀=非业务字段)

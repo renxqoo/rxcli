@@ -11,10 +11,17 @@
  */
 
 import { defineCommand, defineCommands } from "../define.js";
-import { listSkills, listPath, readSkill, readReference, splitArg } from "./reader.js";
+import {
+  listSkills,
+  listPath,
+  readSkill,
+  readReference,
+  splitArg,
+  prepareSkillDir,
+} from "./reader.js";
 import { syncSkills } from "./sync.js";
 import { refreshAutogen, generateSkillSkeleton } from "./gen.js";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { DefineCliOptions } from "../types.js";
 
@@ -99,12 +106,11 @@ export function createBuiltinSkillsCommands(
       },
       async run(args) {
         const skillName = args.name;
-        const skillMdPath = join(skillsDir, skillName, "SKILL.md");
-        const skillDir = join(skillsDir, skillName);
+        const skillDir = prepareSkillDir(skillsDir, skillName);
+        const skillMdPath = join(skillDir, "SKILL.md");
 
         if (args.init || !existsSync(skillMdPath)) {
           // 策略 B:吐整份骨架
-          mkdirSync(skillDir, { recursive: true });
           const desc = `${binName} 业务 skill`;
           const content = generateSkillSkeleton(skillName, desc, binName, cliOptions);
           writeFileSync(skillMdPath, content);
