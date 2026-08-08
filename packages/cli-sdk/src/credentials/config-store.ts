@@ -9,9 +9,9 @@
  * 提供 fileStore(磁盘,0600)和 memoryStore(测试用)两个工厂。
  */
 
-import { join } from 'node:path'
-import { mkdirSync, readFileSync, writeFileSync, existsSync, chmodSync, unlinkSync } from 'node:fs'
-import type { ConfigStore } from './types.js'
+import { join } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync, existsSync, chmodSync, unlinkSync } from "node:fs";
+import type { ConfigStore } from "./types.js";
 
 // ============================================================================
 // fileStore:磁盘实现(移植 + 按 namespace 分文件)
@@ -19,7 +19,7 @@ import type { ConfigStore } from './types.js'
 
 export interface FileStoreOptions {
   /** 必填:根目录(业务包声明,如 ~/.rxcli)。 */
-  dir: string
+  dir: string;
 }
 
 /**
@@ -31,47 +31,47 @@ export interface FileStoreOptions {
  *       └── <namespace>.json     按业务包命名空间隔离(0600)
  */
 export function fileStore(opts: FileStoreOptions): ConfigStore {
-  const dir = opts.dir
-  const credsDir = join(dir, 'credentials')
-  const configPath = join(dir, 'config.json')
+  const dir = opts.dir;
+  const credsDir = join(dir, "credentials");
+  const configPath = join(dir, "config.json");
 
   const ensureDir = () => {
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 })
-    if (!existsSync(credsDir)) mkdirSync(credsDir, { recursive: true, mode: 0o700 })
-  }
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
+    if (!existsSync(credsDir)) mkdirSync(credsDir, { recursive: true, mode: 0o700 });
+  };
 
-  const credsPath = (namespace: string) => join(credsDir, `${namespace}.json`)
+  const credsPath = (namespace: string) => join(credsDir, `${namespace}.json`);
 
   return {
     async loadCredentials(namespace) {
-      ensureDir()
-      const p = credsPath(namespace)
-      if (!existsSync(p)) return null
+      ensureDir();
+      const p = credsPath(namespace);
+      if (!existsSync(p)) return null;
       try {
-        return JSON.parse(readFileSync(p, 'utf8')) as Record<string, unknown>
+        return JSON.parse(readFileSync(p, "utf8")) as Record<string, unknown>;
       } catch {
-        return null
+        return null;
       }
     },
 
     async saveCredentials(namespace, data) {
-      ensureDir()
-      const p = credsPath(namespace)
-      writeFileSync(p, JSON.stringify(data, null, 2) + '\n', { mode: 0o600 })
+      ensureDir();
+      const p = credsPath(namespace);
+      writeFileSync(p, JSON.stringify(data, null, 2) + "\n", { mode: 0o600 });
       try {
-        chmodSync(p, 0o600)
+        chmodSync(p, 0o600);
       } catch {
         /* 非 POSIX 忽略 */
       }
     },
 
     async clearCredentials(namespace) {
-      ensureDir()
-      const p = credsPath(namespace)
+      ensureDir();
+      const p = credsPath(namespace);
       if (existsSync(p)) {
         // 删除凭证文件(unlinkSync 已在顶部静态导入,避免每次动态 import)
         try {
-          unlinkSync(p)
+          unlinkSync(p);
         } catch {
           /* 忽略 */
         }
@@ -79,25 +79,25 @@ export function fileStore(opts: FileStoreOptions): ConfigStore {
     },
 
     async loadConfig() {
-      ensureDir()
-      if (!existsSync(configPath)) return {}
+      ensureDir();
+      if (!existsSync(configPath)) return {};
       try {
-        return JSON.parse(readFileSync(configPath, 'utf8')) as Record<string, unknown>
+        return JSON.parse(readFileSync(configPath, "utf8")) as Record<string, unknown>;
       } catch {
-        return {}
+        return {};
       }
     },
 
     async saveConfig(data) {
-      ensureDir()
-      writeFileSync(configPath, JSON.stringify(data, null, 2) + '\n', { mode: 0o600 })
+      ensureDir();
+      writeFileSync(configPath, JSON.stringify(data, null, 2) + "\n", { mode: 0o600 });
       try {
-        chmodSync(configPath, 0o600)
+        chmodSync(configPath, 0o600);
       } catch {
         /* 非 POSIX 忽略 */
       }
     },
-  }
+  };
 }
 
 // ============================================================================
@@ -112,35 +112,45 @@ export function fileStore(opts: FileStoreOptions): ConfigStore {
  * })
  * ```
  */
-export function memoryStore(initial: {
-  credentials?: Record<string, Record<string, unknown>>
-  config?: Record<string, unknown>
-} = {}): ConfigStore & { _snapshot: () => { credentials: Record<string, Record<string, unknown>>; config: Record<string, unknown> } } {
-  const creds: Record<string, Record<string, unknown>> = structuredClone(initial.credentials ?? {})
-  const config: Record<string, unknown> = structuredClone(initial.config ?? {})
+export function memoryStore(
+  initial: {
+    credentials?: Record<string, Record<string, unknown>>;
+    config?: Record<string, unknown>;
+  } = {},
+): ConfigStore & {
+  _snapshot: () => {
+    credentials: Record<string, Record<string, unknown>>;
+    config: Record<string, unknown>;
+  };
+} {
+  const creds: Record<string, Record<string, unknown>> = structuredClone(initial.credentials ?? {});
+  const config: Record<string, unknown> = structuredClone(initial.config ?? {});
 
   const store: ConfigStore = {
     async loadCredentials(namespace) {
-      return creds[namespace] ? structuredClone(creds[namespace]) : null
+      return creds[namespace] ? structuredClone(creds[namespace]) : null;
     },
     async saveCredentials(namespace, data) {
-      creds[namespace] = structuredClone(data)
+      creds[namespace] = structuredClone(data);
     },
     async clearCredentials(namespace) {
-      delete creds[namespace]
+      delete creds[namespace];
     },
     async loadConfig() {
-      return structuredClone(config)
+      return structuredClone(config);
     },
     async saveConfig(data) {
-      for (const [k, v] of Object.entries(data)) config[k] = v
+      // 全量替换(对齐 fileStore.saveConfig 的 writeFileSync 整份覆盖语义),
+      // 而非 merge —— 删字段必须能生效,避免两个实现语义不一致。
+      for (const k of Object.keys(config)) delete config[k];
+      Object.assign(config, structuredClone(data));
     },
-  }
+  };
 
   return Object.assign(store, {
     _snapshot: () => ({
       credentials: structuredClone(creds),
       config: structuredClone(config),
     }),
-  })
+  });
 }
