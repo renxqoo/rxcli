@@ -260,6 +260,48 @@ const auth = createMyAuth({
 defineCli({ plugins: [auth], ... })
 ```
 
+### ⚠️ provides 的 login/logout 命令:直接用 `store`,别用 `ctx.credentials`
+
+上面的骨架在 `beforeCommand` 里把 `store` 包装成了 `ctx.credentials`。**但如果你通过 `provides` 贡献了 login/logout 命令,这些命令会被框架精确豁免自身 beforeCommand**(见主 SKILL.md §3 plugin provides 机制)——豁免后 `ctx.credentials` 是框架默认的 no-op(`save`/`clear` 空跑),login 调 `ctx.credentials.save()` **什么都不会写**。
+
+**正确写法**:login/logout 直接用闭包里的 `store`(和 `defineAuth` 工厂内部一致),不经过 `ctx.credentials`:
+
+```ts
+// ✅ 正确:login/logout 直接用 store 落盘
+const authCommands = defineCommands({
+  login: defineCommand({
+    name: "login",
+    args: { apiKey: { type: "string", required: true } },
+    async run(args, _ctx) {
+      await store.saveCredentials(opts.namespace, { apiKey: args.apiKey });
+      return { data: { saved: true } };
+    },
+  }),
+  logout: defineCommand({
+    name: "logout",
+    async run(_args, _ctx) {
+      await store.clearCredentials(opts.namespace);
+      return { data: { cleared: true } };
+    },
+  }),
+});
+
+// plugin 里 provides 这组命令
+return {
+  name: `auth:${opts.namespace}`,
+  enforce: "pre",
+  provides: { namespaces: { auth: authCommands } },
+  async beforeCommand(ctx) { /* ... 见上面骨架 ... */ },
+  async beforeRequest(ctx, req) { /* ... */ },
+};
+
+// ❌ 错误:login 里用 ctx.credentials.save()
+//   login 被 provides 豁免 beforeCommand → ctx.credentials 是 no-op → 不落盘!
+//   async run(args, ctx) { await ctx.credentials.save(...) }  // ← bug!
+```
+
+> 判断规则:**`provides` 贡献的命令里,凭证读写一律用 `store`(闭包),不用 `ctx.credentials`**。`ctx.credentials` 只在业务命令(非 plugin provides)里可靠——那时 beforeCommand 已跑过,包装已生效。
+
 ---
 
 ## 4. provider chain 怎么工作
