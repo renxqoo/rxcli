@@ -71,6 +71,12 @@ export CORDYS_SECRET_KEY=<SecretKey>
 
 `<ns>` 是模块命名空间:`leads` / `accounts` / `opportunities` / `contacts` / `contracts` / `invoices` / `orders` / `records`(跨模块通用) / `follows` / `approvals` / `stats` / `util`。
 
+## 模糊工作指令
+
+用户说"今天做什么""这周怎么样""有什么要注意的"这类**没有动词**的指令时,见 [references/intent.md](references/intent.md) 的意图映射表(含 L2C 全链路追踪、Customer 360)。
+
+显式操作(查列表/看详情/创建)直接用上方速查表,不需要查 intent.md。
+
 ## 列表查询的分页与筛选
 
 `page` / `search` 接收可选的 `[payload]` 位置参数:
@@ -82,6 +88,18 @@ export CORDYS_SECRET_KEY=<SecretKey>
 响应 `meta.pagination`:`complete:true` 已拉完;`complete:false` 时 `nextToken` 是下一页页码,用 `--payload '{"current": <nextToken>}'` 续拉。
 
 复杂筛选(`combineSearch.conditions` 的字段类型/操作符)见 [references/pagination.md](references/pagination.md)。
+
+## 角色适配(轻量)
+
+调用业务命令前,如果未确认身份,先跑 `rxcordys util whoami` 拿 position:
+
+```bash
+rxcordys util whoami   # 返回姓名/岗位/部门/角色
+```
+
+按 position 推断角色(销售/经理/财务/商务/高管),**只影响「展示哪些字段」和「输出侧重」**。完整推断规则、ROLE_MAP 覆盖、输出适配见 [references/role.md](references/role.md)。
+
+> **安全边界**:角色不改查询范围。默认看自己;要看团队/全公司数据,用户需显式要求(传 `searchType`/`viewId`)。
 
 ## 写入操作(高危,需确认)
 
@@ -108,6 +126,34 @@ rxcordys leads form      # 线索必填字段
 rxcordys leads page --json
 # {"ok":true,"source":"rxcordys","data":[{"id":"L1","name":"潜在客户A"}],"meta":{"count":1,"pagination":{"complete":true}}}
 ```
+
+## 输出判断原则
+
+输出不是汇报数据,是帮用户做判断。每次查询结果展示后:
+
+1. **关键结论**(如果有清晰发现)→
+2. **核心数据**(表格 ≤5 列、≤10 条,角色关注字段优先)→
+3. **异常提醒**(按 [references/risk.md](references/risk.md) 扫描)→
+4. **建议动作**(具体到"做什么、谁做、优先级")
+
+**判断比复述重要**:不说"有 3 条线索超期",要说"YYY 集团已 7 天未跟进,建议今日优先联系"。
+
+**禁止的反模式**:
+
+```
+❌ 直接贴 JSON 响应
+❌ 纯搬运不做判断("您有 13 条线索,创建时间是...")
+❌ 抛给用户选择但不给建议("有 3 条超期,您想先看哪个?")
+❌ 表格超过 5 列
+```
+
+**大结果集**:
+
+| 返回条数 | 展示方式 |
+|---------|---------|
+| 1-10 条 | 完整表格 |
+| 11-30 条 | 前 10 条 + "还有 N 条,是否查看更多?" |
+| 30 条以上 | 统计摘要 + 前 10 条 + "建议增加筛选条件" |
 
 ## 错误处理
 
@@ -149,3 +195,14 @@ rxcordys leads page --json
 | `util` | `whoami` · `verify` · `org` · `members [payload]` · `glocount <keyword>` · `raw <method> <path> [--body JSON]` |
 
 > 各模块端点对照(路径/方法)见 [references/modules.md](references/modules.md)。
+
+## 参考
+
+| 文件 | 内容 | 何时查 |
+|------|------|--------|
+| [references/auth.md](references/auth.md) | 鉴权原理与故障排查 | 遇到凭证/权限/401/403 问题时 |
+| [references/modules.md](references/modules.md) | 模块端点速查(路径/方法) | 需要确认某操作对应哪个端点时 |
+| [references/pagination.md](references/pagination.md) | 分页与筛选深度(conditions 操作符) | 构造复杂筛选/排序时 |
+| [references/intent.md](references/intent.md) | 模糊指令意图映射(含 L2C 全链路、Customer 360) | 用户说"今天做什么""这周怎么样"等无动词指令时 |
+| [references/role.md](references/role.md) | 角色适配规则(推断/ROLE_MAP/输出侧重) | 需要按用户身份调整展示,或切换团队/全公司数据范围时 |
+| [references/risk.md](references/risk.md) | 风险预警 + L2C 断链检测规则 | 查询结果展示后扫描异常,或执行 Customer 360/全链路追踪时 |
