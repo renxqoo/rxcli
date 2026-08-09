@@ -398,6 +398,17 @@ function createAuthCommands(o: AuthCommandOpts): CommandGroup {
         },
       },
       async run(args, ctx): Promise<CommandResult> {
+        // 校验:--no-wait / --device-code 只对 device flow 有效
+        const deviceCode = args["device-code"] as string | undefined;
+        const noWait = args.wait === false;
+        if ((deviceCode || noWait) && flow.type !== "device") {
+          throw new errs.ValidationError({
+            subtype: "invalid_argument",
+            param: deviceCode ? "--device-code" : "--no-wait",
+            message: `--${deviceCode ? "device-code" : "no-wait"} is only supported for device flow (current: ${flow.type})`,
+          });
+        }
+
         // 动态 scope:从 metadata 读 scopes_supported(运行时,不写死)
         let effectiveScope = scope;
         if (o.scopeFromMetadata) {

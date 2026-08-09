@@ -262,12 +262,14 @@ export async function pollDeviceToken(
 ): Promise<PollResult> {
   const res = await oauthFetch(`${cfg.baseUrl}/token`, {
     method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      authorization: basicAuth(cfg),
+    },
     body: new URLSearchParams({
       grant_type: "urn:ietf:params:oauth:grant-type:device_code",
       device_code: deviceCode,
       client_id: cfg.clientId,
-      client_secret: cfg.clientSecret,
     }).toString(),
   });
   const rawBody = await safeJson(res);
@@ -299,12 +301,13 @@ export async function refreshAccessToken(
 ): Promise<TokenInfo> {
   const res = await oauthFetch(`${cfg.baseUrl}/token`, {
     method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      authorization: basicAuth(cfg),
+    },
     body: new URLSearchParams({
       grant_type: "refresh_token",
       refresh_token: refreshToken,
-      client_id: cfg.clientId,
-      client_secret: cfg.clientSecret,
     }).toString(),
   });
   const body = await safeJson(res);
@@ -497,16 +500,21 @@ export async function exchangeCodeForToken(
   cfg: OAuthClientConfig,
   params: { code: string; codeVerifier: string; redirectUri: string },
 ): Promise<TokenInfo> {
+  const isPublicClient = !cfg.clientSecret;
   const res = await oauthFetch(`${cfg.baseUrl}/token`, {
     method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      // confidential client 用 Basic auth;public client(PKCE)不发
+      ...(isPublicClient ? {} : { authorization: basicAuth(cfg) }),
+    },
     body: new URLSearchParams({
       grant_type: "authorization_code",
       code: params.code,
       code_verifier: params.codeVerifier,
       redirect_uri: params.redirectUri,
-      client_id: cfg.clientId,
-      ...(cfg.clientSecret ? { client_secret: cfg.clientSecret } : {}),
+      // public client 在 body 传 client_id(PKCE 认证);confidential 不需要(Basic 已含)
+      ...(isPublicClient ? { client_id: cfg.clientId } : {}),
     }).toString(),
   });
   const body = await safeJson(res);

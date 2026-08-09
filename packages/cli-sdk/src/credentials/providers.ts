@@ -74,16 +74,16 @@ export function fileProvider(): CredentialProvider {
           source: `file:${pctx.namespace}.json#apiKey`,
         };
       }
-      // 也支持直接 token 字段(bearer 场景但非 OAuth 流程)
+      // 也支持直接 token 字段(bearer 场景但非 OAuth 流程,如手工注入的 JWT)
       const token = creds.token;
-      // OAuth 凭证(有 refreshToken 或 authMethod 是 OAuth 流程)交给 oauthProvider，
+      // OAuth 凭证(有 refreshToken 或 authMethod 是已知 OAuth 流程)交给 oauthProvider，
       // 避免在这里提前命中后丢失 refresh/expires 元数据。
+      // 无 authMethod 且无 refreshToken = 原始 bearer 注入(不是 OAuth),fileProvider 直接返回。
+      const oauthMethods = new Set(["oauth", "device", "authorization_code", "client_credentials"]);
+      const hasRefreshToken = typeof creds.refreshToken === "string" && creds.refreshToken;
       const isOAuthFlow =
-        !creds.authMethod ||
-        creds.authMethod === "oauth" ||
-        creds.authMethod === "device" ||
-        creds.authMethod === "authorization_code" ||
-        creds.authMethod === "client_credentials";
+        hasRefreshToken ||
+        (typeof creds.authMethod === "string" && oauthMethods.has(creds.authMethod));
       if (!isOAuthFlow && typeof token === "string" && token) {
         return {
           token,
