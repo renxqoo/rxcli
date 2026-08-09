@@ -250,3 +250,22 @@ describe("请求层: 网络错误包装", () => {
     }
   });
 });
+
+describe("绝对 URL 不拼 baseUrl(path 是 http(s):// 开头时直连)", () => {
+  it("绝对 URL 直连,不拼接 baseUrl", async () => {
+    const transport = createTransport({ baseUrl: "https://api.example.com" });
+    fetchMock.mockResolvedValue(jsonResponse(200, { ok: true }));
+    await transport.get("https://other.host.com/data");
+    // fetch 收到的 URL 应是绝对 URL 原样,不是 baseUrl + path 拼接
+    const calledUrl = fetchMock.mock.calls[0]![0] as string;
+    expect(calledUrl).toBe("https://other.host.com/data");
+  });
+
+  it("相对路径仍拼 baseUrl", async () => {
+    const transport = createTransport({ baseUrl: "https://api.example.com" });
+    fetchMock.mockResolvedValue(jsonResponse(200, { ok: true }));
+    await transport.get("/orders");
+    const calledUrl = fetchMock.mock.calls[0]![0] as string;
+    expect(calledUrl).toBe("https://api.example.com/orders");
+  });
+});
