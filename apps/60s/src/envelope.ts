@@ -68,16 +68,16 @@ function friendlyServerError(res: TransportResponse): string {
   const env = res.data as SixtyEnvelope | undefined;
   const raw = env?.message;
   if (raw && isUpstreamParseFailure(raw)) {
-    return "上游服务暂时不可用(数据源异常),请稍后重试";
+    return "Upstream service temporarily unavailable (data source error), please retry later";
   }
-  return raw ?? `上游服务异常(HTTP ${res.status})`;
+  return raw ?? `Upstream service error (HTTP ${res.status})`;
 }
 
 /** 美化业务错误消息(200 + code≠200 场景)。5xx 的 parse failure 统一替换。 */
 function friendlyMessage(code: number, message: string | null | undefined): string {
-  const base = message ?? `60s 接口错误 code=${code}`;
+  const base = message ?? `60s API error code=${code}`;
   if (code >= 500 && isUpstreamParseFailure(base)) {
-    return "上游服务暂时不可用(数据源异常),请稍后重试";
+    return "Upstream service temporarily unavailable (data source error), please retry later";
   }
   return base;
 }

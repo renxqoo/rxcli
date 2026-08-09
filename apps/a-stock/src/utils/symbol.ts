@@ -76,7 +76,7 @@ export function parseSymbol(input: string): SymbolParts {
     return buildParts(code, detectMarket(code));
   }
 
-  throw new InvalidSymbolError(`无法识别股票代码: ${input}`);
+  throw new InvalidSymbolError(`Unrecognized stock code: ${input}`);
 }
 
 function detectMarket(code: string): Market {
@@ -116,7 +116,7 @@ export class InvalidSymbolError extends ValidationError {
       subtype: "invalid_argument",
       param: "code",
       message,
-      hint: "支持 600519 / sh600519 / 600519.SH / 1.600519 等格式",
+      hint: "Supported formats: 600519 / sh600519 / 600519.SH / 1.600519",
     });
     this.name = "InvalidSymbolError";
   }

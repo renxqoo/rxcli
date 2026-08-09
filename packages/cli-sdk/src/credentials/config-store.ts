@@ -71,7 +71,7 @@ export function fileStore(opts: FileStoreOptions): ConfigStore {
       rmSync(temp, { force: true });
       throw new ConfigError({
         subtype: "invalid_config",
-        message: `写入配置失败: ${path}`,
+        message: `Failed to write config: ${path}`,
         cause,
       });
     }
@@ -90,7 +90,7 @@ export function fileStore(opts: FileStoreOptions): ConfigStore {
     } catch (cause) {
       throw new ConfigError({
         subtype: "invalid_config",
-        message: `配置文件损坏或不可读: ${path}`,
+        message: `Config file corrupted or unreadable: ${path}`,
         cause,
       });
     }
@@ -107,7 +107,7 @@ export function fileStore(opts: FileStoreOptions): ConfigStore {
     ) {
       throw new ConfigError({
         subtype: "invalid_config",
-        message: `非法凭证命名空间: ${JSON.stringify(namespace)}`,
+        message: `Invalid credential namespace: ${JSON.stringify(namespace)}`,
       });
     }
     return join(credsDir, `${namespace}.json`);
@@ -136,7 +136,7 @@ export function fileStore(opts: FileStoreOptions): ConfigStore {
         } catch (cause) {
           throw new ConfigError({
             subtype: "invalid_config",
-            message: `清除凭证失败: ${p}`,
+            message: `Failed to clear credentials: ${p}`,
             cause,
           });
         }

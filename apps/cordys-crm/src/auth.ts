@@ -121,7 +121,7 @@ const authCommands = defineCommands({
         meta: {
           hint: configured
             ? undefined
-            : "未配置:运行 `rxcordys auth login --accessKey X --secretKey Y` 或设置环境变量",
+            : "Not configured: run `rxcordys auth login --accessKey X --secretKey Y` or set environment variables",
         },
       };
     },
@@ -173,8 +173,8 @@ export function createCordysAuth(): Plugin<RxCordysState> {
       // 3. 都没有:抛错(业务命令需要凭证)
       throw new errs.AuthenticationError({
         subtype: "no_credentials",
-        message: "未配置 Cordys 凭证",
-        hint: "运行 `rxcordys auth login --accessKey <X> --secretKey <Y>` 保存,或设置 CORDYS_ACCESS_KEY / CORDYS_SECRET_KEY 环境变量",
+        message: "Cordys credentials not configured",
+        hint: "Run `rxcordys auth login --accessKey <X> --secretKey <Y>` to save, or set CORDYS_ACCESS_KEY / CORDYS_SECRET_KEY environment variables",
       });
     },
 
@@ -240,8 +240,8 @@ export function createCordysAuthWithStore(testStore: {
       }
       throw new errs.AuthenticationError({
         subtype: "no_credentials",
-        message: "未配置 Cordys 凭证(test store)",
-        hint: "运行 `rxcordys auth login`",
+        message: "Cordys credentials not configured (test store)",
+        hint: "Run `rxcordys auth login`",
       });
     },
     async beforeRequest(ctx, req) {

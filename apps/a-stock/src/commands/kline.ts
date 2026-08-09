@@ -62,7 +62,7 @@ export const klineCommands = defineCommands({
         throw new errs.ValidationError({
           subtype: "invalid_param",
           param: "period",
-          message: `不支持的周期:${period}(可选:${VALID_PERIODS.join(",")})`,
+          message: `Unsupported period: ${period} (valid: ${VALID_PERIODS.join(",")})`,
         });
       }
       const a = (adjust ?? "none") as KlineAdjust;
@@ -70,7 +70,7 @@ export const klineCommands = defineCommands({
         throw new errs.ValidationError({
           subtype: "invalid_param",
           param: "adjust",
-          message: `不支持的复权:${adjust}(可选:${VALID_ADJUST.join(",")})`,
+          message: `Unsupported adjust: ${adjust} (valid: ${VALID_ADJUST.join(",")})`,
         });
       }
       const data = await getKline(code, {
@@ -171,7 +171,7 @@ export const klineCommands = defineCommands({
         meta: {
           count: data.length,
           types: typeList,
-          hint: "MA 判断趋势;MACD 金叉死叉;RSI>70 超买 <30 超卖;KDJ J>90 超买 <10 超卖;布林带触及上下轨",
+          hint: "MA for trend; MACD golden/death cross; RSI>70 overbought <30 oversold; KDJ J>90 overbought <10 oversold; Bollinger Bands touching upper/lower rail",
         },
       };
     },

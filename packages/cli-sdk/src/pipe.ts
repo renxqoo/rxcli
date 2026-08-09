@@ -26,7 +26,7 @@ async function readAll(stream: StdinLike): Promise<string> {
     if (size > maxBytes) {
       throw new InternalError({
         subtype: "contract_violation",
-        message: `管道输入超过 ${maxBytes} bytes 上限`,
+        message: `Pipe input exceeds ${maxBytes} bytes limit`,
       });
     }
     chunks.push(buffer);
@@ -55,7 +55,7 @@ export function createPipeReader(
       } catch (e) {
         throw new InternalError({
           subtype: "decode_failure",
-          message: "管道输入不是合法 JSON",
+          message: "Pipe input is not valid JSON",
           cause: e,
         });
       }
@@ -64,15 +64,21 @@ export function createPipeReader(
       if (!envelope || typeof envelope !== "object") {
         throw new InternalError({
           subtype: "decode_failure",
-          message: "管道输入不是对象统一输出格式",
+          message: "Pipe input is not an object envelope",
         });
       }
       const env = envelope as { ok?: unknown; source?: unknown; data?: unknown };
       if (env.ok === false) {
-        throw new InternalError({ subtype: "decode_failure", message: "管道输入是失败输出" });
+        throw new InternalError({
+          subtype: "decode_failure",
+          message: "Pipe input is an error envelope",
+        });
       }
       if (env.ok !== true || !Object.prototype.hasOwnProperty.call(env, "data")) {
-        throw new InternalError({ subtype: "decode_failure", message: "管道输入缺少成功输出字段" });
+        throw new InternalError({
+          subtype: "decode_failure",
+          message: "Pipe input is missing success fields",
+        });
       }
       const data = env.data;
       const source = typeof env.source === "string" && env.source ? env.source : fallbackNamespace;

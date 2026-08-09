@@ -277,13 +277,13 @@ async function stepSelectLang(): Promise<"zh" | "en" | WizardCancelled> {
   if (fromArg) return fromArg;
 
   const lang = await p.select({
-    message: "请选择语言 / Select language",
+    message: "Select language / 请选择语言",
     options: [
-      { value: "zh" as const, label: "中文" },
       { value: "en" as const, label: "English" },
+      { value: "zh" as const, label: "中文" },
     ],
   });
-  return handleCancel(lang as "zh" | "en", messages.zh);
+  return handleCancel(lang as "zh" | "en", messages.en);
 }
 
 async function stepInstallGlobally(msg: Messages, pkgName: string): Promise<number | void> {
@@ -447,6 +447,8 @@ export async function runInstallWizard(opts: InstallWizardOptions = {}): Promise
   const lang = isInteractive ? await stepSelectLang() : (parseLangArg() ?? "en");
   if (lang instanceof WizardCancelled) return lang.exitCode;
   const msg = messages[lang];
+
+  // When no language is explicitly selected, default to English (en).
 
   if (isInteractive) {
     p.intro(msg.setup);

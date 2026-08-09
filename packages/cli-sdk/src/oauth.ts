@@ -104,8 +104,8 @@ async function oauthFetch(input: string, init: RequestInit = {}): Promise<Respon
     throw new NetworkError({
       subtype: timeout ? "timeout" : "connection_refused",
       message: timeout
-        ? "OAuth 请求超时(30000ms)"
-        : `OAuth 网络错误: ${err instanceof Error ? err.message : String(err)}`,
+        ? "OAuth request timed out (30000ms)"
+        : `OAuth network error: ${err instanceof Error ? err.message : String(err)}`,
       retryable: true,
       cause: err,
     });
@@ -125,7 +125,7 @@ async function safeJson(res: Response): Promise<unknown> {
   } catch (err) {
     throw new NetworkError({
       subtype: "connection_refused",
-      message: `读取 OAuth 响应失败: ${err instanceof Error ? err.message : String(err)}`,
+      message: `Failed to read OAuth response: ${err instanceof Error ? err.message : String(err)}`,
       retryable: true,
       cause: err,
     });
@@ -136,7 +136,8 @@ async function safeJson(res: Response): Promise<unknown> {
   } catch {
     throw new InternalError({
       subtype: "decode_failure",
-      message: "OAuth 响应不是合法 JSON(可能网关返回了 HTML 错误页)",
+      message:
+        "OAuth response is not valid JSON (the gateway may have returned an HTML error page)",
       cause: text.slice(0, 200),
     });
   }
@@ -146,7 +147,7 @@ function responseObject(body: unknown, endpoint: string): Record<string, unknown
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw new InternalError({
       subtype: "contract_violation",
-      message: `${endpoint} 响应结构无效: expected object`,
+      message: `${endpoint} response has invalid structure: expected object`,
       cause: body,
     });
   }
@@ -158,7 +159,7 @@ function requiredString(body: Record<string, unknown>, key: string, endpoint: st
   if (typeof value !== "string" || !value) {
     throw new InternalError({
       subtype: "contract_violation",
-      message: `${endpoint} 响应缺少字符串字段 ${key}`,
+      message: `${endpoint} response is missing string field ${key}`,
       cause: body,
     });
   }
@@ -170,7 +171,7 @@ function requiredNumber(body: Record<string, unknown>, key: string, endpoint: st
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw new InternalError({
       subtype: "contract_violation",
-      message: `${endpoint} 响应缺少数字字段 ${key}`,
+      message: `${endpoint} response is missing number field ${key}`,
       cause: body,
     });
   }
@@ -290,8 +291,8 @@ export async function refreshAccessToken(
   if (!res.ok) {
     throw new AuthenticationError({
       subtype: "token_expired",
-      message: "refresh token 失效,请重新登录",
-      hint: "run `rxcli auth login` 重新登录",
+      message: "Refresh token is invalid, please log in again",
+      hint: "run `rxcli auth login` to log in again",
       cause: body,
     });
   }
@@ -308,7 +309,7 @@ export async function getUserInfo(cfg: OAuthClientConfig, accessToken: string): 
     throw new AuthenticationError({
       subtype: "token_expired",
       code: 401,
-      message: "登录态已失效",
+      message: "Authentication expired",
       cause: body,
     });
   }

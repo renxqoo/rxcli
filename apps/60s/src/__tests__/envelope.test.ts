@@ -64,7 +64,9 @@ describe("unwrap", () => {
     } catch (e) {
       expect(e).toBeInstanceOf(errs.APIError);
       expect((e as errs.APIError).subtype).toBe("server_error");
-      expect((e as errs.APIError).message).toBe("上游服务暂时不可用(数据源异常),请稍后重试");
+      expect((e as errs.APIError).message).toBe(
+        "Upstream service temporarily unavailable (data source error), please retry later",
+      );
       expect((e as errs.APIError).retryable).toBe(true);
     }
   });

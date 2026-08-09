@@ -2,174 +2,176 @@
 
 # rxcli
 
-**Agent-Native CLI 框架 + 业务包**
+**Agent-Native CLI Framework + Business Packages**
 
-用声明式代码让 AI Agent 和人类结构化消费业务/公开数据。
+Structured consumption of business/public data by AI agents and humans — through declarative code.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 [![pnpm](https://img.shields.io/badge/pnpm-monorepo-F69220)](https://pnpm.io/)
 
-[这是什么](#这是什么) · [快速开始](#快速开始) · [业务包](#业务包) · [架构](#架构) · [用框架写自己的-cli](#用框架写自己的-cli)
+[English](README.md) · [中文](README.zh-CN.md)
+
+[What is this](#what-is-this) · [Quick Start](#quick-start) · [Business Packages](#business-packages) · [Architecture](#architecture) · [Build Your Own CLI](#build-your-own-cli)
 
 </div>
 
 ---
 
-## 这是什么
+## What is this
 
-`rxcli` 是一个 monorepo,由一个 Agent-Native CLI 框架和多个开箱即用的业务包组成。
+`rxcli` is a monorepo consisting of an agent-native CLI framework and several ready-to-use business packages.
 
-**核心思想**:把"数据交给 agent 的方式"收敛成框架能力——stdout 永远是结构化统一输出格式 `{ok, source, data, meta}`,stderr 是错误输出,exit code 按错误类别分类。Agent 可靠解析,人类可读表格,unix 管道自由组合。
+**Core idea**: converge "how data is delivered to an agent" into framework capabilities — stdout is always a structured envelope `{ok, source, data, meta}`, stderr is the error stream, and exit codes are categorized by error class. Agents parse reliably, humans get readable tables, and unix pipes compose freely.
 
-业务包只声明"调哪个接口、字段怎么处理",就自动获得:鉴权、统一输出格式、9 类错误分类、凭证管理、管道支持、skill 自动发现等全套能力。
+Business packages only declare "which API to call and how to process fields" — and automatically get: auth, unified output format, 9 error categories, credential management, pipe support, skill auto-discovery, and more.
 
-### 为什么需要
+### Why it's needed
 
-传统 CLI 给人看(表格/彩色输出),agent 调用时得解析非结构化文本,脆弱且易错。`rxcli` 让每个 CLI 天然 agent-native:
+Traditional CLIs are built for humans (tables/colored output); agents calling them must parse unstructured text, which is fragile and error-prone. `rxcli` makes every CLI natively agent-friendly:
 
-- **Agent 可靠消费**:统一 JSON 输出 + 类型化错误 + exit code 语义,agent 不靠正则猜
-- **人类依然友好**:TTY 自动渲染表格(CJK 对齐),`--no-json` 强制人类模式
-- **Unix 管道原生**:`a list | b generate`,上游 stdout 自动变成下游 PipeRecord
-- **Skill 自服务**:CLI 内置 SKILL.md,Agent 读后知道何时触发、怎么调用
+- **Reliable agent consumption**: unified JSON output + typed errors + exit-code semantics — agents don't guess with regex
+- **Still human-friendly**: TTY auto-renders tables (CJK-aware alignment); `--no-json` forces human mode
+- **Unix pipes native**: `a list | b generate` — upstream stdout automatically becomes downstream PipeRecords
+- **Skill self-service**: CLI ships a SKILL.md — agents read it and know when to trigger and how to call
 
 ---
 
-## 快速开始
+## Quick Start
 
-### 用现成的业务包
+### Use a ready-made business package
 
-四个业务包,按需选装。统一用 `npx <包名> install` 一键完成(装 CLI + 装 Skill + 配凭证),需 Node ≥ 20。
+Four business packages, install on demand. All use `npx <package> install` as a one-step setup (installs CLI + Skill + configures credentials), requires Node ≥ 20.
 
-| 业务包 | 一键安装 | 鉴权 | 说明 |
+| Package | One-step install | Auth | Description |
 | --- | --- | --- | --- |
-| **rxstock**(A 股数据) | `npx @renxqoo/rxstock install` | 无(公开数据) | 行情/K线/财务/板块/龙虎榜,多源 fallback |
-| **rx60s**(日常资讯) | `npx @renxqoo/rx60s-cli install` | 无(公开数据) | 新闻/热搜/天气/油价/翻译/密码等 60+ 接口 |
-| **rxcordys**(Cordys CRM) | `npx @renxqoo/rxcordys-cli install` | 静态双 header(API Key) | 线索/客户/商机/合同/回款/审批 |
-| **rxcli**(公司业务) | `npx @renxqoo/cli install` | OAuth device flow | 订单/商品/发票/账号 |
+| **rxstock** (A-share data) | `npx @renxqoo/rxstock install` | None (public data) | Quotes/K-line/financials/sectors/dragon-tiger list, multi-source fallback |
+| **rx60s** (Daily info) | `npx @renxqoo/rx60s-cli install` | None (public data) | News/trending/weather/fuel-prices/translate/passwords — 60+ endpoints |
+| **rxcordys** (Cordys CRM) | `npx @renxqoo/rxcordys-cli install` | Static dual headers (API Key) | Leads/accounts/opportunities/contracts/payments/approvals |
+| **rxcli** (Company business) | `npx @renxqoo/cli install` | OAuth device flow | Orders/products/invoices/accounts |
 
-> **rxcli 测试**:rxcli 依赖 OAuth 鉴权中间层,测试/开发前需先部署 [renxqoo/auth-proxy](https://github.com/renxqoo/auth-proxy)(OAuth device flow 代理 + 业务 API 网关 + mock 公司应用)。详见 [rxcli README](apps/crm/README.md#测试)。
+> **Testing rxcli**: rxcli depends on an OAuth middleware layer — before testing/development you must deploy [renxqoo/auth-proxy](https://github.com/renxqoo/auth-proxy) (OAuth device-flow proxy + business API gateway + mock company app). See [rxcli README](apps/crm/README.md#testing).
 
-> 也可分步:`npm install -g <包名>` → `<bin> skills sync` → 手动配凭证。详见各业务包 README。
+> You can also install step by step: `npm install -g <package>` → `<bin> skills sync` → configure credentials manually. See each package's README for details.
 
-**A 股数据(rxstock,无需登录):**
+**A-share data (rxstock, no login required):**
 
 ```bash
-npx @renxqoo/rxstock quote 600519              # 实时行情
-npx @renxqoo/rxstock stock diagnosis 300656    # 个股综合诊断
-npx @renxqoo/rxstock kline indicator 600519    # 技术指标(MACD/RSI/KDJ)
+npx @renxqoo/rxstock quote 600519              # Real-time quote
+npx @renxqoo/rxstock stock diagnosis 300656    # Comprehensive stock diagnosis
+npx @renxqoo/rxstock kline indicator 600519    # Technical indicators (MACD/RSI/KDJ)
 ```
 
-**日常资讯(rx60s,无需登录):**
+**Daily info (rx60s, no login required):**
 
 ```bash
 npx @renxqoo/rx60s-cli install
-rx60s 60s                            # 今天有什么新闻
-rx60s life weather 杭州              # 实时天气
-rx60s tool fanyi "hello" --to zh-CHS # 有道翻译
-rx60s hot weibo                      # 微博热搜
+rx60s 60s                            # What's in the news today
+rx60s life weather 杭州              # Real-time weather
+rx60s tool fanyi "hello" --to zh-CHS # Youdao translate
+rx60s hot weibo                      # Weibo trending
 ```
 
-**Cordys CRM(rxcordys,需 API Key):**
+**Cordys CRM (rxcordys, requires API Key):**
 
 ```bash
 npx @renxqoo/rxcordys-cli install
-rxcordys accounts page               # 客户列表
-rxcordys contracts stat              # 合同金额统计
+rxcordys accounts page               # Account list
+rxcordys contracts stat              # Contract amount statistics
 ```
 
 ---
 
-## 业务包
+## Business Packages
 
-| 包 | 目录 | 鉴权 | 数据源 |
+| Package | Directory | Auth | Data source |
 | --- | --- | --- | --- |
-| [`@renxqoo/agent-data-cli`](packages/cli-sdk) | `packages/cli-sdk` | — | 框架基础包(鉴权/统一输出/错误/凭证/管道/skill) |
-| [`@renxqoo/rxstock`](apps/a-stock) | `apps/a-stock` | 无 | 公开行情接口(腾讯/东方财富/新浪/同花顺,多源 fallback) |
-| [`@renxqoo/rx60s-cli`](apps/60s) | `apps/60s` | 无 | [vikiboss/60s](https://github.com/vikiboss/60s) 开源项目(新闻/热搜/天气/工具等 60+ 接口) |
-| [`@renxqoo/rxcordys-cli`](apps/cordys-crm) | `apps/cordys-crm` | 静态双 header | Cordys CRM(线索/客户/商机/合同/审批/统计) |
-| [`@renxqoo/cli`](apps/crm) | `apps/crm` | OAuth device flow | 公司业务网关(订单/商品/发票/账号) |
+| [`@renxqoo/agent-data-cli`](packages/cli-sdk) | `packages/cli-sdk` | — | Framework base package (auth/output/errors/credentials/pipe/skill) |
+| [`@renxqoo/rxstock`](apps/a-stock) | `apps/a-stock` | None | Public market data APIs (Tencent/Eastmoney/Sina/10jqka, multi-source fallback) |
+| [`@renxqoo/rx60s-cli`](apps/60s) | `apps/60s` | None | [vikiboss/60s](https://github.com/vikiboss/60s) open-source project (news/trending/weather/tools — 60+ endpoints) |
+| [`@renxqoo/rxcordys-cli`](apps/cordys-crm) | `apps/cordys-crm` | Static dual headers | Cordys CRM (leads/accounts/opportunities/contracts/approvals/stats) |
+| [`@renxqoo/cli`](apps/crm) | `apps/crm` | OAuth device flow | Company business gateway (orders/products/invoices/accounts) |
 
-> **数据归属**:rxstock / rx60s 的数据分别来自公开行情接口和 [vikiboss/60s](https://github.com/vikiboss/60s) 开源项目,版权归原始数据源所有,本项目仅做 CLI 化封装。
+> **Data attribution**: rxstock / rx60s data comes from public market APIs and the [vikiboss/60s](https://github.com/vikiboss/60s) open-source project respectively. Copyright belongs to the original data sources; this project only wraps them as CLIs.
 
 ---
 
-## 架构
+## Architecture
 
 ```
-agent / 终端用户
+agent / terminal user
     │  rxstock quote 600519  /  rx60s life weather 杭州  /  rxcordys accounts page
     ▼
-业务包(@renxqoo/rxstock / rx60s-cli / rxcordys-cli / cli)
-    │  缓存 + 多源 fallback / 响应解包 / 静态密钥鉴权 / OAuth 鉴权 + 续期
+Business package (@renxqoo/rxstock / rx60s-cli / rxcordys-cli / cli)
+    │  cache + multi-source fallback / response unwrap / static-key auth / OAuth auth + refresh
     ▼
-@renxqoo/agent-data-cli(框架)
-    │  统一输出 {ok,source,data,meta} / 9 类错误 / exit code / 管道 / skill 发现
+@renxqoo/agent-data-cli (framework)
+    │  unified output {ok,source,data,meta} / 9 error classes / exit code / pipe / skill discovery
     ▼
-数据源:公开行情接口 / 60s API / Cordys CRM / OAuth 中间层 + 业务网关
+Data sources: public market APIs / 60s API / Cordys CRM / OAuth middleware + business gateway
 ```
 
-### 输出契约(框架保证)
+### Output contract (framework-guaranteed)
 
-| 流 | 内容 | 谁写 |
+| Stream | Content | Who writes it |
 | --- | --- | --- |
-| stdout | 成功输出 `{ok:true, source, data, meta}` | 框架(从业务 `return` 序列化) |
-| stderr | 错误输出 `{ok:false, error:{type, subtype, ...}}` + 日志 | 框架(从 `throw errs.*` 渲染) |
+| stdout | Success output `{ok:true, source, data, meta}` | Framework (serialized from business `return`) |
+| stderr | Error output `{ok:false, error:{type, subtype, ...}}` + logs | Framework (rendered from `throw errs.*`) |
 
-**双模输出**:终端(TTY)→ 人类可读表格(自动 CJK 对齐);管道/CI → JSON 统一输出。`--json` / `--no-json` 强制覆盖。
+**Dual-mode output**: terminal (TTY) → human-readable tables (auto CJK alignment); pipe/CI → unified JSON output. `--json` / `--no-json` force override.
 
-### exit code 映射
+### Exit code mapping
 
-| code | 类别 | 含义 |
+| code | category | meaning |
 | --- | --- | --- |
-| 0 | — | 成功 |
-| 1 | api | 服务端业务错误(404/500/429) |
-| 2 | validation | 参数不合法 |
-| 3 | authentication / authorization / config | 需登录 / 缺权限 / 配置缺失 |
-| 4 | network | DNS / 超时 / 拒绝 |
-| 5 | internal | SDK 内部错误(不该发生) |
-| 6 | policy | 风控拦截 |
-| 10 | confirmation | 高危写入需 `--yes` |
+| 0 | — | success |
+| 1 | api | server-side business error (404/500/429) |
+| 2 | validation | invalid parameter |
+| 3 | authentication / authorization / config | login required / missing permission / missing config |
+| 4 | network | DNS / timeout / connection refused |
+| 5 | internal | SDK internal error (should not happen) |
+| 6 | policy | risk-control block |
+| 10 | confirmation | high-risk write requires `--yes` |
 
 ---
 
 ## Agent Skills
 
-CLI 内置 AI Agent Skills(SKILL.md),教 Agent 何时、如何使用命令。两种发现方式:
+CLIs ship built-in AI Agent Skills (SKILL.md) that teach agents when and how to use commands. Two discovery methods:
 
 ```bash
-# 方式一:命令发现(Agent 执行,无需安装)
-rxstock skills list                  # 列出所有 skill
-rxstock skills read rx-stock         # 读 skill 内容
+# Method 1: command discovery (agent executes, no install needed)
+rxstock skills list                  # List all skills
+rxstock skills read rx-stock         # Read skill content
 
-# 方式二:安装到 Agent 扫描目录(推荐)
-rxstock install                      # 一键装到 ~/.agents/skills/(30+ AI 工具发现路径)
-rx60s install                        # 同上
+# Method 2: install to the agent scan directory (recommended)
+rxstock install                      # One-step install to ~/.agents/skills/ (30+ AI tools discovery path)
+rx60s install                        # Same
 ```
 
-装好后,Agent 启动时按 SKILL.md 的 `description` 语义匹配用户意图,自服务发现所有命令。
+Once installed, agents semantically match the SKILL.md `description` against user intent at startup, self-servicing all command discovery.
 
 ---
 
-## 用框架写自己的 CLI
+## Build Your Own CLI
 
 ```bash
 pnpm add @renxqoo/agent-data-cli
 ```
 
-一个命令 < 30 行(详见 [cli-sdk 文档](packages/cli-sdk/README.md) 和 [agent-cli-builder skill](packages/cli-sdk/skills/agent-cli-builder/SKILL.md)):
+A single command in < 30 lines (see [cli-sdk docs](packages/cli-sdk/README.md) and the [agent-cli-builder skill](packages/cli-sdk/skills/agent-cli-builder/SKILL.md)):
 
 ```ts
 import { defineCli, defineCommand } from "@renxqoo/agent-data-cli";
 
 export default defineCli({
   name: "myapp",
-  description: "我的数据 CLI",
+  description: "My data CLI",
   commands: {
     list: defineCommand({
       name: "list",
-      description: "查询列表",
-      args: { limit: { type: "number", desc: "返回数量上限" } },
+      description: "Query list",
+      args: { limit: { type: "number", desc: "Maximum number of results" } },
       async run(args, ctx) {
         const res = await ctx.get<{ items: any[] }>("/items", { limit: args.limit });
         return { data: res.data.items };
@@ -179,36 +181,36 @@ export default defineCli({
 });
 ```
 
-框架给你的白送能力:请求层(带鉴权 + 401 续期)、统一输出格式、9 类类型化错误、参数解析与校验、`--json`/`--no-json` 双模、unix 管道、skill 自动发现。
+Capabilities you get for free from the framework: request layer (with auth + 401 refresh), unified output format, 9 typed error classes, parameter parsing & validation, `--json`/`--no-json` dual-mode, unix pipes, skill auto-discovery.
 
 ---
 
-## 开发
+## Development
 
-本仓是 pnpm monorepo:
+This repo is a pnpm monorepo:
 
 ```bash
-pnpm install            # 装依赖
-pnpm build              # 构建所有包
-pnpm typecheck          # 类型检查
-pnpm test               # 跑测试(vitest)
-pnpm lint               # oxlint 检查
+pnpm install            # Install dependencies
+pnpm build              # Build all packages
+pnpm typecheck          # Type checking
+pnpm test               # Run tests (vitest)
+pnpm lint               # oxlint checks
 ```
 
-### 添加新业务包
+### Add a new business package
 
-1. `apps/<你的包>/` 下 `pnpm init`,依赖 `@renxqoo/agent-data-cli`
-2. 写 `src/index.ts`(`defineCli`)+ `src/commands/*.ts`(`defineCommand`)
-3. `pnpm build` + `<bin> skills gen <name> --init` 生成 skill 骨架
-4. 手写 SKILL.md 语义部分(何时用 / 错误处理 / 前置条件)
-5. 详见 [agent-cli-builder skill](packages/cli-sdk/skills/agent-cli-builder/SKILL.md)
+1. `pnpm init` under `apps/<your-package>/`, depend on `@renxqoo/agent-data-cli`
+2. Write `src/index.ts` (`defineCli`) + `src/commands/*.ts` (`defineCommand`)
+3. `pnpm build` + `<bin> skills gen <name> --init` to scaffold the skill
+4. Hand-write the semantic parts of SKILL.md (when to use / error handling / prerequisites)
+5. See the [agent-cli-builder skill](packages/cli-sdk/skills/agent-cli-builder/SKILL.md)
 
 ---
 
-## 致谢
+## Acknowledgements
 
-- **[vikiboss/60s](https://github.com/vikiboss/60s)** —— rx60s 的数据源,一系列高质量、开源的开放 API 集合,MIT License © Viki
-- 公开行情接口(腾讯/东方财富/新浪/同花顺)—— rxstock 的数据源
+- **[vikiboss/60s](https://github.com/vikiboss/60s)** — rx60s data source, a collection of high-quality open-source public APIs, MIT License © Viki
+- Public market data APIs (Tencent/Eastmoney/Sina/10jqka) — rxstock data sources
 
 ---
 

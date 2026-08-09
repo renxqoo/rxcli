@@ -61,7 +61,7 @@ export async function getTicks(code: string, limit = 100): Promise<TickRow[]> {
     // push2 境外不通,抛明确错误(区分"无数据"和"取数失败")
     throw new APIError({
       subtype: "server_error",
-      message: `分笔数据获取失败(tick 接口当前网络环境不可用,需境内网络): ${e instanceof Error ? e.message : e}`,
+      message: `Failed to fetch tick data (the tick API is unavailable in the current network environment; requires a domestic/China IP): ${e instanceof Error ? e.message : e}`,
       retryable: false,
     });
   }

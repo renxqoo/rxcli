@@ -101,7 +101,7 @@ describe("pipe: 统一输出格式整包 parse → 逐条 yield PipeRecord", () 
       JSON.stringify({ ok: false, error: { type: "api", subtype: "server_error" } }),
     );
     const reader = createPipeReader(stdin as NodeJS.ReadableStream & { isTTY?: boolean }, "orders");
-    await expect(collect(reader.in())).rejects.toThrow(/失败输出|pipe/i);
+    await expect(collect(reader.in())).rejects.toThrow(/error envelope|pipe/i);
   });
 
   it("空 stdin → 无记录", async () => {
@@ -114,8 +114,8 @@ describe("pipe: 统一输出格式整包 parse → 逐条 yield PipeRecord", () 
   it("非法 JSON → 抛 InternalError(decode_failure)", async () => {
     const stdin = makeStdin("not json {{{");
     const reader = createPipeReader(stdin as NodeJS.ReadableStream & { isTTY?: boolean }, "orders");
-    await expect(collect(reader.in())).rejects.toThrow(/不是合法 JSON|管道输入/);
-    await expect(collect(reader.in())).rejects.toThrow(/不是合法 JSON|管道输入/);
+    await expect(collect(reader.in())).rejects.toThrow(/not valid JSON|pipe input/i);
+    await expect(collect(reader.in())).rejects.toThrow(/not valid JSON|pipe input/i);
   });
 
   it("缺少 ok/data 的普通对象不是合法成功输出", async () => {
@@ -123,6 +123,6 @@ describe("pipe: 统一输出格式整包 parse → 逐条 yield PipeRecord", () 
       makeStdin(JSON.stringify({ hello: "world" })) as NodeJS.ReadableStream & { isTTY?: boolean },
       "orders",
     );
-    await expect(collect(reader.in())).rejects.toThrow(/成功输出/);
+    await expect(collect(reader.in())).rejects.toThrow(/success fields/i);
   });
 });

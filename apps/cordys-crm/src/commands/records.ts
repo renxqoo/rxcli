@@ -29,8 +29,8 @@ export const recordsCommands: CommandGroup = defineCommands({
         throw new errs.ValidationError({
           subtype: "invalid_argument",
           param: "<module>",
-          message: `view 不支持模块 "${args.module}"`,
-          hint: `可选:${VIEW_MODULES.join(", ")}`,
+          message: `view does not support module "${args.module}"`,
+          hint: `Valid: ${VIEW_MODULES.join(", ")}`,
         });
       }
       let query: Record<string, unknown> = {};
@@ -119,8 +119,8 @@ export const recordsCommands: CommandGroup = defineCommands({
         throw new errs.ValidationError({
           subtype: "invalid_argument",
           param: "<module>",
-          message: `contact 不支持模块 "${args.module}"`,
-          hint: "可选:lead, account, opportunity",
+          message: `contact does not support module "${args.module}"`,
+          hint: "Valid: lead, account, opportunity",
         });
       }
       const res = await ctx.get(`/${args.module}/contact/list/${encodeURIComponent(args.id)}`);
@@ -175,8 +175,8 @@ function parseQueryOpts(opts: string): Record<string, unknown> {
   throw new errs.ValidationError({
     subtype: "invalid_argument",
     param: "--opts",
-    message: `opts 不是合法 JSON 对象: ${opts}`,
-    hint: "传入 JSON 对象,如 '{\"pageSize\":10}'",
+    message: `opts is not a valid JSON object: ${opts}`,
+    hint: "Provide a JSON object, e.g. '{\"pageSize\":10}'",
   });
 }
 

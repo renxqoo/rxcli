@@ -82,10 +82,10 @@ export const contactsCommands: CommandGroup = defineCommands({
     },
     async run(args, ctx) {
       const body = parseJsonBody(args.data, "<data>");
-      assertHasField(body, "新增联系人", "customerId");
-      assertHasField(body, "新增联系人", "name");
+      assertHasField(body, "Create contact", "customerId");
+      assertHasField(body, "Create contact", "name");
       if (args.dryRun) return { data: null, meta: { dryRun: true } };
-      ensureConfirmed(args.yes, "新增联系人", "rxcordys contacts add '<json>' --yes");
+      ensureConfirmed(args.yes, "Create contact", "rxcordys contacts add '<json>' --yes");
       const res = await ctx.post(`/${MODULE}/add`, body);
       return { data: unwrap(res) };
     },
@@ -101,9 +101,9 @@ export const contactsCommands: CommandGroup = defineCommands({
     },
     async run(args, ctx) {
       const body = parseJsonBody(args.data, "<data>");
-      assertHasId(body, "更新联系人");
+      assertHasId(body, "Update contact");
       if (args.dryRun) return { data: null, meta: { dryRun: true } };
-      ensureConfirmed(args.yes, "更新联系人", "rxcordys contacts update '<json>' --yes");
+      ensureConfirmed(args.yes, "Update contact", "rxcordys contacts update '<json>' --yes");
       const res = await ctx.post(`/${MODULE}/update`, body);
       return { data: unwrap(res) };
     },

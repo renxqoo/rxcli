@@ -82,7 +82,7 @@ async function doFetch<T>(opts: RequestOptionsInternal): Promise<TransportRespon
     const msg = err instanceof Error ? err.message : String(err);
     throw new NetworkError({
       subtype: isTimeout ? "timeout" : "connection_refused",
-      message: isTimeout ? `请求超时(${opts.timeout}ms)` : `网络错误:${msg}`,
+      message: isTimeout ? `Request timed out (${opts.timeout}ms)` : `Network error: ${msg}`,
       retryable: true,
       cause: err,
     });
@@ -221,8 +221,8 @@ export function createTransport(opts: CreateTransportOptions = {}): Transport {
           throw new AuthenticationError({
             subtype: "token_expired",
             code: 401,
-            message: "刷新凭证后仍被拒绝,请重新登录",
-            hint: "run `rxcli auth login` 重新登录",
+            message: "Still rejected after refreshing credentials, please log in again",
+            hint: "run `rxcli auth login` to log in again",
           });
         }
         return checkErrorOnStatus(retried);
@@ -231,8 +231,8 @@ export function createTransport(opts: CreateTransportOptions = {}): Transport {
       throw new AuthenticationError({
         subtype: "token_expired",
         code: 401,
-        message: "登录态已失效(token 过期或 refresh 失败)",
-        hint: "run `rxcli auth login` 重新登录",
+        message: "Authentication expired (token expired or refresh failed)",
+        hint: "run `rxcli auth login` to log in again",
       });
     }
 
@@ -244,8 +244,8 @@ export function createTransport(opts: CreateTransportOptions = {}): Transport {
       throw new AuthenticationError({
         subtype: "no_token",
         code: 401,
-        message: extractErrorMessage(first.data) ?? "请求未通过认证",
-        hint: "请登录或提供有效凭证后重试",
+        message: extractErrorMessage(first.data) ?? "Request not authenticated",
+        hint: "Please log in or provide valid credentials and retry",
       });
     }
 

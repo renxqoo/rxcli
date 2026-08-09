@@ -77,7 +77,7 @@ export async function runCommand<State>(opts: RunCommandOptions<State>): Promise
     // 3. void 返回(纯副作用命令,如管道下游边读边写)→ 输出空成功输出
     if (result === undefined || result === null) {
       if (opts.humanReadable) {
-        process.stdout.write("（无输出）\n");
+        process.stdout.write("(no output)\n");
       } else {
         process.stdout.write(
           serializeSuccess(null, undefined, { identity: resolveIdentity(), source: opts.source }),
@@ -92,7 +92,7 @@ export async function runCommand<State>(opts: RunCommandOptions<State>): Promise
     ) {
       throw new InternalError({
         subtype: "contract_violation",
-        message: `命令 ${spec.name} 必须返回 { data } 或 void`,
+        message: `Command ${spec.name} must return { data } or void`,
       });
     }
     // data 必须是 StructuredData(Record | 数组 | null)——裸标量(string/number/boolean)
@@ -103,7 +103,7 @@ export async function runCommand<State>(opts: RunCommandOptions<State>): Promise
     if (!isRawOutput && !isStructuredData(result.data)) {
       throw new InternalError({
         subtype: "contract_violation",
-        message: `命令 ${spec.name} 的 data 必须是对象/数组/null,收到 ${typeof result.data}`,
+        message: `Command ${spec.name} data must be object/array/null, got ${typeof result.data}`,
       });
     }
 
@@ -112,7 +112,7 @@ export async function runCommand<State>(opts: RunCommandOptions<State>): Promise
     if (transformed === undefined) {
       throw new InternalError({
         subtype: "contract_violation",
-        message: `命令 ${spec.name} 的 beforeOutput 返回了 undefined`,
+        message: `Command ${spec.name} beforeOutput returned undefined`,
       });
     }
     const meta = result.meta;
@@ -204,7 +204,7 @@ async function handleCommandError<State>(
   if (after === undefined) {
     // 被插件吞掉(命令变成功)—— 输出空成功输出,exit 0
     if (humanReadable) {
-      process.stdout.write("（无输出）\n");
+      process.stdout.write("(no output)\n");
     } else {
       process.stdout.write(serializeSuccess(null, undefined, { identity, source }));
     }

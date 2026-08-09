@@ -34,7 +34,9 @@ export const quoteCommands = defineCommands({
         data = await getQuote(code);
       }
       if (!data) {
-        throw new errs.NotFoundError(`未找到 ${code} 的行情(可能代码不存在或已停牌)`);
+        throw new errs.NotFoundError(
+          `Quote not found for ${code} (the code may not exist or the stock may be suspended)`,
+        );
       }
       return { data };
     },
@@ -60,13 +62,13 @@ export const quoteCommands = defineCommands({
         throw new errs.ValidationError({
           subtype: "invalid_param",
           param: "codes",
-          message: "codes 不能为空",
+          message: "codes must not be empty",
         });
       if (list.length > 100)
         throw new errs.ValidationError({
           subtype: "invalid_param",
           param: "codes",
-          message: `批量最多 100 只,当前 ${list.length}`,
+          message: `Batch supports up to 100 codes, got ${list.length}`,
         });
       const quotes = await getQuotes(list);
       return {

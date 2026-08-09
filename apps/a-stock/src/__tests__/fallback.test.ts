@@ -41,7 +41,7 @@ describe("trySources", () => {
         },
       },
     ];
-    await expect(trySources(sources)).rejects.toThrow(/所有数据源均失败/);
+    await expect(trySources(sources)).rejects.toThrow(/All data sources failed/);
     await expect(trySources(sources)).rejects.toThrow(/a\(a down\)/);
     await expect(trySources(sources)).rejects.toThrow(/b\(b down\)/);
   });
@@ -55,7 +55,7 @@ describe("trySources", () => {
   });
 
   it("空源列表直接抛错", async () => {
-    await expect(trySources([])).rejects.toThrow(/未配置任何数据源/);
+    await expect(trySources([])).rejects.toThrow(/No data sources configured/);
   });
 
   it("log 回调被调用(失败时)", async () => {
@@ -70,7 +70,7 @@ describe("trySources", () => {
       { name: "b", fetch: async () => "from-b" },
     ];
     await trySources(sources, { log });
-    expect(log).toHaveBeenCalledWith("warn", expect.stringContaining("a 失败"));
-    expect(log).toHaveBeenCalledWith("info", expect.stringContaining("b 命中"));
+    expect(log).toHaveBeenCalledWith("warn", expect.stringContaining("a failed"));
+    expect(log).toHaveBeenCalledWith("info", expect.stringContaining("b hit"));
   });
 });

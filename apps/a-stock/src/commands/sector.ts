@@ -46,7 +46,7 @@ export const sectorCommands = defineCommands({
         throw new errs.ValidationError({
           subtype: "invalid_param",
           param: "kind",
-          message: `不支持的类型:${kind}(可选:${VALID_KINDS.join(",")})`,
+          message: `Unsupported type: ${kind} (valid: ${VALID_KINDS.join(",")})`,
         });
       }
       const data = await getSectorList({
@@ -114,7 +114,7 @@ export const sectorCommands = defineCommands({
       // 板块报价走东财,腾讯不直接支持 BK
       const data = await getSectorList({ kind: "industry", size: 5000 });
       const item = data.items.find((s) => s.code === code);
-      if (!item) throw new errs.NotFoundError(`未找到板块 ${code}`);
+      if (!item) throw new errs.NotFoundError(`Sector not found: ${code}`);
       return { data: item };
     },
   }),

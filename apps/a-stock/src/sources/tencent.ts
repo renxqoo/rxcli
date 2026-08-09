@@ -83,7 +83,7 @@ export async function fetchTencentKline(
   if (!TENCENT_KLINE_PERIODS.includes(params.period)) {
     throw new APIError({
       subtype: "server_error",
-      message: `Tencent 不支持周期 ${params.period}`,
+      message: `Tencent does not support period ${params.period}`,
       retryable: false,
     });
   }
@@ -110,7 +110,7 @@ export async function fetchTencentKline(
   if (res.data.code !== 0) {
     throw new APIError({
       subtype: "server_error",
-      message: `Tencent kline 错误: ${res.data.msg}`,
+      message: `Tencent kline error: ${res.data.msg}`,
       retryable: true,
     });
   }
@@ -165,7 +165,7 @@ export async function fetchTencentMinute(symbol: SymbolParts): Promise<TencentMi
   if (res.data.code !== 0) {
     throw new APIError({
       subtype: "server_error",
-      message: `Tencent minute 错误: ${res.data.msg}`,
+      message: `Tencent minute error: ${res.data.msg}`,
       retryable: true,
     });
   }

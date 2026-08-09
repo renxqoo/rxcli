@@ -135,6 +135,7 @@ export {
   AUTOGEN_END,
   type SkillInfo,
   type DirEntry,
+  type GenLang,
 } from "./skills/index.js";
 
 // 参数解析
