@@ -37,7 +37,7 @@ function transformMeta(meta: Meta): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   if (meta.count !== undefined) out.count = meta.count;
   if (meta.rollback !== undefined) out.rollback = meta.rollback;
-  if (meta.pagination !== undefined) {
+  if (meta.pagination !== undefined && meta.pagination !== null) {
     const p = meta.pagination;
     const pg: Record<string, unknown> = { complete: p.complete };
     if (p.pages !== undefined) pg.pages = p.pages;

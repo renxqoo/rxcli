@@ -99,9 +99,10 @@ function mergePayload(
   user: Record<string, unknown>,
 ): PagePayload & Record<string, unknown> {
   const merged: Record<string, unknown> = { ...base, ...user };
-  // 保底:current/pageSize 不合法时回退默认
+  // 保底:current/pageSize 不合法时回退默认;pageSize 上限 200(防 Cordys 拒大值)
   if (typeof merged.current !== "number" || merged.current < 1) merged.current = 1;
   if (typeof merged.pageSize !== "number" || merged.pageSize < 1) merged.pageSize = 30;
+  if ((merged.pageSize as number) > 200) merged.pageSize = 200;
   return merged as PagePayload & Record<string, unknown>;
 }
 

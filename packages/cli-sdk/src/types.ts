@@ -194,7 +194,7 @@ export interface Plugin<State = Record<string, never>> {
   /** 必填:插件名(日志/溯源)。 */
   name: string;
   /** 可选:执行优先级,省略 = 'normal' 档(三档:pre/normal/post)。 */
-  enforce?: "pre" | "post";
+  enforce?: "pre" | "normal" | "post";
   /**
    * 可选:plugin 贡献的命令,defineCli 自动注入,业务无需手挂。
    *

@@ -113,8 +113,9 @@ export const utilCommands: CommandGroup = defineCommands({
         path: args.path,
         ...(reqBody !== undefined ? { body: reqBody } : {}),
       });
-      // raw 透传不解包(返回原始统一输出格式),让调用方自行判断
-      return { data: res.data };
+      // raw 透传不解包(返回原始统一输出格式),让调用方自行判断。
+      // 空 body(如 Cordys 对不存在端点返回 200+空体)→ data:null(非 undefined,避免 contract_violation)
+      return { data: res.data ?? null };
     },
   }),
 });
