@@ -405,7 +405,8 @@ const result = await todosCommands.list.run({ limit: 20 }, ctx);
 
 ## 10. 进阶(读 references,按需)
 
-- **`references/auth-patterns.md`** —— **需要登录时读**:defineAuth 工厂、register、split-flow 登录、install 向导、凭证路径隔离、手写 auth Plugin(HMAC/mTLS)、provider chain
+- **`references/auth-patterns.md`** —— **需要登录时读**:`defineAuth` 工厂、register、split-flow 登录、install 向导、凭证路径隔离(90% 场景)
+- **`references/custom-auth-plugin.md`** —— **HMAC/mTLS/自定义 provider 时读**:手写 auth Plugin 骨架、provider chain、签名插件、401 续期(10% 场景)
 - **`references/patterns.md`** —— **列表要分页 / 管道下游 / humanFormat 时读**:pagination 续拉、`ctx.pipe` 消费上游、`printTable` 自定义表格
 - `references/plugin-patterns.md` —— 自定义插件(钩子选择、enforce 顺序、onError 链)
 - `references/skill-gen.md` —— SKILL.md 完整模板(含 split-flow 占位)、AUTO-GEN 机制、frontmatter 规范、**与官方 skill-creator 规范对齐(§11)**
