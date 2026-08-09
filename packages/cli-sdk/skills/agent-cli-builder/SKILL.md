@@ -5,7 +5,7 @@ description: 用 @renxqoo/agent-data-cli 框架从零构建 agent-native CLI 的
 
 # agent-cli-builder
 
-`@renxqoo/agent-data-cli`(下称 **agent-data-cli**)是一个 agent-native CLI 框架。你**只声明**"调哪个后端接口、字段怎么处理",框架就给你请求层、统一输出格式、错误分类、参数解析、管道、skill 发现等全套能力。鉴权**可选**(公开数据 CLI 不需要,见 `references/auth-patterns.md`)。
+`@renxqoo/agent-data-cli`(下称 **agent-data-cli**)是一个 agent-native CLI 框架。开发者声明"调哪个后端接口、字段怎么处理",框架提供请求层、统一输出格式、错误分类、参数解析、管道、skill 发现等实现。鉴权可选(公开数据 CLI 无需,见 `references/auth-patterns.md`)。
 
 ---
 
@@ -60,7 +60,7 @@ export const todosCommands = defineCommands({
     args: { id: { type: "string", required: true, positional: true, desc: "待办 ID" } },
     async run({ id }, ctx) {
       const res = await ctx.patch(`/todos/${id}`, { done: true });
-      // 404 没配进 errorOnStatus → 这里手写 if 才可达(配了就别写,见 §5 模式 2)
+      // 404 未配进 errorOnStatus → 在此手写 if 才可达(若已配则框架提前 throw,见 §5 模式 2)
       if (res.status === 404) throw new errs.NotFoundError(`待办 ${id} 不存在`);
       return { data: res.data };
     },
@@ -78,8 +78,8 @@ import { defineCli } from "@renxqoo/agent-data-cli";
 import { todosCommands } from "./commands/todos.js";
 
 const app = defineCli({
-  name: "rx-todos",          // ★ 命名空间(与 §2 一致)
-  binName: "rx-todos",       // ★ 终端命令名(建议显式声明,别靠自动探测)
+  name: "rx-todos",          // 命名空间(与 §2 一致)
+  binName: "rx-todos",       // 终端命令名(建议显式声明;不填则从 package.json bin 自动探测)
   description: "通过 CLI 查询和管理待办",
   baseUrl: process.env.TODOS_API ?? "https://api.example.com",
   commands: todosCommands,
@@ -105,29 +105,46 @@ node dist/index.js list --json      # {"ok":true,"source":"rx-todos","data":[...
 node dist/index.js list --no-json   # 表格(给人看)
 ```
 
-**搞定。** 请求层、错误分类、统一输出格式、退出码全部白送。
+此时请求层、错误分类、统一输出格式、退出码均已由框架实现。
 
-> **需要登录?** 读 `references/auth-patterns.md`(`defineAuth` 工厂、OAuth split-flow 登录、register、install 向导全在那)。鉴权是可选的进阶能力。
+> **需要登录?** 读 `references/auth-patterns.md`(`defineAuth` 工厂、OAuth split-flow 登录、register、install 向导)。鉴权为可选能力。
 
 ---
 
 ## 2. 动手前:问清 6 点 + 查命名
 
-用户说"做个 CLI"但信息不全时,**先问清再动键盘**——猜出来的代码看着能跑,但后端字段/分页约定猜错会埋隐性 bug。
+用户说"做个 CLI"但信息不全时,先问清再写代码。后端字段/分页约定若靠猜测,会埋隐性 bug。
 
 要分清两类信息:
 
 - **行为决策**(要不要 auth / 要不要分页)→ 默认选**最简单方案**,做完再加。
-- **事实信息**(后端响应字段、分页约定)→ **不能猜**,宁可多问一轮。
+- **事实信息**(后端响应字段、分页约定)→ 不可猜测,须向用户确认。
 
-| 必须问清                         | 默认(用户没明确时)      | 何时追问                                                                                  |
-| -------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------- |
-| **查什么数据 / 调哪个后端 API?** | —                       | 没给 baseUrl 或数据源 → 必问                                                              |
-| **命令名叫什么?**                | 给 `rx-<域>` 建议        | 见下命名检查,有冲突风险必问                                                               |
-| **需要登录吗?**                  | **先无鉴权**             | 涉及敏感/私有数据才追问;要登录走 `references/auth-patterns.md`                            |
-| **数据要分页吗?**                | 不分页                  | 列表可能很大(>100 条)才追问                                                               |
-| **单域还是多域?**                | 单域(`commands`)        | 有多个不相关资源类型(orders+products)才追问                                               |
-| **后端响应/分页字段长啥样?**     | —                       | 给了 API 但没给响应体结构 → 必问,列 2-3 个候选问(别猜着写全兼容,见 `references/patterns.md` §1) |
+需要逐条向用户确认的问题:
+
+1. **查什么数据 / 调哪个后端 API?**
+   - 默认:无
+   - 何时追问:没给 baseUrl 或数据源时必问
+
+2. **命令名叫什么?**
+   - 默认:给 `rx-<域>` 建议
+   - 何时追问:见下命名检查,有冲突风险时必问
+
+3. **需要登录吗?**
+   - 默认:先无鉴权
+   - 何时追问:涉及敏感/私有数据才追问;需登录则走 `references/auth-patterns.md`
+
+4. **数据要分页吗?**
+   - 默认:不分页
+   - 何时追问:列表可能很大(>100 条)才追问
+
+5. **单域还是多域?**
+   - 默认:单域(`commands`)
+   - 何时追问:有多个不相关资源类型(orders + products)才追问
+
+6. **后端响应/分页字段长啥样?**
+   - 默认:无
+   - 何时追问:给了 API 但没给响应体结构时必问,列 2-3 个候选问;不要靠猜写全兼容(见 `references/patterns.md` §1)
 
 ### 命名检查(框架不查,你自己查)
 
@@ -168,9 +185,9 @@ defineCli({
 });
 ```
 
-> **`plugins: [auth]` 里的 `auth` 必须是已 resolve 的 Plugin,不能是 Promise。**
-> `defineAuth` 是 **`async`** 函数,所以**永远 `await`**:`const auth = await defineAuth({...})`。
-> 忘 `await` → `plugins:[Promise]` → `beforeCommand` 不跑 → 鉴权全废,且**运行即崩无报错**。这是鉴权场景最高频的 bug,所有 `defineAuth` 示例都 `await`——照抄即可。详见 `references/auth-patterns.md`。
+> **`plugins: [auth]` 中的 `auth` 必须是已 resolve 的 Plugin,不能是 Promise。**
+> `defineAuth` 是 `async` 函数,必须 `await`:`const auth = await defineAuth({...})`。
+> 缺 `await` 时 `plugins:[Promise]`,`beforeCommand` 不执行,鉴权失效,且无报错。详见 `references/auth-patterns.md`。
 
 ### ② `defineCommand(spec)` —— 声明单个命令
 
@@ -192,7 +209,7 @@ defineCommand({
 
 **`args` 类型 4 种**:`string` / `number` / `boolean` / `array`。`positional:true` 表示无 flag(直接 `<id>`)。**每个 arg 都填 `desc`**——进自动生成的命令文档。装配期拒绝矛盾 schema:不能同时 `required:true` 和 `default`;可选 positional 后不能再声明必填 positional。
 
-> **boolean 默认值坑**:不带 `default` 的 boolean(如上 `dryRun`),用户没传 flag 时 `args.dryRun` 是 **`undefined`,不是 `false`**。用 `if (args.dryRun)` 判断(真值检查),别写 `=== false`。要拿到确定的 `false`,加 `default: false`。
+> **boolean 默认值**:不带 `default` 的 boolean(如上 `dryRun`),用户未传 flag 时 `args.dryRun` 为 `undefined`,不是 `false`。应使用真值判断 `if (args.dryRun)`,避免 `=== false`。需要确定 `false` 时,显式声明 `default: false`。
 
 ### ③ `ctx` —— 命令运行时上下文
 
@@ -202,7 +219,7 @@ interface CommandContext<State> {
   post / put / patch / delete 同上
   request<T>(opts): Promise<{status, data: T, headers}>        // 低层兜底
   state: State                          // 插件间共享数据(auth 填 user)
-  log: { info, warn, error }            // 强制写 stderr,绝不污染 stdout
+  log: { info, warn, error }            // 强制写 stderr,不污染 stdout
   pipe: { in(): AsyncIterable<PipeRecord>; isInPipe(): boolean }
   credentials: { get, save, clear }     // 运行时读写凭证(仅鉴权时)
 }
@@ -210,7 +227,7 @@ interface CommandContext<State> {
 
 ### ④ `errs.*` —— 9 类类型化错误
 
-**永远用 `errs.*`,绝不要 `throw new Error(...)`!** 裸 Error 被兜底成 `internal/unknown`(exit 5),agent 会误解成 SDK bug。
+业务命令抛错一律用 `errs.*`,不要 `throw new Error(...)`。裸 Error 被归类为 `internal/unknown`(exit 5),agent 会误判为 SDK 故障。
 
 ```ts
 import { errs } from "@renxqoo/agent-data-cli";
@@ -228,7 +245,7 @@ throw new errs.PermissionError({ subtype: "missing_scope", missingScopes: ["orde
 | `network`        |  4   | DNS / 超时 / 拒绝                  |
 | `api`            |  1   | 服务端业务错误(404/500/429)        |
 | `policy`         |  6   | 风控拦截                           |
-| `internal`       |  5   | SDK 不该发生的事(几乎不该你 throw) |
+| `internal`       |  5   | 框架内部错误(业务通常不抛此类别)   |
 | `confirmation`   |  10  | 高危写入需要 --yes                 |
 
 > 全部 30+ subtype 速查 + `errorOnStatus` 推荐配置见 `references/error-catalog.md`。
@@ -266,7 +283,7 @@ async run(args, ctx): Promise<CommandResult | void> {
 
 ---
 
-## 5. 模式速查(高频)
+## 5. 模式速查(常用)
 
 ### 模式 1:多业务域(namespaces)
 
@@ -281,7 +298,7 @@ defineCli({
 });
 ```
 
-**严禁**用 spread 把命令拍平(`...ordersCommands`)——同名命令(`list`/`get`)会互相覆盖,丢失命名空间层级。用 `namespaces`。
+禁止用 spread 拍平命令组(`...ordersCommands`)——同名命令(`list`/`get`)会互相覆盖,丢失命名空间层级。应使用 `namespaces`。
 
 ### 模式 2:`errorOnStatus` 自动 throw
 
@@ -297,7 +314,7 @@ defineCli({
 });
 ```
 
-> **配了 `errorOnStatus` 的 status,命令 run 里就别再手写 `if (res.status === 404)`** —— 框架在 `ctx.get` 返回**之前**就已 throw,你写的分支**永远走不到**,是死代码。手写 if 只留给 `errorOnStatus` **没配**的 status(如 422 搜索语法错,各命令语义不同)。
+> 已配进 `errorOnStatus` 的 status,框架在 `ctx.get` 返回前即 throw,命令 run 内对同一 status 的 `if` 分支不可达(死代码)。手写 `if` 仅用于 `errorOnStatus` 未配的 status(如 422,各命令语义不同)。
 
 > **进阶模式**(分页 `pagination`、管道下游 `ctx.pipe`、`humanFormat` 自定义表格)见 `references/patterns.md`——列表要给 agent 续拉、下游消费上游输出、`--no-json` 精致化时才读。
 
@@ -310,11 +327,11 @@ defineCli({
 | 成功输出 `{ok:true, source, data, meta}`          | **stdout** | 框架(从你的 `return` 序列化)     |
 | 错误输出 `{ok:false, error:{type, subtype, ...}}` | **stderr** | 框架(从你的 `throw errs.*` 渲染) |
 | 日志(info/warn/error)                             | stderr     | `ctx.log.info(...)`              |
-| SKILL.md 原文(`skills read` 输出)                 | stdout     | 框架(**明示例外**:不走统一输出格式) |
+| SKILL.md 原文(`skills read` 输出)                 | stdout     | 框架(**例外**:不走统一输出格式)      |
 
-**契约铁律:**
+**契约要点:**
 
-- **业务命令不能直接 `console.log` 到 stdout**——会破坏管道。要数据就 `return { data }`,要日志就 `ctx.log.info(...)`(写 stderr)。
+- **业务命令禁止直接 `console.log` 到 stdout**——会破坏管道。输出数据用 `return { data }`,输出日志用 `ctx.log.info(...)`(写 stderr)。
 - `source` 由 `defineCli.name` 写入,管道下游据此生成稳定的 `PipeRecord.type`。成功输出还可能带可选顶层 `identity: 'user' | 'bot'`(auth Plugin 填)和 `dry_run`(`--dry-run` 时)。业务包通常不用关心——只需 `return { data, meta }`,其余框架补。
 - **`--json` / `--no-json`**:默认 `auto`(TTY→文本表格;管道/CI→JSON);`--json` 强制 JSON,`--no-json` 强制文本(被管道时仍 JSON,保护 agent)。
 - **exit code**:业务包**不设**——框架按错误 category 自动设(0 成功;1 api;2 validation;3 auth/permission/config;4 network;5 internal;6 policy;10 confirmation)。
@@ -368,7 +385,7 @@ const result = await todosCommands.list.run({ limit: 20 }, ctx);
 
 ## 9. 避坑
 
-1. **🔥 `defineAuth` 忘 `await`**(鉴权最高频致命坑)→ 见 §3①。
+1. **`defineAuth` 缺 `await`**(鉴权最常见 bug)→ 见 §3①。
 2. **spread 命令组**(`...ordersCommands`)→ 同名命令互相覆盖。用 `namespaces`。
 3. **boolean 不带 default 用 `=== false` 判断** → 未传时是 `undefined`。用 `if (args.x)`(见 §3②)。
 4. **配了 `errorOnStatus` 还手写 `if (res.status===404)`** → 死代码。见 §5 模式 2。
@@ -388,7 +405,7 @@ const result = await todosCommands.list.run({ limit: 20 }, ctx);
 - `references/skill-gen.md` —— SKILL.md 完整模板(含 split-flow 占位)、AUTO-GEN 机制、frontmatter 规范、**与官方 skill-creator 规范对齐(§11)**
 - `references/readme-gen.md` —— **生成 README 时读**:标准结构 + 模板(装CLI/装Skill/配凭证)+ 鉴权三分支 + 避坑
 - `references/error-catalog.md` —— 全部 30+ subtype 速查 + errorOnStatus 推荐配置
-- `references/testing.md` —— createTestCtx 全套(mock transport/store/pipe、端到端测试)、**真实任务评估第 3 层(skill-creator 集成,§9)**
+- `references/testing.md` —— createTestCtx 完整用法(mock transport/store/pipe、端到端测试)、**真实任务评估第 3 层(skill-creator 集成,§9)**
 
 ---
 
@@ -401,7 +418,7 @@ const result = await todosCommands.list.run({ limit: 20 }, ctx);
 - [ ] 用了 `errs.*` 而非裸 Error
 - [ ] `package.json` 的 `files` 含 `["dist", "skills"]`
 - [ ] 跑 `skills gen <name> --init` 生成 SKILL.md 并填了语义部分
-- [ ] **SKILL.md description 触发质量**:覆盖用户多种说法(不止命令名)、划清边界防误触发、足够 pushy(见 `references/skill-gen.md` §4)
+- [ ] **SKILL.md description 触发质量**:覆盖用户多种说法(不止命令名)、划清边界防误触发、明确鼓励触发(见 `references/skill-gen.md` §4)
 - [ ] 按 `references/readme-gen.md` 生成 README(含安装步骤)
 - [ ] **带鉴权的 CLI**:业务 SKILL.md 含 split-flow 登录指引;入口处理了 `install` 向导(拦截 `argv[0]==='install'`);`defineAuth` 已 `await`(见 §3①)
 - [ ] 没往 stdout 写非统一输出格式内容

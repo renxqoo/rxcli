@@ -1,4 +1,4 @@
-# 测试进阶:createTestCtx 全套用法
+# 测试进阶:createTestCtx 完整用法
 
 > 主 SKILL.md 给了基础用法,这里讲 mock transport / mock store / 测 auth 插件 / 测错误 / 端到端(端到端跑整 CLI)。
 
@@ -275,17 +275,17 @@ export default defineConfig({
 
 ## 9. 真实任务验证(skill-creator 集成)
 
-前 8 节都是**不联网**的测试(mock transport / mock fetch)。它们验证的是"代码跑得通",但**验证不了「skill 写得好不好」**——agent 会不会在该触发时触发?能不能靠 SKILL.md 自发完成真实任务?输出对不对?这些只有真实任务评估能回答。
+前 8 节均为不联网测试(mock transport / mock fetch),验证代码能否运行,但无法验证 skill 质量——agent 是否在该触发时触发?能否靠 SKILL.md 自发完成真实任务?输出是否正确?这些只能由真实任务评估回答。
 
 ### 测试三层分工
 
 | 层 | 验证什么 | 是否联网 | 何时跑 |
 | -- | -------- | :------: | ------ |
-| 第 1 层 `createTestCtx` mock 单测 | 命令逻辑、参数透传、错误抛出 | 否 | CI(必做) |
-| 第 2 层 `app.run(argv)` 端到端 | 装配/路由/统一输出格式/exit code | 否(mock fetch) | CI(必做) |
+| 第 1 层 `createTestCtx` mock 单测 | 命令逻辑、参数透传、错误抛出 | 否 | CI(必需) |
+| 第 2 层 `app.run(argv)` 端到端 | 装配/路由/统一输出格式/exit code | 否(mock fetch) | CI(必需) |
 | 第 3 层 skill-creator 真实任务评估 | **skill 触发准确率 + agent 自发完成能力** | **是**(真实 API) | **发布前做一次,不进 CI** |
 
-> 前两层进 CI 保证不退化;第三层慢、依赖网络/外部 API,只在发版前人工跑一轮。三层缺一不可——只做前两层,skill 可能"代码全对但 agent 用不起来"。
+> 前两层进 CI 保证不退化;第三层慢、依赖网络/外部 API,只在发版前人工跑一轮。三层均不可省略——只做前两层,skill 可能"代码全对但 agent 用不起来"。
 
 ### 第 3 层:用官方 skill-creator 评估闭环
 
@@ -333,15 +333,15 @@ export default defineConfig({
 
 ### 设计 expectations 的关键:区分性
 
-实战教训——**别只测「调用了 CLI」**。如果 CLI 的 `--help` 足够完善,baseline 不靠 skill 也能通过(它自己会探索 --help 找到命令)。这种断言 with/baseline 都 100% 通过,体现不出 skill 价值。
+经验提示——不要只测「调用了 CLI」。若 CLI 的 `--help` 足够完善,baseline 不靠 skill 也能通过(它会探索 --help 找到命令)。此类断言 with/baseline 均通过,无法区分 skill 价值。
 
-能区分 skill 价值的好断言示例:
-- ✅ "输出了正确的非显然参数值"(如翻译的目标语言代码 `zh-CHS`,光靠 --help 猜不到)
-- ✅ "避免了默认值陷阱"(如 `--symbols` 默认关,skill 提醒了,baseline 可能漏)
-- ✅ "多步串联"(先 `rank` 拿 ID 再 `rank-detail`,需要 skill 教工作流)
-- ✅ "模糊意图映射"('离放假还有几天' → `moyu`,光看命令名猜不到)
-- ❌ "调用了 CLI"(太弱,baseline 靠 --help 也能过)
-- ❌ "返回了 N 条数据"(太弱,只要调通就有)
+能区分 skill 价值的断言示例:
+- 正例 "输出了正确的非显然参数值"(如翻译的目标语言代码 `zh-CHS`,光靠 --help 猜不到)
+- 正例 "避免了默认值陷阱"(如 `--symbols` 默认关,skill 提醒了,baseline 可能漏)
+- 正例 "多步串联"(先 `rank` 拿 ID 再 `rank-detail`,需要 skill 教工作流)
+- 正例 "模糊意图映射"('离放假还有几天' → `moyu`,光看命令名猜不到)
+- 反例 "调用了 CLI"(太弱,baseline 靠 --help 也能过)
+- 反例 "返回了 N 条数据"(太弱,只要调通就有)
 
 ### 何时不必跑第 3 层
 

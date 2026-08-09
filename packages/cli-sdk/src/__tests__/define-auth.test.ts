@@ -1,13 +1,11 @@
 /**
  * defineAuth 工厂测试 —— 验证工厂产出的 plugin 形态、scope 透传、
- * S3 凭据回读(config.json → clientId)、M3 轮询(RFC 8628)。
+ * S3 凭据回读(config.json → clientId)。
  *
- * 这些测试从 apps/crm 迁入(原测 createAuthConfig / pollAndPersist / createAuthCommands),
- * 改为测 cli-sdk 的 defineAuth 工厂。
+ * device flow 的轮询/split-flow 逻辑测试在 device-splitflow.test.ts。
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { defineAuth } from "../auth/index.js";
-import { pollAndPersist } from "../auth/index.js";
 import { createTestCtx } from "../test-utils.js";
 import { memoryStore } from "../credentials/config-store.js";
 import * as oauthApi from "../oauth.js";
@@ -180,80 +178,5 @@ describe("scope 透传(业务自定,空=不带)", () => {
 });
 
 // ============================================================================
-// M3: device 轮询间隔应遵循服务端 interval + RFC 8628 slow_down 语义 —— 从 crm 迁入
+// M3: device 轮询逻辑已移到 flows/device.ts,测试见 device-splitflow.test.ts
 // ============================================================================
-
-describe("M3: pollAndPersist 轮询间隔(RFC 8628)", () => {
-  it("起始间隔用传入的服务端 interval(不固定 3000ms)", async () => {
-    const poller = vi.fn().mockResolvedValue({
-      status: "ok",
-      token: { access_token: "at", refresh_token: "rt", expires_in: 3600, scope: "s" },
-    });
-    const ctx = createTestCtx();
-    const store = memoryStore();
-    await pollAndPersist(
-      ctx,
-      { baseUrl: "http://t", clientId: "c", clientSecret: "s" },
-      store,
-      "crm",
-      "dc",
-      1,
-      10,
-      poller,
-    );
-    expect(poller).toHaveBeenCalledTimes(1); // 立即 ok
-  });
-
-  it("slow_down → interval 增加 5000ms(RFC 8628 §3.2)", async () => {
-    vi.useFakeTimers();
-    const sleepSpy = vi.spyOn(global, "setTimeout");
-    const sequence = [
-      { status: "slow_down" as const },
-      {
-        status: "ok" as const,
-        token: { access_token: "at", refresh_token: "rt", expires_in: 3600, scope: "s" },
-      },
-    ];
-    let callIdx = 0;
-    const poller = vi.fn().mockImplementation(() => Promise.resolve(sequence[callIdx++]!));
-    const ctx = createTestCtx();
-    const store = memoryStore();
-    const p = pollAndPersist(
-      ctx,
-      { baseUrl: "http://t", clientId: "c", clientSecret: "s" },
-      store,
-      "crm",
-      "dc",
-      60,
-      1000,
-      poller,
-    );
-    await vi.runAllTimersAsync();
-    await p;
-    const delays = sleepSpy.mock.calls.map((c) => c[1]);
-    expect(delays[0]).toBe(1000);
-    expect(delays[1]).toBe(6000); // M3:slow_down 后 +5000
-    vi.useRealTimers();
-    sleepSpy.mockRestore();
-  });
-
-  it("不会在 device code 过期后再发起 poll", async () => {
-    vi.useFakeTimers();
-    const poller = vi.fn().mockResolvedValue({ status: "pending" });
-    const promise = pollAndPersist(
-      createTestCtx(),
-      { baseUrl: "http://t", clientId: "c", clientSecret: "s" },
-      memoryStore(),
-      "crm",
-      "dc",
-      1,
-      5000,
-      poller,
-    );
-    const assertion = expect(promise).rejects.toMatchObject({ subtype: "token_expired" });
-    await vi.runAllTimersAsync();
-    await assertion;
-    expect(poller).not.toHaveBeenCalled();
-    vi.useRealTimers();
-  });
-});

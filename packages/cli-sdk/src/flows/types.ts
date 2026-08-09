@@ -24,6 +24,10 @@ export interface FlowDeps {
   // device flow 专用:
   /** device flow 轮询函数(测试注入)。 */
   poller?: (cfg: OAuthClientConfig, deviceCode: string) => Promise<PollResult>;
+  /** device flow split-flow:--no-wait(申请设备码但不轮询,返回 url 给 agent)。 */
+  noWait?: boolean;
+  /** device flow split-flow:--device-code(用已有设备码恢复轮询)。 */
+  resumeDeviceCode?: string;
   // authorization_code flow 专用:
   /** 浏览器打开器(authCode flow 用)。 */
   browser?: BrowserOpener;

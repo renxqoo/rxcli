@@ -1,8 +1,12 @@
 /**
  * device flow 策略(RFC 8628)。
  *
- * 从 auth/index.ts 提取。只负责"申请设备码 + 轮询 token",不含落盘。
- * 支持 split-flow(通过 FlowDeps 的 args 传入 --no-wait / --device-code)。
+ * 完整 device flow 逻辑(含 split-flow)都在这里,L4 只负责捕获 SplitFlowSignal。
+ *
+ * 三种 login 模式(通过 FlowDeps 控制):
+ *   1. 正常(noWait=false, resumeDeviceCode=undef):申请设备码 → 阻塞轮询
+ *   2. --no-wait:申请设备码 → 抛 SplitFlowSignal(含 url),不轮询
+ *   3. --device-code:不申请,直接用已有设备码轮询
  */
 import { deviceAuthorization, pollDeviceToken, type TokenInfo, type PollResult } from "../oauth.js";
 import { AuthenticationError } from "../errs/index.js";
@@ -10,6 +14,22 @@ import type { AuthFlow, FlowDeps } from "./types.js";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * SplitFlow 信号:--no-wait 时 login() 抛此对象(不是 Error 子类,框架用 instanceof 检测)。
+ * 框架捕获后把 deviceCode/verificationUrl 返回给调用方(agent)。
+ */
+export class SplitFlowSignal {
+  constructor(
+    public readonly deviceCode: string,
+    public readonly userCode: string,
+    public readonly verificationUrl: string,
+    public readonly verificationUriComplete: string | undefined,
+    public readonly verificationUri: string,
+    public readonly expiresIn: number,
+    public readonly interval: number,
+  ) {}
 }
 
 /**
@@ -51,16 +71,36 @@ export const deviceFlow: AuthFlow = {
   type: "device" as const,
 
   async login(deps: FlowDeps): Promise<TokenInfo> {
-    const info = await deviceAuthorization(deps.cfg, deps.scope);
+    const poller = deps.poller ?? pollDeviceToken;
 
-    // 提示用户打开浏览器
+    // 模式 3:--device-code(恢复轮询,不重新申请)
+    if (deps.resumeDeviceCode) {
+      deps.log?.info("\nResuming login (polling with existing device_code)...");
+      // 恢复时用短 interval 立即开始轮询(用户已经授权了,不需要等)
+      return pollForToken(deps.cfg, deps.resumeDeviceCode, 15 * 60, 100, poller);
+    }
+
+    // 申请设备码(模式 1 和 2 都需要)
+    const info = await deviceAuthorization(deps.cfg, deps.scope);
     const url = info.verification_uri_complete ?? info.verification_uri;
+
+    // 模式 2:--no-wait(申请了但不轮询,抛信号让框架返回 url)
+    if (deps.noWait) {
+      throw new SplitFlowSignal(
+        info.device_code,
+        info.user_code,
+        url,
+        info.verification_uri_complete,
+        info.verification_uri,
+        info.expires_in,
+        info.interval,
+      );
+    }
+
+    // 模式 1:正常(阻塞轮询)
     deps.log?.info(
       `\nPlease complete login in your browser:\n  ${url}\n  user code: ${info.user_code}\n\nWaiting for login to complete...`,
     );
-
-    // 阻塞轮询(用服务端返回的 interval)
-    const poller = deps.poller ?? pollDeviceToken;
     return pollForToken(deps.cfg, info.device_code, info.expires_in, info.interval * 1000, poller);
   },
   // 不实现 refresh → 框架用默认 refreshAccessToken

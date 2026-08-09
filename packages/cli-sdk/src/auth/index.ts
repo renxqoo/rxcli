@@ -47,7 +47,7 @@ import {
   type TokenInfo,
   type ClientMetadata,
 } from "../oauth.js";
-import { deviceFlow } from "../flows/device.js";
+import { deviceFlow, SplitFlowSignal } from "../flows/device.js";
 import { authCodeFlow } from "../flows/authCode.js";
 import { clientCredentialsFlow } from "../flows/clientCredentials.js";
 import type { AuthFlow, FlowType, FlowDeps } from "../flows/types.js";
@@ -373,7 +373,7 @@ function createAuthCommands(o: AuthCommandOpts): CommandGroup {
   const flow = o.flow;
 
   return {
-    // —— 登录(委托给 flow 策略)——
+    // —— 登录(纯委托 flow 策略)——
     login: defineCommand<any, unknown>({
       name: "login",
       description: `Log in via the middleware (OAuth ${flow.type.replace("_", " ")} flow)`,
@@ -387,46 +387,46 @@ function createAuthCommands(o: AuthCommandOpts): CommandGroup {
         },
       },
       async run(args, ctx): Promise<CommandResult> {
-        // device flow split-flow:用已有 device_code 轮询(向后兼容)
-        const deviceCode = args["device-code"] as string | undefined;
-        if (deviceCode && flow.type === "device") {
-          return pollAndPersist(ctx, oauth, store, credNs, deviceCode, 15 * 60, 5000, o.poller);
-        }
-
-        // device flow split-flow:--no-wait → 立即返回 device_code + URL,不轮询
-        if (flow.type === "device" && args.wait === false) {
-          const info = await deviceAuthorization(oauth, scope);
-          const verificationUrl = info.verification_uri_complete ?? info.verification_uri;
-          if (args.json) {
-            return {
-              data: {
-                device_code: info.device_code,
-                user_code: info.user_code,
-                verification_url: verificationUrl,
-                verification_uri_complete: info.verification_uri_complete,
-                verification_uri: info.verification_uri,
-                expires_in: info.expires_in,
-                interval: info.interval,
-              },
-            };
-          }
-          ctx.log.info(
-            `\nPlease complete login in your browser:\n  ${verificationUrl}\n  user code: ${info.user_code}\n\ndevice_code: ${info.device_code}\n(not polling. After authorizing, run: ${cmdNs} login --device-code ${info.device_code})`,
-          );
-          return { data: { device_code: info.device_code, verification_url: verificationUrl } };
-        }
-
-        // 委托 flow.login() → 统一落盘
+        // 构造 deps:所有 flow 共享基础 + device flow 专用参数
         const deps: FlowDeps = {
           cfg: oauth,
           scope,
           log: ctx.log,
           poller: o.poller,
           callbackPort: o.redirectPort,
+          // device flow split-flow 参数(其它 flow 忽略)
+          noWait: args.wait === false,
+          resumeDeviceCode: args["device-code"] as string | undefined,
         };
-        const token = await flow.login(deps);
-        const result = await persistCredentials(store, credNs, oauth, token, flow.type, ctx.log);
-        return { data: result };
+
+        try {
+          // 委托 flow.login() → 统一落盘
+          const token = await flow.login(deps);
+          const result = await persistCredentials(store, credNs, oauth, token, flow.type, ctx.log);
+          return { data: result };
+        } catch (e) {
+          // device flow --no-wait:flow 抛 SplitFlowSignal,框架捕获后返回 JSON/url
+          if (e instanceof SplitFlowSignal) {
+            if (args.json) {
+              return {
+                data: {
+                  device_code: e.deviceCode,
+                  user_code: e.userCode,
+                  verification_url: e.verificationUrl,
+                  verification_uri_complete: e.verificationUriComplete,
+                  verification_uri: e.verificationUri,
+                  expires_in: e.expiresIn,
+                  interval: e.interval,
+                },
+              };
+            }
+            ctx.log.info(
+              `\nPlease complete login in your browser:\n  ${e.verificationUrl}\n  user code: ${e.userCode}\n\ndevice_code: ${e.deviceCode}\n(not polling. After authorizing, run: ${cmdNs} login --device-code ${e.deviceCode})`,
+            );
+            return { data: { device_code: e.deviceCode, verification_url: e.verificationUrl } };
+          }
+          throw e;
+        }
       },
     }),
 
@@ -527,78 +527,4 @@ function createAuthCommands(o: AuthCommandOpts): CommandGroup {
       },
     }),
   };
-}
-
-// ============================================================================
-// 轮询 + 落盘(pollAndPersist + persistLogin 实现)
-// ============================================================================
-
-/**
- * 轮询 device token 直到拿到/超时/失败,成功则查身份 + 落盘。
- *
- * RFC 8628:
- *   - 起始用服务端 device_authorization 返回的 interval(不再固定 3000ms)
- *   - 收到 slow_down 时,interval 增加 5 秒(§3.2)
- */
-export async function pollAndPersist(
-  ctx: CommandContext,
-  oauth: OAuthClientConfig,
-  store: ConfigStore,
-  namespace: string,
-  deviceCode: string,
-  ttlSec: number,
-  /** 起始轮询间隔(ms),来自服务端 interval。默认 5000(RFC 8628 推荐兜底)。 */
-  intervalMs = 5000,
-  /** 测试用:注入轮询函数。默认真实 pollDeviceToken。 */
-  poller: (oauth: OAuthClientConfig, deviceCode: string) => Promise<PollResult> = pollDeviceToken,
-): Promise<CommandResult> {
-  let interval = intervalMs;
-  const deadline = Date.now() + ttlSec * 1000;
-  while (Date.now() < deadline) {
-    const remaining = deadline - Date.now();
-    await sleep(Math.min(interval, remaining));
-    if (Date.now() >= deadline) break;
-    const r = await poller(oauth, deviceCode);
-    if (r.status === "ok") {
-      // 查身份 → 落盘
-      const base: StoredOAuthCredentials = {
-        token: r.token.access_token,
-        refreshToken: r.token.refresh_token ?? "",
-        expiresAt: Date.now() + r.token.expires_in * 1000,
-        scopes: r.token.scope?.split(/\s+/).filter(Boolean) ?? [],
-        storedAt: Date.now(),
-        authMethod: "oauth",
-      };
-      try {
-        const user = await getUserInfo(oauth, r.token.access_token);
-        base.user = { userId: user.open_id, name: user.name };
-        await store.saveCredentials(namespace, base as unknown as Record<string, unknown>);
-        ctx.log.info(`\n✓ Login successful: ${user.name} (${user.open_id})`);
-        return { data: { loggedIn: true, user: { id: user.open_id, name: user.name } } };
-      } catch {
-        await store.saveCredentials(namespace, base as unknown as Record<string, unknown>);
-        ctx.log.info("\n✓ Login successful (could not fetch user info)");
-        return { data: { loggedIn: true } };
-      }
-    }
-    if (r.status === "slow_down") {
-      // RFC 8628 §3.2 —— slow_down 时 interval 增加 5 秒
-      interval += 5000;
-      continue;
-    }
-    if (r.status === "pending") continue;
-    // error
-    throw new errs.AuthenticationError({
-      subtype: "token_revoked",
-      message: `Login failed: ${r.message}`,
-    });
-  }
-  throw new errs.AuthenticationError({
-    subtype: "token_expired",
-    message: "Login timed out, please retry",
-  });
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
 }

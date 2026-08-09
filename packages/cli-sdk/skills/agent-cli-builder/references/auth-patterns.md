@@ -18,15 +18,15 @@
 | **on401 续期 hook**    | `_transportConfig.on401`(singleflight refresh + 落盘 + 重跑 request hooks 后重试一次)                     |
 | **精确豁免**           | `auth login/register` 等自动跳过自身 `beforeCommand`(不会被"必须登录"拦截)                                |
 
-### ⚠️ 最小用法(永远 await,这是高频致命坑)
+### 最小用法(必须 await,常见错误)
 
-`defineAuth` 是 **`async`** 函数,返回 `Promise<Plugin>`。**必须 `await`**:
+`defineAuth` 是 `async` 函数,返回 `Promise<Plugin>`,必须 `await`:
 
 ```ts
 // src/index.ts(或 src/auth.ts 导出,这里展示入口内联)
 import { defineCli, defineAuth } from "@renxqoo/agent-data-cli";
 
-// ✅ 正确:await 拿到的是 Plugin
+// 正确:await 拿到的是 Plugin
 const auth = await defineAuth({
   credentialNamespace: "rxweather",
   baseUrl: process.env.AUTH_BASE_URL!,
@@ -41,14 +41,14 @@ defineCli({
 ```
 
 ```ts
-// ❌ 错误:忘 await → auth 是 Promise → plugins:[Promise] → 鉴权链全废,运行即崩且无报错
+// 错误:缺 await → auth 是 Promise → plugins:[Promise] → beforeCommand 不执行,鉴权失效,且无报错
 const auth = defineAuth({ ... })
 defineCli({ plugins: [auth], ... })
 ```
 
-> 这是鉴权场景**最高频的 bug**。本文件所有 `defineAuth` 示例都 `await`——照抄即可。若把 auth 工厂拆到单独 `src/auth.ts` 导出,那里也必须 `await` 后再 `export`(不能 `export const auth = defineAuth(...)`)。
+> 此为鉴权场景最常见 bug。本文件所有 `defineAuth` 示例均 `await`。若将 auth 工厂拆到单独 `src/auth.ts` 导出,该处也必须 `await` 后再 `export`(不能 `export const auth = defineAuth(...)`)。
 
-### 首次使用顺序(铁律)
+### 首次使用顺序
 
 ```
 register(注册令牌 → clientId/Secret,写 ~/.rxcli/config.json)
@@ -199,7 +199,7 @@ export function createMyAuth<State extends { user?: unknown }>(opts: {
 
   return {
     name: `auth:${opts.namespace}`,
-    enforce: "pre", // ★ 鉴权必须 pre,先填 token 再发请求
+    enforce: "pre", // 鉴权必须 pre,先填 token 再发请求
     _transportConfig: on401 ? { on401 } : undefined,
 
     async beforeCommand(ctx: CommandContext<State>) {
@@ -260,14 +260,14 @@ const auth = createMyAuth({
 defineCli({ plugins: [auth], ... })
 ```
 
-### ⚠️ provides 的 login/logout 命令:直接用 `store`,别用 `ctx.credentials`
+### provides 的 login/logout 命令:直接用 `store`,不用 `ctx.credentials`
 
-上面的骨架在 `beforeCommand` 里把 `store` 包装成了 `ctx.credentials`。**但如果你通过 `provides` 贡献了 login/logout 命令,这些命令会被框架精确豁免自身 beforeCommand**(见主 SKILL.md §3 plugin provides 机制)——豁免后 `ctx.credentials` 是框架默认的 no-op(`save`/`clear` 空跑),login 调 `ctx.credentials.save()` **什么都不会写**。
+上面的骨架在 `beforeCommand` 里把 `store` 包装成了 `ctx.credentials`。但若通过 `provides` 贡献 login/logout 命令,这些命令会被框架精确豁免自身 beforeCommand(见主 SKILL.md §3 plugin provides 机制)——豁免后 `ctx.credentials` 是框架默认的 no-op(`save`/`clear` 空跑),login 调 `ctx.credentials.save()` 不会写入任何内容。
 
 **正确写法**:login/logout 直接用闭包里的 `store`(和 `defineAuth` 工厂内部一致),不经过 `ctx.credentials`:
 
 ```ts
-// ✅ 正确:login/logout 直接用 store 落盘
+// 正确:login/logout 直接用 store 落盘
 const authCommands = defineCommands({
   login: defineCommand({
     name: "login",
@@ -295,12 +295,12 @@ return {
   async beforeRequest(ctx, req) { /* ... */ },
 };
 
-// ❌ 错误:login 里用 ctx.credentials.save()
-//   login 被 provides 豁免 beforeCommand → ctx.credentials 是 no-op → 不落盘!
-//   async run(args, ctx) { await ctx.credentials.save(...) }  // ← bug!
+// 错误:login 里用 ctx.credentials.save()
+//   login 被 provides 豁免 beforeCommand → ctx.credentials 是 no-op → 不落盘
+//   async run(args, ctx) { await ctx.credentials.save(...) }  // ← bug
 ```
 
-> 判断规则:**`provides` 贡献的命令里,凭证读写一律用 `store`(闭包),不用 `ctx.credentials`**。`ctx.credentials` 只在业务命令(非 plugin provides)里可靠——那时 beforeCommand 已跑过,包装已生效。
+> 判断规则:**`provides` 贡献的命令里,凭证读写一律用 `store`(闭包),不用 `ctx.credentials`**。`ctx.credentials` 只在业务命令(非 plugin provides)里可靠——此时 beforeCommand 已跑过,包装已生效。
 
 ---
 
@@ -402,7 +402,7 @@ defineCli({
 
 ## 7. 自定义凭证存储路径(隔离多 CLI 的关键)
 
-> ⚠️ **重要:`defineAuth` 默认所有 CLI 共用 `~/.rxcli/`,无自动隔离**(`auth/index.ts:107` 硬编码)。凭证靠 `credentialNamespace` 区分(`<dir>/credentials/<ns>.json`)。若两个 CLI 的 namespace 撞了 → **静默共用同一份凭证**,这是真坑。
+> **重要:`defineAuth` 默认所有 CLI 共用 `~/.rxcli/`,无自动隔离**(`auth/index.ts:107` 硬编码)。凭证靠 `credentialNamespace` 区分(`<dir>/credentials/<ns>.json`)。若两个 CLI 的 namespace 撞了 → **静默共用同一份凭证**,会引发鉴权混乱。
 
 **两种隔离策略:**
 
@@ -426,7 +426,7 @@ const store = fileStore({ dir: join(homedir(), ".my-cli") }); // → ~/.my-cli/c
 const auth = await defineAuth({
   credentialNamespace: "my-cli",
   baseUrl: AUTH_BASE_URL,
-  store, // ★ 注入自定义 store 覆盖默认 ~/.rxcli
+  store, // 注入自定义 store 覆盖默认 ~/.rxcli
 });
 ```
 

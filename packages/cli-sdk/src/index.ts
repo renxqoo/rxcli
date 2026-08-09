@@ -166,7 +166,7 @@ export { runInstallWizard, type InstallWizardOptions } from "./install-wizard.js
 export { detectBizPackage, type BizPackageInfo } from "./define.js";
 
 // OAuth 鉴权工厂(plugin.provides 自动注入 login/status/logout/register 命令)
-export { defineAuth, type DefineAuthOptions, pollAndPersist } from "./auth/index.js";
+export { defineAuth, type DefineAuthOptions } from "./auth/index.js";
 
 // 测试工具(createTestCtx,供业务包 mock ctx 用)
 export { createTestCtx, type MockRequest, type CreateTestCtxOptions } from "./test-utils.js";

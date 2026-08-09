@@ -222,7 +222,7 @@ import { SUBTYPE_REGISTRY } from "@renxqoo/agent-data-cli";
 SUBTYPE_REGISTRY["my_custom_subtype"] = { category: "api" };
 ```
 
-> ⚠️ 直接修改全局注册表是反模式。**优先复用标准 subtype**,非要自定义时再用上述方式登记(后续 cli-sdk 会提供声明式方式)。
+> 直接修改全局注册表是反模式。**优先复用标准 subtype**;确需自定义时再用上述方式登记(后续 cli-sdk 会提供声明式方式)。
 
 ---
 
@@ -234,9 +234,9 @@ SUBTYPE_REGISTRY["my_custom_subtype"] = { category: "api" };
 try {
   return await ctx.get("/orders");
 } catch (err) {
-  // ✅ 透传
+  // 已类型化则透传
   if (err instanceof errs.CliError) throw err;
-  // ✅ 非类型化才包装
+  // 非类型化才包装
   throw new errs.InternalError({ subtype: "unknown", message: "意外错误", cause: err });
 }
 ```

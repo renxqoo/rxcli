@@ -11,7 +11,7 @@
 | **机械信息** | 命令签名、参数列表、类型、必填、默认值           | `defineCommands` **自动生成** |
 | **语义信息** | description、"用户说X用什么"、前置条件、错误处理 | 人写                          |
 
-加一个参数要同步改 SKILL.md 和代码 → 必然漂移。机械信息从代码生成,保证永远同步。
+加一个参数要同步改 SKILL.md 和代码 → 必然漂移。机械信息从代码生成,保持同步。
 
 ---
 
@@ -175,35 +175,35 @@ metadata:                       # 可选,嵌套键按需放 agent 需要的元�
 ---
 ```
 
-> ⚠️ **不要加 `version`**:版本信息放 `package.json`,不进 frontmatter。历史上 `version` 曾被写进骨架,但官方规范不允许顶层 version 字段,已从 `gen.ts` 移除。
+> **不要加 `version`**:版本信息放 `package.json`,不进 frontmatter。历史上 `version` 曾被写进骨架,但官方规范不允许顶层 version 字段,已从 `gen.ts` 移除。
 
-### description 写法(skill 质量的命脉!)
+### description 写法(skill 触发质量的关键)
 
-description 是 agent 决定**何时触发**你的 skill 的唯一依据。触发不了,后面全白搭——所以这是 SKILL.md 里最该花心思的一行。官方明确:Claude 倾向 undertrigger(该用而不用),所以 description 要主动把触发条件讲清楚、讲全。
+description 是 agent 决定**何时触发** skill 的唯一依据。官方明确:Claude 倾向 undertrigger(该用而不用),因此 description 需主动把触发条件讲清楚、讲全。
 
 **4 条原则:**
 
-1. **写"何时用",不写"是什么"** —— 描述用户意图和场景,不是工具本身。
+1. **写"何时用",不写"是什么"** —— 描述用户意图和场景,而非工具本身。
 
-   ✅ `查询和管理待办。当用户需要查待办、看待办列表、标记待办完成、新建待办时使用。`
-   ❌ `待办管理工具`(太抽象,agent 难匹配)
+   正例 `查询和管理待办。当用户需要查待办、看待办列表、标记待办完成、新建待办时使用。`
+   反例 `待办管理工具`(太抽象,agent 难匹配)
 
-2. **覆盖用户的主要说法(不止一种)** —— 用户不会直说命令名。把同义的、口语的、缩写的、甚至错别字的说法都塞进 description。
+2. **覆盖用户的主要说法(不止一种)** —— 用户不会直说命令名。将同义、口语、缩写、甚至错别字的说法都纳入 description。
 
-   ✅ `...当用户提到 线索、客户、商机、合同、回款、发票、订单、CRM,或想查/改系统里的业务记录时使用——即使用户没说"CRM"也要触发。`
-   ❌ 只写一个词 `CRM`
+   正例 `...当用户提到 线索、客户、商机、合同、回款、发票、订单、CRM,或想查/改系统里的业务记录时使用——即使用户没说"CRM"也要触发。`
+   反例 只写一个词 `CRM`
 
-3. **划清边界,防误触发** —— 和相邻 skill 容易混淆时,点明"这个管什么、不管什么",让 agent 在歧义时选对。
+3. **划清边界,防误触发** —— 与相邻 skill 容易混淆时,点明"这个管什么、不管什么",让 agent 在歧义时选对。
 
-   ✅ `...仅限 A 股,港股/美股/基金/加密货币不在范围内。`
+   正例 `...仅限 A 股,港股/美股/基金/加密货币不在范围内。`
 
-4. **要"pushy"一点** —— 明确鼓励触发,别谦虚。Claude 默认倾向不用 skill,description 弱了就不触发。
+4. **明确鼓励触发** —— Claude 默认倾向不使用 skill,description 偏弱则不触发。需明确表达触发意图。
 
-   ✅ `...即使用户没明说"rx60s"也要触发。`
+   正例 `...即使用户没明说"rx60s"也要触发。`
 
-**实战参考:** 看仓库里已有的 skill(`apps/a-stock`、`apps/cordys-crm`、`apps/60s` 的 SKILL.md frontmatter)怎么写 description 的——它们都塞了大量触发词 + 边界声明,这是验证过触发率够高的写法。
+**参考:** 仓库已有 skill(`apps/a-stock`、`apps/cordys-crm`、`apps/60s` 的 SKILL.md frontmatter)的 description 均纳入大量触发词 + 边界声明,该写法经验证触发率较高。
 
-> description 长度有官方上限(以 skill-creator 当前规范为准),触发词虽多也别超长。发布前用真实任务评估验证触发率(见 §11)。
+> description 长度有官方上限(以 skill-creator 当前规范为准),触发词虽多也不宜超长。发布前用真实任务评估验证触发率(见 §11)。
 
 ---
 
@@ -322,7 +322,7 @@ args: {
 }
 ```
 
-**desc 几乎零成本,文档质量大幅提升。**
+**desc 填写成本低,对文档质量提升明显。**
 
 ---
 
@@ -354,7 +354,7 @@ SKILL.md 要符合 Anthropic 官方 [skill-creator](https://github.com/anthropic
 
 §4 的 frontmatter 规范已对齐官方。框架生成的骨架只放官方允许的字段(无 version 等);你手改 frontmatter 时不要加 version 等非官方字段。若想确认手改后仍合规,可用 skill-creator 的校验脚本(以官方仓库当前内容为准)。
 
-### 发布前必做:用 skill-creator 验证 skill 质量
+### 发布前验证:用 skill-creator 验证 skill 质量
 
 单元测试 / 端到端测试(能用真实数据就用真实数据,见 `references/testing.md`)只能验证代码跑得通,**验证不了 skill 写得好不好**(agent 该触发时会不会触发?能不能靠 SKILL.md 自发完成真实任务?)。**发布前必须跑一轮真实任务评估**(让 agent 带着 skill 真实调 CLI 完成任务),这是代码测试替代不了的。流程见 `references/testing.md` §9。
 
