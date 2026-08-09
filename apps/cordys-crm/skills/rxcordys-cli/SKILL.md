@@ -46,7 +46,8 @@ rxcordys auth login --accessKey <AccessKey> --secretKey <SecretKey>
 # B. 环境变量(CI / 临时)
 export CORDYS_ACCESS_KEY=<AccessKey>
 export CORDYS_SECRET_KEY=<SecretKey>
-# 可选:export CORDYS_CRM_DOMAIN=https://www.cordys.cn
+# 必填:Cordys CRM 部署地址(私有部署,无默认值)
+export CORDYS_CRM_DOMAIN=https://crm.your-company.com
 ```
 
 > 密钥对从 Cordys 管理后台「个人中心 → API Keys」获取。鉴权细节见 [references/auth.md](references/auth.md)。
