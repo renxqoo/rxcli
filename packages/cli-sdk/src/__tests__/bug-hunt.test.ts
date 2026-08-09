@@ -74,7 +74,7 @@ describe("BUG-SDK-3: 单短氢 flag 不应静默当 positional", () => {
         }),
       },
     });
-    // 捕获 stderr(错误信封)
+    // 捕获 stderr(错误输出)
     const origErr = process.stderr.write.bind(process.stderr);
     let errOut = "";
     process.stderr.write = (s: string) => {
