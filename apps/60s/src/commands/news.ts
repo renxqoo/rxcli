@@ -26,7 +26,7 @@ export const newsCommands = defineCommands({
     humanFormat(data) {
       const d = data as DailyNews;
       const lines = [`# 每天 60 秒读懂世界(${d.date} ${d.day_of_week} ${d.lunar_date})`, ""];
-      d.news.forEach((n, i) => lines.push(`${i + 1}. ${n.title}`));
+      d.news.forEach((n, i) => lines.push(`${i + 1}. ${n}`));
       if (d.tip) lines.push("", `【微语】${d.tip}`);
       return lines.join("\n");
     },
@@ -148,17 +148,19 @@ function decodeEntities(s: string): string {
 
 interface DailyNews {
   date: string;
-  news: { title: string; link: string }[];
+  news: string[];
   cover: string;
   tip: string;
   image: string;
   link: string;
+  created?: string;
+  created_at?: number;
+  updated?: string;
+  updated_at?: number;
   day_of_week: string;
   lunar_date: string;
-  updated: string;
-  updated_at: number;
-  api_updated: string;
-  api_updated_at: number;
+  api_updated?: string;
+  api_updated_at?: number;
 }
 
 interface AiNewsItem {

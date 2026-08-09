@@ -18,7 +18,7 @@ describe("news.today", () => {
         expect(opts.query).toMatchObject({ encoding: "json" });
         return ok({
           date: "2026-08-09",
-          news: [{ title: "测试新闻", link: "https://example.com" }],
+          news: ["测试新闻", "第二条新闻"],
           tip: "微语",
           day_of_week: "星期六",
           lunar_date: "六月十六",
@@ -27,7 +27,7 @@ describe("news.today", () => {
     });
     const result = await newsCommands.today.run({ date: undefined, forceUpdate: undefined }, ctx);
     expect(result.data).toMatchObject({ date: "2026-08-09" });
-    expect((result.data as { news: { title: string }[] }).news[0].title).toBe("测试新闻");
+    expect((result.data as { news: string[] }).news[0]).toBe("测试新闻");
   });
 
   it("forceUpdate 透传为 force-update query", async () => {
@@ -38,6 +38,21 @@ describe("news.today", () => {
       },
     });
     await newsCommands.today.run({ forceUpdate: true }, ctx);
+  });
+
+  it("humanFormat 渲染 string[] 新闻为序号列表(不出现 undefined)", () => {
+    // 真实 API 的 news 是 string[];旧 bug 把 string 当 {title} 解引用 → 全部 "undefined"
+    const data = {
+      date: "2026-08-09",
+      news: ["台风白海豚预计登陆", "新疆调整景区收费"],
+      tip: "走自己的路",
+      day_of_week: "星期日",
+      lunar_date: "丙午年六月廿八",
+    };
+    const out = newsCommands.today.humanFormat!(data);
+    expect(out).toContain("1. 台风白海豚预计登陆");
+    expect(out).toContain("2. 新疆调整景区收费");
+    expect(out).not.toContain("undefined");
   });
 });
 
