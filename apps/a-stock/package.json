@@ -1,6 +1,6 @@
 {
   "name": "@renxqoo/rxstock",
-  "version": "1.1.1",
+  "version": "1.1.0",
   "description": "rxstock — A 股股票数据命令行工具(行情/K 线/财务/板块/资金流),基于 @renxqoo/agent-data-cli 框架,数据来源公开渠道,仅供学习研究",
   "keywords": [
     "a-stock",
