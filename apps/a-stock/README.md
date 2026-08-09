@@ -58,25 +58,46 @@ agent / 终端用户
 
 ---
 
-## 安装
+## 快速开始
 
-无需全局安装,用 `npx` 即用即跑:
+### 一键安装(推荐)
 
 ```bash
-npx @renxqoo/rxstock <命令>
+npx @renxqoo/rxstock install
 ```
 
-全局安装:
+自动完成两步:① 全局安装 CLI → ② 安装 Skill 到 `~/.agents/skills/`(AI 工具发现路径)。需 Node ≥ 18。无需 API key,开箱即用。
+
+> `npx` 无需预装,跑完即得全局 `rxstock` 命令 + 已就位的 skill。
+
+### 手动安装(分步,等价于一键安装)
+
+如果一键安装某步失败或想单独执行:
+
+**第 1 步:安装 CLI**
 
 ```bash
 npm install -g @renxqoo/rxstock
 ```
 
-### 首次使用(可选)
+安装后跑 `rxstock --help` 确认可用。不想全局装?用 `npx @renxqoo/rxstock <命令>` 临时执行。
+
+**第 2 步:安装 Skill(让 AI 工具发现)**
+
+把 skill 同步到 `~/.agents/skills/`(Claude Code / Cursor / Trae 等 AI 工具的通用发现路径):
 
 ```bash
-npx @renxqoo/rxstock install          # 引导:把 SKILL.md 装载到 ~/.agents/skills/
+rxstock skills sync
 ```
+
+同步后 AI 工具即可在用户提到股票、行情、K 线、财务等关键词时自动触发本 skill。验证:
+
+```bash
+rxstock skills list             # 列出已装的 skill
+ls ~/.agents/skills/rx-stock/   # 确认 skill 文件就位
+```
+
+> 无需凭证配置——rxstock 走公开数据源,开箱即用。
 
 ## 命令一览
 
