@@ -36,40 +36,55 @@ agent / 终端用户
 
 ---
 
-## 安装
+## 快速开始
 
-### 方式一:全局安装(推荐)
+### 一键安装(推荐)
+
+```bash
+npx @renxqoo/cli install
+```
+
+自动完成三步:① 全局安装 CLI → ② 安装 Skill 到 `~/.agents/skills/`(AI 工具发现路径)→ ③ 注册 + 登录。需 Node ≥ 18。
+
+> `npx` 无需预装,跑完即得全局 `rxcli` 命令 + 已就位的 skill。
+
+### 手动安装(分步,等价于一键安装)
+
+如果一键安装某步失败或想单独执行:
+
+**第 1 步:安装 CLI**
 
 ```bash
 npm install -g @renxqoo/cli
 ```
 
-安装后 `rxcli` 命令全局可用:
+安装后跑 `rxcli --help` 确认可用。不想全局装?用 `npx @renxqoo/cli <命令>` 临时执行。
+
+**第 2 步:安装 Skill(让 AI 工具发现)**
+
+把 skill 同步到 `~/.agents/skills/`(Claude Code / Cursor / Trae 等 AI 工具的通用发现路径):
 
 ```bash
-rxcli orders list
-rxcli auth login
+rxcli skills sync
 ```
 
-### 方式二:npx 即用即跑(不污染全局)
+同步后 AI 工具即可在用户提到订单、商品、发票、账号等关键词时自动触发本 skill。验证:
 
 ```bash
-npx @renxqoo/cli orders list
-npx @renxqoo/cli auth login
+rxcli skills list            # 列出已装的 skill
+ls ~/.agents/skills/         # 确认 skill 文件就位
 ```
 
-> `npx` 会自动下载并执行,首次运行会有几秒下载时间。
+**第 3 步:配置凭证(OAuth 鉴权)**
 
-### 首次使用
+首次使用需注册 + 登录(OAuth device flow):
 
 ```bash
-rxcli install          # 引导:装 skills + 注册 + 登录
-# 或手动分步:
-rxcli auth register    # 用注册令牌注册(从管理员获取)
-rxcli auth login       # 浏览器登录
+rxcli auth register --token <注册令牌>   # 首次注册(令牌从管理员获取)
+rxcli auth login                          # 浏览器扫码授权
 ```
 
-> npx 用户把 `rxcli` 替换成 `npx @renxqoo/cli` 即可。下文示例统一用 `rxcli` 简写。
+验证:`rxcli auth status` 显示已登录。
 
 ---
 
