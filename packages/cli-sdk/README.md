@@ -5,7 +5,7 @@
 > 业务包只声明"调哪个后端接口、字段怎么处理",就获得鉴权、统一输出格式、错误分类、凭证、管道、skill 发现等全套能力。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org/)
+[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 
 ---
 

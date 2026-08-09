@@ -5,7 +5,7 @@
 > 基于 [`@renxqoo/agent-data-cli`](../cli-sdk) 框架。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org/)
+[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 
 ---
 
@@ -66,7 +66,7 @@ agent / 终端用户
 npx @renxqoo/rxstock install
 ```
 
-自动完成两步:① 全局安装 CLI → ② 安装 Skill 到 `~/.agents/skills/`(AI 工具发现路径)。需 Node ≥ 18。无需 API key,开箱即用。
+自动完成两步:① 全局安装 CLI → ② 安装 Skill 到 `~/.agents/skills/`(AI 工具发现路径)。需 Node ≥ 20。无需 API key,开箱即用。
 
 > `npx` 无需预装,跑完即得全局 `rxstock` 命令 + 已就位的 skill。
 

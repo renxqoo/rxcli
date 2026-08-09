@@ -45,7 +45,7 @@ jobs:
       fail-fast: false # 一个 job 失败不取消其余(看全平台结果)
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        node: ["18", "20", "22"]
+        node: ["20", "22"]
     steps:
       - uses: actions/checkout@v4
 

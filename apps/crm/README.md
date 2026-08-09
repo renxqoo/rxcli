@@ -5,7 +5,7 @@
 > 基于 [`@renxqoo/agent-data-cli`](../cli-sdk) 框架,演示如何用 SDK 搭建一个 agent-native 业务包。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org/)
+[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 
 ---
 
@@ -44,7 +44,7 @@ agent / 终端用户
 npx @renxqoo/cli install
 ```
 
-自动完成三步:① 全局安装 CLI → ② 安装 Skill 到 `~/.agents/skills/`(AI 工具发现路径)→ ③ 注册 + 登录。需 Node ≥ 18。
+自动完成三步:① 全局安装 CLI → ② 安装 Skill 到 `~/.agents/skills/`(AI 工具发现路径)→ ③ 注册 + 登录。需 Node ≥ 20。
 
 > `npx` 无需预装,跑完即得全局 `rxcli` 命令 + 已就位的 skill。
 

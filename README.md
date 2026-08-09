@@ -5,7 +5,7 @@
 > 一个框架(`cli-sdk`)+ 多个业务包(A 股行情 / Cordys CRM / 公司业务),开箱即用。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org/)
+[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 
 [monorepo 组成](#monorepo-组成) · [快速开始](#快速开始) · [架构](#架构) · [Agent Skills](#agent-skills)
 
@@ -47,7 +47,7 @@ rxcli/
 
 ### 安装业务包
 
-三个业务包,按需选装。统一用 `npx <包名> install` 一键完成(装 CLI + 装 Skill + 配凭证),需 Node ≥ 18。
+三个业务包,按需选装。统一用 `npx <包名> install` 一键完成(装 CLI + 装 Skill + 配凭证),需 Node ≥ 20。
 
 | 业务包 | 命令 | 鉴权 | 前置条件 |
 | --- | --- | --- | --- |

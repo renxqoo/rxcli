@@ -28,7 +28,7 @@ which rxcordys && rxcordys --version
 npx @renxqoo/rxcordys-cli install
 ```
 
-> 需 Node ≥ 18。也可分步:先 `npm install -g @renxqoo/rxcordys-cli`,再 `rxcordys skills sync` 安装 Skill 到 `~/.agents/skills/`(AI 工具发现路径)。
+> 需 Node ≥ 20。也可分步:先 `npm install -g @renxqoo/rxcordys-cli`,再 `rxcordys skills sync` 安装 Skill 到 `~/.agents/skills/`(AI 工具发现路径)。
 
 ## 调用前先确认凭证
 

@@ -37,7 +37,7 @@
 npx {{包名}} install
 ```
 
-自动完成:① 全局安装 CLI → ② 安装 Skill 到 `~/.agents/skills/` → ③ 凭证配置。需 Node ≥ 18。
+自动完成:① 全局安装 CLI → ② 安装 Skill 到 `~/.agents/skills/` → ③ 凭证配置。需 Node ≥ 20。
 
 ### 手动安装(分步,等价于一键)
 

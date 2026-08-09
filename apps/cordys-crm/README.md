@@ -10,7 +10,7 @@ Cordys CRM L2C 全链路 agent 命令行工具 —— 基于 [`@renxqoo/agent-da
 npx @renxqoo/rxcordys-cli install
 ```
 
-自动完成三步:① 全局安装 CLI → ② 安装 Skill 到 `~/.agents/skills/`(AI 工具发现路径)→ ③ 凭证配置。需 Node ≥ 18。
+自动完成三步:① 全局安装 CLI → ② 安装 Skill 到 `~/.agents/skills/`(AI 工具发现路径)→ ③ 凭证配置。需 Node ≥ 20。
 
 > `npx` 无需预装,跑完即得全局 `rxcordys` 命令 + 已就位的 skill。
 
