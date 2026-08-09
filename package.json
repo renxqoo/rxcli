@@ -27,8 +27,7 @@
   "lint-staged": {
     "*.{ts,tsx,js,mjs,cjs}": [
       "oxlint --fix",
-      "oxfmt",
-      "git add"
+      "oxfmt"
     ]
   },
   "packageManager": "pnpm@9.0.0"
