@@ -225,7 +225,7 @@ export function createMyAuth<State extends { user?: unknown }>(opts: {
         clear: (ns) => store.clearCredentials(ns),
       };
 
-      // 填 identity(信封顶层 user/bot + state.user)
+      // 填 identity(统一输出格式顶层 user/bot + state.user)
       const identity = await resolveIdentityWithChain(providers, pctx);
       if (identity) {
         (ctx as unknown as { _identity?: typeof identity })._identity = identity;
@@ -443,7 +443,7 @@ export interface CredentialProvider {
   name(): string; // provider 名(日志/溯源)
   priority?(): number; // 优先级,小值先试,默认 10
   resolveToken(pctx: ProviderContext): Promise<TokenResult | null>; // null = 没有,chain 继续
-  resolveIdentity?(pctx: ProviderContext): Promise<IdentityHint | null>; // 可选:填信封顶层的 user/bot
+  resolveIdentity?(pctx: ProviderContext): Promise<IdentityHint | null>; // 可选:填统一输出格式顶层的 user/bot
 }
 
 export interface ProviderContext {

@@ -183,10 +183,10 @@ export async function defineAuth<State = Record<string, never>>(
         clear: (ns: string) => store.clearCredentials(ns),
       };
 
-      // identity(信封顶层 user/bot 用);业务权限不本地预检,交服务端 403(对齐 v1)
+      // identity(统一输出格式顶层 user/bot 用);业务权限不本地预检,交服务端 403(对齐 v1)
       const identity: IdentityHint | null = await resolveIdentityWithChain(providers, pctx);
       (ctx as unknown as { _identity?: IdentityHint })._identity = identity ?? undefined;
-      // 若业务 State 声明了 user 字段,填进去(信封顶层展示)
+      // 若业务 State 声明了 user 字段,填进去(统一输出格式顶层展示)
       (ctx.state as Record<string, unknown>).user = identity
         ? {
             ...(identity.userId ? { userId: identity.userId } : {}),

@@ -102,7 +102,7 @@ rxcordys leads form      # 线索必填字段
 
 ## 输出格式
 
-成功返回标准信封 `{ ok, source:"rxcordys", data, meta }`。列表的 `data` 是数组,`meta.pagination` 标注是否拉完。加 `--json` 强制 JSON(默认 auto:终端→表格,管道→JSON)。
+成功返回标准统一输出格式 `{ ok, source:"rxcordys", data, meta }`。列表的 `data` 是数组,`meta.pagination` 标注是否拉完。加 `--json` 强制 JSON(默认 auto:终端→表格,管道→JSON)。
 
 ```bash
 rxcordys leads page --json

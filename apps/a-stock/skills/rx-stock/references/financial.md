@@ -2,7 +2,7 @@
 
 12 个子命令。除 `fundflow`(东财 push2,仅境内)外,其余 11 个均走东财 datacenter(境内外都通,单源,稳定)。
 
-通用参数:除 `lhb` 外,所有子命令首个 positional 参数为 `<code>`(股票代码),可选 `--limit`/`--pageSize`/`--page`/`--size` 控制返回条数。返回包裹在 JSON 信封 `data` 数组中,`meta.count` 为实际返回数。
+通用参数:除 `lhb` 外,所有子命令首个 positional 参数为 `<code>`(股票代码),可选 `--limit`/`--pageSize`/`--page`/`--size` 控制返回条数。返回包裹在 JSON 统一输出 `data` 数组中,`meta.count` 为实际返回数。
 
 ---
 

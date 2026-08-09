@@ -23,9 +23,9 @@ metadata:
     └── crm.json             # OAuth token(refreshToken / scopes / user),login 写入
 ```
 
-## 输出与信封约定
+## 输出与统一输出格式约定
 
-每个命令的 **stdout 永远是单行紧凑 JSON 信封**(便于 agent/管道解析);人类可读提示打到 **stderr**(`ctx.log.info`)。
+每个命令的 **stdout 永远是单行紧凑 JSON 统一输出**(便于 agent/管道解析);人类可读提示打到 **stderr**(`ctx.log.info`)。
 
 - **成功**(stdout):
 
@@ -90,7 +90,7 @@ rxcli auth register --token <注册令牌>
 #### 第一步:发起授权(当前轮)
 
 1. 执行 `rxcli auth login --no-wait --json`(必须加 `--no-wait --json`)
-   - 它会**立即返回**单行 JSON 信封后退出,不阻塞:
+   - 它会**立即返回**单行 JSON 统一输出后退出,不阻塞:
      ```json
      {
        "ok": true,

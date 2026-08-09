@@ -11,7 +11,7 @@ metadata:
 
 # auth (v1.1)
 
-**CRITICAL — 开始前 MUST 先用 Read 工具读取 [`../rx-shared/SKILL.md`](../rx-shared/SKILL.md),其中包含输出信封约定、注册/登录顺序、Split-Flow 登录、环境变量、错误处理说明**
+**CRITICAL — 开始前 MUST 先用 Read 工具读取 [`../rx-shared/SKILL.md`](../rx-shared/SKILL.md),其中包含输出统一格式约定、注册/登录顺序、Split-Flow 登录、环境变量、错误处理说明**
 
 ## 命令
 
@@ -40,7 +40,7 @@ metadata:
 
 `auth login` 走 OAuth 2.0 设备授权流程。默认是**阻塞轮询**的(人类在终端直接用没问题),但**agent 绝不能直接运行裸 `rxcli auth login`** —— 它会阻塞数分钟,期间 stdout 被缓冲,你拿不到验证 URL。
 
-agent 必须用 Split-Flow(`--no-wait --json` 发起 → 展示 URL+二维码 → 用户授权后 `--device-code` 完成)。**完整步骤、规则、二维码生成见 [`../rx-shared/SKILL.md`](../rx-shared/SKILL.md) 的「登录流程(设备授权)」与「输出与信封约定」章节。** 此处不重复。
+agent 必须用 Split-Flow(`--no-wait --json` 发起 → 展示 URL+二维码 → 用户授权后 `--device-code` 完成)。**完整步骤、规则、二维码生成见 [`../rx-shared/SKILL.md`](../rx-shared/SKILL.md) 的「登录流程(设备授权)」与「输出与统一输出格式约定」章节。** 此处不重复。
 
 要点速查:
 

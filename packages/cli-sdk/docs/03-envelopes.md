@@ -1,35 +1,35 @@
-# 03 · 信封契约
+# 03 · 输出契约
 
-> 信封是 cli-sdk 最核心的数据结构。所有 stdout 输出必须是成功信封,所有 stderr 错误必须是错误信封。本文档定义它们的精确字段、稳定性保证、stdout/stderr 分配规则。**agent 和实现者都必须遵守这个契约。**
+> 统一输出格式是 cli-sdk 最核心的数据结构。所有 stdout 输出必须是成功输出,所有 stderr 错误必须是错误输出。本文档定义它们的精确字段、稳定性保证、stdout/stderr 分配规则。**agent 和实现者都必须遵守这个契约。**
 
 ---
 
-## 为什么要有信封
+## 为什么要有统一输出格式
 
-没有信封的世界:每个命令随便吐 JSON,字段不统一,agent 没法稳定解析。有了信封:
+没有统一输出格式的世界:每个命令随便吐 JSON,字段不统一,agent 没法稳定解析。有了统一输出格式:
 
 - **agent 靠 `ok` 字段判断成败**,不用猜
 - **wire-stable 字段**(`type`/`subtype`)让 agent 能写稳定的分支逻辑
 - **分页/通知等元信息**有固定位置(`meta`),不污染业务数据(`data`)
 - **stdout/stderr 分离**:成功走 stdout(管道可消费),错误走 stderr(不会污染管道)
 
-设计借鉴 lark-cli 的 RFC 7807 对齐错误信封 + 成功信封模式。详见 `00-overview.md`。
+设计借鉴 lark-cli 的 RFC 7807 对齐错误输出 + 成功输出模式。详见 `00-overview.md`。
 
 ---
 
 ## 命名约定:wire snake_case,代码 camelCase
 
-**信封是 wire 格式(JSON on the wire),字段名一律 snake_case**:如 `next_token`、`missing_scopes`、`dry_run`。这符合 JSON/wire 惯例(lark-cli、多数 REST API 都如此),agent 和 shell 工具(jq)按 snake_case 取值。
+**统一输出格式是 wire 格式(JSON on the wire),字段名一律 snake_case**:如 `next_token`、`missing_scopes`、`dry_run`。这符合 JSON/wire 惯例(lark-cli、多数 REST API 都如此),agent 和 shell 工具(jq)按 snake_case 取值。
 
-**TS 代码用 camelCase**:`meta.pagination.nextToken`、`err.missingScopes`。cli-sdk 在把命令 `run` 的返回值(`CommandResult`)序列化成信封时,**自动把 camelCase 转成 snake_case** 写入 wire,业务包写代码用 camelCase,不用手动转换。
+**TS 代码用 camelCase**:`meta.pagination.nextToken`、`err.missingScopes`。cli-sdk 在把命令 `run` 的返回值(`CommandResult`)序列化成统一输出格式时,**自动把 camelCase 转成 snake_case** 写入 wire,业务包写代码用 camelCase,不用手动转换。
 
 > 即:本文档所有 JSON 示例里的字段名是 wire 形态(snake_case);`02-sdk-guide.md` 里 TS 代码的字段名是代码形态(camelCase)。两者一一对应,cli-sdk 负责转换。`ok` / `data` / `meta` 等单词本身无连字符,两种形态一致。
 
 ---
 
-## 成功信封(stdout)
+## 成功输出(stdout)
 
-命令成功时,`run` 返回 `{ data, meta }`(见 `02-sdk-guide.md`),框架把它包成信封输出到 **stdout**:
+命令成功时,`run` 返回 `{ data, meta }`(见 `02-sdk-guide.md`),框架把它包装成统一输出格式输出到 **stdout**:
 
 ```json
 {
@@ -92,7 +92,7 @@
 
 ---
 
-## 错误信封(stderr)
+## 错误输出(stderr)
 
 命令失败时,输出到 **stderr**(注意:不是 stdout!):
 
@@ -115,7 +115,7 @@
 
 ### 错误怎么产生:throw → onError 链 → 渲染
 
-命令或插件 `throw` 类型化错误(`errs.*`)后,错误先进 **onError 插件链**(每个插件跑一遍,可归一化/脱敏),链结束后渲染成错误信封到 stderr:
+命令或插件 `throw` 类型化错误(`errs.*`)后,错误先进 **onError 插件链**(每个插件跑一遍,可归一化/脱敏),链结束后渲染成错误输出到 stderr:
 
 ```
 run / 钩子 throw err
@@ -124,17 +124,17 @@ err 是 errs.* 类型? → 是:直接进 onError 链
   ↓ 否(裸 Error 等):cli-sdk 包装成 InternalError(unknown)进 onError 链
 onError 链(pre→normal→post 插件,每个都跑;不处理返回原 err,处理返回新 err)
   ↓
-最终 err → 按 Category 渲染错误信封 → stderr + 对应 exit code
+最终 err → 按 Category 渲染错误输出 → stderr + 对应 exit code
 ```
 
 **关键:throw 必须用 `errs.*` 类型化错误。** 裸 `throw new Error('...')` 会被兜底成 `internal/unknown`(exit 5),agent 会误解成 cli-sdk bug。详见 `04-errors.md`。
 
-### 顶层字段(与成功信封一致)
+### 顶层字段(与成功输出一致)
 
 | 字段       | 是否必有 | 稳定性          | 说明                                                  |
 | ---------- | :------: | --------------- | ----------------------------------------------------- |
 | `ok`       |    ✅    | **wire-stable** | 错误永远是 `false`                                    |
-| `identity` |    ❌    | wire-stable     | 调用者身份(`user`/`bot`),未解析出时省略。与成功信封同 |
+| `identity` |    ❌    | wire-stable     | 调用者身份(`user`/`bot`),未解析出时省略。与成功输出同 |
 | `error`    |    ✅    | mixed           | 错误详情对象,见下表                                   |
 
 ### error 子字段说明
@@ -169,22 +169,22 @@ onError 链(pre→normal→post 插件,每个都跑;不处理返回原 err,处�
 
 | 内容                       | 流         | 谁写                      |
 | -------------------------- | ---------- | ------------------------- |
-| 成功信封(`{ok:true,...}`)  | **stdout** | 框架从 `run` 返回值序列化 |
-| 错误信封(`{ok:false,...}`) | **stderr** | cli-sdk 错误渲染层        |
+| 成功输出(`{ok:true,...}`)  | **stdout** | 框架从 `run` 返回值序列化 |
+| 错误输出(`{ok:false,...}`) | **stderr** | cli-sdk 错误渲染层        |
 | 日志(info/warn/error)      | **stderr** | `ctx.log.*()`             |
 | 进度条 / spinner           | **stderr** | cli-sdk 进度层            |
 | 提示(空结果、引导)         | **stderr** | cli-sdk 提示层            |
 
-**业务命令永远不能直接往 stdout 写非信封内容。** 一切非数据输出走 `ctx.log`(stderr)。否则 `rxcli-orders list | jq` 混进一行"加载中..."整个管道就废了。
+**业务命令永远不能直接往 stdout 写非统一输出格式内容。** 一切非数据输出走 `ctx.log`(stderr)。否则 `rxcli-orders list | jq` 混进一行"加载中..."整个管道就废了。
 
-> **明示例外:`skills read`。** 它直接吐 SKILL.md 原文到 stdout(非信封),供 agent 直读/管道拼接。这是信封契约**唯一**的成功侧例外(错误侧对应 `BareError`)。普通业务命令不得效仿,仍必须 return 信封。详见 `01-cli-usage.md` / `06-skills.md`。
+> **明示例外:`skills read`。** 它直接吐 SKILL.md 原文到 stdout(非统一输出格式),供 agent 直读/管道拼接。这是输出契约**唯一**的成功侧例外(错误侧对应 `BareError`)。普通业务命令不得效仿,仍必须 return 统一输出格式。详见 `01-cli-usage.md` / `06-skills.md`。
 
 ### 为什么错误也走 stderr(而不是 stdout)
 
-因为 `cmd | jq` 时,jq 只读 stdout。如果错误信封走 stdout:
+因为 `cmd | jq` 时,jq 只读 stdout。如果错误输出走 stdout:
 
 - jq 会收到错误 JSON,把它当数据处理 → agent 误判
-- 错误信封的结构和成功信封不一样,jq 表达式会崩
+- 错误输出的结构和成功输出不一样,jq 表达式会崩
 
 错误走 stderr + 非 0 exit code,agent 靠 exit code 判断失败,再读 stderr 拿细节。这样管道里错误不会污染数据流。
 
@@ -192,14 +192,14 @@ onError 链(pre→normal→post 插件,每个都跑;不处理返回原 err,处�
 
 ## BareError 例外(谓词命令)
 
-少数"谓词命令"(如 `auth check` 检查是否登录)的 stdout 已经携带完整答案(yes/no JSON),只需要对应的 exit code,不需要 stderr 信封。这种用 `BareError`:
+少数"谓词命令"(如 `auth check` 检查是否登录)的 stdout 已经携带完整答案(yes/no JSON),只需要对应的 exit code,不需要 stderr 统一输出格式。这种用 `BareError`:
 
 ```ts
-// 谓词命令:stdout 已有答案,只想要 exit code,不渲染 stderr 信封
-if (!loggedIn) throw new errs.BareError(3); // exit 3,stderr 不输出信封
+// 谓词命令:stdout 已有答案,只想要 exit code,不渲染 stderr 统一输出格式
+if (!loggedIn) throw new errs.BareError(3); // exit 3,stderr 不输出统一格式
 ```
 
-`BareError` 是**唯一**绕过信封契约的类型,只用于"stdout 已是完整答案"的谓词场景。普通命令不要用。
+`BareError` 是**唯一**绕过输出契约的类型,只用于"stdout 已是完整答案"的谓词场景。普通命令不要用。
 
 ---
 
@@ -212,7 +212,7 @@ if (!loggedIn) throw new errs.BareError(3); // exit 3,stderr 不输出信封
 { "ok": true, "data": [], "meta": { "count": 0, "pagination": { "complete": true } } }
 ```
 
-**空结果 ≠ 错误。** exit code 0,stdout 是空数组信封。不要把空结果当错误抛(那样 agent 会误以为出问题了)。
+**空结果 ≠ 错误。** exit code 0,stdout 是空数组统一输出格式。不要把空结果当错误抛(那样 agent 会误以为出问题了)。
 
 可选:cli-sdk 在 stderr 提示一行"(0 条记录)"给人类,但 stdout 保持纯净。
 
@@ -238,27 +238,27 @@ if (!loggedIn) throw new errs.BareError(3); // exit 3,stderr 不输出信封
 | `data` |    ❌    | payload(已过 `beforeOutput` 转换)                                                                                             |
 | `meta` |    ❌    | 可选元数据(来源命令、时间戳)                                                                                                  |
 
-> **注意:PipeRecord 是下游 `ctx.pipe.in()` 读到的形态,不是 stdout 信封本身。** stdout 仍是一个完整信封 `{ok, data, meta}`;当 data 是数组时,cli-sdk 把每条记录包成 PipeRecord 供下游逐条消费。单对象命令(data 不是数组)管道时,下游收到的是单条 `{type, id, data}`。
+> **注意:PipeRecord 是下游 `ctx.pipe.in()` 读到的形态,不是 stdout 统一输出格式本身。** stdout 仍是一个完整统一输出格式 `{ok, data, meta}`;当 data 是数组时,cli-sdk 把每条记录包成 PipeRecord 供下游逐条消费。单对象命令(data 不是数组)管道时,下游收到的是单条 `{type, id, data}`。
 
 详见 `02-sdk-guide.md` 的"管道:作为下游命令"。
 
 ---
 
-## 为什么用信封模型
+## 为什么用统一输出模型
 
-传统 CLI 常见做法是同步 `console.log(JSON.stringify(body, null, 2))`,没有信封概念。本框架改成信封模型:
+传统 CLI 常见做法是同步 `console.log(JSON.stringify(body, null, 2))`,没有统一输出格式概念。本框架改成统一输出模型:
 
-|              | 传统 console.log                   | 信封模型(`run` 返回值 → 框架序列化) |
+|              | 传统 console.log                   | 统一输出模型(`run` 返回值 → 框架序列化) |
 | ------------ | ---------------------------------- | ----------------------------------- |
-| 输出         | 裸 JSON body,美化打印              | 信封 `{ok, data, meta}`             |
-| 错误         | exitCode=1 + console.error message | stderr 错误信封 + 类型化 exit code  |
+| 输出         | 裸 JSON body,美化打印              | 统一输出格式 `{ok, data, meta}`             |
+| 错误         | exitCode=1 + console.error message | stderr 错误输出 + 类型化 exit code  |
 | 分页         | 无                                 | `meta.pagination`                   |
 | stdout 纯净  | ❌(美化打印有空格,管道易混)        | ✅(紧凑 JSON)                       |
 | agent 可分支 | ❌(只有 message 字符串)            | ✅(wire-stable type/subtype)        |
 
 ---
 
-## 信封契约的稳定性承诺
+## 输出契约的稳定性承诺
 
 - `ok`、`error.type`、`error.subtype`、`error.code`、`error.retryable` 是 **wire-stable**,跨大版本不变。改名是 breaking change。
 - `data` 和 `meta.pagination` 的形状由业务命令决定,cli-sdk 只保证 `ok`/`data`/`meta` 这三个顶层 key 稳定。
@@ -267,7 +267,7 @@ if (!loggedIn) throw new errs.BareError(3); // exit 3,stderr 不输出信封
 
 ---
 
-## agent 解析信封的标准流程
+## agent 解析统一输出格式的标准流程
 
 ```python
 # 伪代码:agent 处理 CLI 输出

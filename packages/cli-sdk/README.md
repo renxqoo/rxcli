@@ -2,7 +2,7 @@
 
 > Agent-native CLI framework —— 让 AI agent 结构化获取业务数据的命令行框架。
 >
-> 业务包只声明"调哪个后端接口、字段怎么处理",就获得鉴权、信封、错误分类、凭证、管道、skill 发现等全套能力。
+> 业务包只声明"调哪个后端接口、字段怎么处理",就获得鉴权、统一输出格式、错误分类、凭证、管道、skill 发现等全套能力。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org/)
@@ -18,7 +18,7 @@
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  @renxqoo/agent-data-cli  (本包,框架)                      │
-│  鉴权 / 请求 / 信封 / 错误分类 / 凭证 / 管道 / skill      │
+│  鉴权 / 请求 / 统一输出 / 错误分类 / 凭证 / 管道 / skill │
 ├─────────────────────────────────────────────────────────┤
 │  你的业务包  (依赖本包,只对接业务接口)                    │
 │  例:@renxqoo/rxstock(A 股行情/财务/技术指标,公开数据)   │
@@ -34,11 +34,11 @@
 ## 特性
 
 - **🔐 鉴权工厂 `defineAuth`** —— OAuth 2.0 device flow(RFC 8628)+ 401 singleflight 自动刷新。一行配置,login/status/logout/register 命令自动注入。
-- **📦 结构化信封** —— JSON 模式输出 `{ok, source, data, meta}`,stderr 是错误信封,exit code 分类；`defaultFormat` 可选择 JSON、人类文本或 TTY 自动模式。
+- **📦 结构化统一输出** —— JSON 模式输出 `{ok, source, data, meta}`,stderr 是错误输出,exit code 分类；`defaultFormat` 可选择 JSON、人类文本或 TTY 自动模式。
 - **🏷️ 9 类类型化错误** —— validation/authentication/permission/config/network/api/not_found/policy/internal,每类映射 exit code。
 - **🔌 vite 式插件** —— beforeCommand/beforeRequest/afterRequest/beforeOutput/onError 钩子 + `provides` 自动贡献命令。
 - **🔑 provider chain** —— flag/env/file/oauth 四级凭证解析优先级,业务自定义凭证源。
-- **🚇 unix 管道** —— `rxcli orders list | rxcli report` 自动把上游信封拆成记录流。
+- **🚇 unix 管道** —— `rxcli orders list | rxcli report` 自动把上游统一输出格式拆成记录流。
 - **📖 skill 系统** —— SKILL.md 命令文档自动生成,同步到 `~/.agents/skills/`,供 AI agent 自服务发现。
 - **🖥️ 双模输出** —— 默认 `auto`(TTY 文本、脚本/管道 JSON);`--json` / `--no-json` 显式覆盖；`defaultFormat` 可固定默认。
 - **🧙 install 向导** —— 全局安装 + skills 装载 + 注册 + 登录引导,业务包拦截 `install` 命令即可。
@@ -211,7 +211,7 @@ const myPlugin: Plugin = {
 
 ---
 
-## 信封契约
+## 输出契约
 
 **成功**(stdout):
 
@@ -250,7 +250,7 @@ const myPlugin: Plugin = {
 | 模式                     | 行为                                              |
 | ------------------------ | ------------------------------------------------- |
 | 默认(`auto`)             | stdout 是 TTY(终端)→ 文本;非 TTY(管道/脚本)→ JSON |
-| `--json`                 | 强制 JSON 信封                                    |
+| `--json`                 | 强制 JSON 统一输出                                    |
 | `--no-json`              | 强制文本(管道保护:stdin 非 TTY 时仍 JSON)         |
 | `defaultFormat: 'human'` | 业务设默认文本                                    |
 | `defaultFormat: 'json'`  | 业务设默认 JSON                                   |
@@ -268,7 +268,7 @@ const myPlugin: Plugin = {
 | [`00-overview.md`](docs/00-overview.md)       | 架构、分层、决策清单            |
 | [`01-cli-usage.md`](docs/01-cli-usage.md)     | 命令调用、管道、分页、exit code |
 | [`02-sdk-guide.md`](docs/02-sdk-guide.md)     | SDK 用法、ctx 接口、钩子        |
-| [`03-envelopes.md`](docs/03-envelopes.md)     | 信封字段契约                    |
+| [`03-envelopes.md`](docs/03-envelopes.md)     | 统一输出字段契约                    |
 | [`04-errors.md`](docs/04-errors.md)           | 9 类错误、何时 throw            |
 | [`05-credentials.md`](docs/05-credentials.md) | provider chain、自定义凭证      |
 | [`06-skills.md`](docs/06-skills.md)           | skill 系统、命令文档自动生成    |

@@ -113,7 +113,7 @@ export const utilCommands: CommandGroup = defineCommands({
         path: args.path,
         ...(reqBody !== undefined ? { body: reqBody } : {}),
       });
-      // raw 透传不解包(返回原始信封),让调用方自行判断
+      // raw 透传不解包(返回原始统一输出格式),让调用方自行判断
       return { data: res.data };
     },
   }),

@@ -7,7 +7,7 @@
  * 命令统一接收 <module> 参数,拼出路径,无需为每个模块单独写命令。
  */
 
-/** Cordys 成功业务码(统一信封 { code, message, messageDetail, data })。 */
+/** Cordys 成功业务码(统一统一输出格式 { code, message, messageDetail, data })。 */
 export const SUCCESS_CODE = 100200;
 
 /** 一级模块(无斜杠),支持 view/get/page/search/follow 等通用命令。 */

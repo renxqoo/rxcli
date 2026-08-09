@@ -68,7 +68,7 @@ rxstock quote get 600519 --source tencent     # 强制腾讯(拿五档)
 rxstock quote batch 600519,000001,300750      # 批量
 ```
 
-返回(JSON 信封内 `data`):
+返回(JSON 统一输出内 `data`):
 
 ```json
 {

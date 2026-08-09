@@ -18,7 +18,7 @@ function mockCtx(
   });
 }
 
-/** 构造 Cordys 成功信封。 */
+/** 构造 Cordys 成功输出。 */
 function ok(data: unknown) {
   return { code: 100200, message: null, messageDetail: null, data };
 }

@@ -9,7 +9,7 @@ import {
   exitCodeOf,
 } from "../errs/index.js";
 
-describe("envelope: 成功信封序列化", () => {
+describe("envelope: 成功输出序列化", () => {
   it("基础结构 {ok, data, meta}", () => {
     const out = serializeSuccess([{ id: "o1" }], { count: 1 });
     const env = JSON.parse(out);
@@ -38,7 +38,7 @@ describe("envelope: 成功信封序列化", () => {
     expect(JSON.parse(serializeSuccess([], undefined, { identity: "user" })).identity).toBe("user");
   });
 
-  // D4: 成功信封顶层支持 dry_run / _notice(03-envelopes.md:55-56 契约)。
+  // D4: 成功输出顶层支持 dry_run / _notice(03-envelopes.md:55-56 契约)。
   // dry_run 出现时为 true;_notice 是信息性字段(版本更新/skill 漂移)。
   it("D4: dry_run + _notice 顶层字段(03-envelopes.md 契约)", () => {
     const out = serializeSuccess({ ok: true }, undefined, {
@@ -57,7 +57,7 @@ describe("envelope: 成功信封序列化", () => {
     expect(env._notice).toBeUndefined();
   });
 
-  it("空数组仍是合法信封", () => {
+  it("空数组仍是合法统一输出格式", () => {
     const env = JSON.parse(serializeSuccess([], { count: 0, pagination: { complete: true } }));
     expect(env.ok).toBe(true);
     expect(env.data).toEqual([]);
@@ -96,7 +96,7 @@ describe("envelope: 成功信封序列化", () => {
   });
 });
 
-describe("envelope: 错误信封序列化", () => {
+describe("envelope: 错误输出序列化", () => {
   it("NotFoundError: type/subtype/code/message", () => {
     const out = serializeError(new NotFoundError("订单 o_1001 不存在"));
     const env = JSON.parse(out);

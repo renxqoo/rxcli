@@ -7,7 +7,7 @@
  * 改造点(v1 → v2):
  *   - skillsRoot 不再写死探测,改由参数传入(业务包各自的 skills 目录不同)
  *   - 错误改用类型化错误(InternalError/NotFoundError),而非裸 Error
- *   - skills read 声明为信封契约例外(stdout 吐原文,见 03-envelopes.md)
+ *   - skills read 声明为输出契约例外(stdout 吐原文,见 03-envelopes.md)
  *
  * skill 是给 AI agent 读的 Markdown 指令文档(SKILL.md + references/)。
  * 本读取器负责扫描、列举、读取,带路径穿越校验(cleanSubPath)。

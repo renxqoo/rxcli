@@ -2,7 +2,7 @@
  * --json / --no-json 全局 flag 测试
  *
  * 验证:
- *   - 默认输出 JSON 信封(不变)
+ *   - 默认输出 JSON 统一输出(不变)
  *   - --no-json(TTY)→ 人类可读文本(通用兜底 prettyPrint)
  *   - --no-json + 命令声明 humanFormat → 用命令的自定义渲染
  *   - --no-json 错误(stderr)→ prettyError 文本
@@ -43,7 +43,7 @@ afterEach(() => {
 });
 
 describe("--no-json: 默认 JSON 不变", () => {
-  it("不传 flag → JSON 信封", async () => {
+  it("不传 flag → JSON 统一输出", async () => {
     const app = defineCli({
       name: "demo",
       description: "d",
@@ -64,7 +64,7 @@ describe("--no-json: 默认 JSON 不变", () => {
 });
 
 describe("--no-json: 人类可读文本(通用兜底)", () => {
-  it("--no-json 对象 → key: value 详情(不是信封)", async () => {
+  it("--no-json 对象 → key: value 详情(不是统一输出格式)", async () => {
     const app = defineCli({
       name: "demo",
       description: "d",
@@ -79,7 +79,7 @@ describe("--no-json: 人类可读文本(通用兜底)", () => {
       },
     });
     await app.run(["hello", "--no-json"]);
-    // prettyPrint 对单对象输出 key: value 详情;区别于信封:没有 ok/identity/data 骨架
+    // prettyPrint 对单对象输出 key: value 详情;区别于统一输出格式:没有 ok/identity/data 骨架
     expect(stdoutBuf).toContain("a:  1");
     expect(stdoutBuf).not.toContain('"ok":true');
     expect(stdoutBuf).not.toContain('"data"');
@@ -325,11 +325,11 @@ describe("--no-json: 错误也文本化(stderr)", () => {
     expect(stderrBuf).toContain("error: 订单不存在");
     expect(stderrBuf).toContain("hint: 检查 ID");
     expect(stderrBuf).toContain("not_found");
-    // stdout 不应有错误信封
+    // stdout 不应有错误输出
     expect(stdoutBuf).toBe("");
   });
 
-  it("默认模式错误 → JSON 错误信封到 stderr(--no-json 不传)", async () => {
+  it("默认模式错误 → JSON 错误输出到 stderr(--no-json 不传)", async () => {
     const app = defineCli({
       name: "demo",
       description: "d",
@@ -351,7 +351,7 @@ describe("--no-json: 错误也文本化(stderr)", () => {
 });
 
 describe("管道保护:stdin 非 TTY 时 --no-json 强制 JSON", () => {
-  it("被管道(isTTY=undefined)时 --no-json → 仍 JSON 信封", async () => {
+  it("被管道(isTTY=undefined)时 --no-json → 仍 JSON 统一输出", async () => {
     // 模拟管道:isTTY = undefined
     Object.defineProperty(process.stdin, "isTTY", { value: undefined, configurable: true });
     const app = defineCli({
@@ -375,7 +375,7 @@ describe("管道保护:stdin 非 TTY 时 --no-json 强制 JSON", () => {
 });
 
 describe("--json: 显式强制 JSON", () => {
-  it("--json 显式传 → JSON 信封(无论 TTY)", async () => {
+  it("--json 显式传 → JSON 统一输出(无论 TTY)", async () => {
     const app = defineCli({
       name: "demo",
       description: "d",
@@ -460,7 +460,7 @@ function isJsonOut(buf: string): boolean {
   }
 }
 function isTextOut(buf: string): boolean {
-  // 文本兜底:单对象 → "a:  1"(key: value),不是信封
+  // 文本兜底:单对象 → "a:  1"(key: value),不是统一输出格式
   return buf.includes("a:") && !buf.includes('"ok"');
 }
 

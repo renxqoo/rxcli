@@ -14,7 +14,7 @@
 | ② 快速开始 | 装 CLI → 装 Skill → 配凭证(三步) | `package.json` name/bin + `skills sync` + 鉴权方式(见 §3) |
 | ③ 功能 | 模块表格(每 namespace 一行) | `defineCli` 的 `namespaces` |
 | ④ 常用命令 | 5-8 个高频示例 | 从命令表挑最高频操作 |
-| ⑤ 输出契约 | 信封格式 `{ok,source,data,meta}` | 框架标准(固定) |
+| ⑤ 输出契约 | 统一输出格式格式 `{ok,source,data,meta}` | 框架标准(固定) |
 | ⑥ 开发 | build / test / typecheck | `package.json.scripts` |
 | ⑦ 技术决策 | 鉴权方式、命名约定等 | auth 实现 + §0 命名检查 |
 
@@ -85,7 +85,7 @@ npm install -g {{包名}}
 
 ## 输出契约
 
-遵循 agent-data-cli 信封:`{ ok, source, data, meta }`。列表命令自动计算 `meta.pagination.complete`。
+遵循 agent-data-cli 统一输出格式:`{ ok, source, data, meta }`。列表命令自动计算 `meta.pagination.complete`。
 
 ## 开发
 

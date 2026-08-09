@@ -55,8 +55,8 @@ const getCommand = defineCommand<{ id: string }>({
   },
 });
 
-describe("pipeline: 成功路径(runCommand + 信封)", () => {
-  it("list 返回数组 data + 分页 meta,stdout 是信封", async () => {
+describe("pipeline: 成功路径(runCommand + 统一输出格式)", () => {
+  it("list 返回数组 data + 分页 meta,stdout 是统一输出格式", async () => {
     const ctx = createTestCtx({
       request: async () => ({
         status: 200,
@@ -97,8 +97,8 @@ describe("pipeline: 成功路径(runCommand + 信封)", () => {
   });
 });
 
-describe("pipeline: 错误路径(throw → stderr 信封 + exit code)", () => {
-  it("404 → NotFoundError → stderr 错误信封 + exit 1", async () => {
+describe("pipeline: 错误路径(throw → stderr 统一输出格式 + exit code)", () => {
+  it("404 → NotFoundError → stderr 错误输出 + exit 1", async () => {
     const ctx = createTestCtx({
       request: async () => ({ status: 404, data: {}, headers: {} }),
     });
@@ -128,7 +128,7 @@ describe("pipeline: 错误路径(throw → stderr 信封 + exit code)", () => {
     expect(env.error.subtype).toBe("unknown");
   });
 
-  it("BareError 只设 exit code,不渲染 stderr 信封", async () => {
+  it("BareError 只设 exit code,不渲染 stderr 统一输出格式", async () => {
     const predicate = defineCommand({
       name: "check",
       description: "谓词",
@@ -205,7 +205,7 @@ describe("pipeline: onError 插件链(错误归一化)", () => {
 });
 
 describe("pipeline: void 返回(纯副作用命令)", () => {
-  it("run 不 return → 空成功信封 + exit 0", async () => {
+  it("run 不 return → 空成功输出 + exit 0", async () => {
     const sideEffect = defineCommand({
       name: "noop",
       description: "无输出",

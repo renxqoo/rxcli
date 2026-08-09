@@ -24,7 +24,7 @@
 | `fileStore({ dir })` / `memoryStore()`                                                                                                                        | 凭证存储(`ConfigStore` 实现,落盘 `~/.rxcli/credentials/<ns>.json`)             |
 | `defaultProviders()` / `flagProvider` / `envProvider` / `fileProvider` / `oauthProvider`                                                                      | provider chain 的默认 provider(默认 4 个)                                      |
 | `resolveWithChain(providers, pctx)`                                                                                                                           | 跑 chain 取 `TokenResult`(命中即停)                                            |
-| `resolveIdentityWithChain(providers, pctx)`                                                                                                                   | 跑 chain 取 `IdentityHint`(信封顶层 user/bot)                                  |
+| `resolveIdentityWithChain(providers, pctx)`                                                                                                                   | 跑 chain 取 `IdentityHint`(统一输出格式顶层 user/bot)                                  |
 | `injectAuthHeader(req, token, style)`                                                                                                                         | 按 authStyle(`bearer`/`x-api-key`/`basic`)注入 header                          |
 | `createOn401Hook({cfg, store, namespace})`                                                                                                                    | 401 singleflight refresh hook(返回的函数挂 Plugin 的 `_transportConfig.on401`) |
 | `deviceAuthorization` / `pollDeviceToken` / `refreshAccessToken` / `getUserInfo` / `revokeToken` / `registerClient`                                           | OAuth device flow 端点                                                         |
@@ -324,7 +324,7 @@ $ rxcli-orders list
 { "ok": true, "data": [...] }
 ```
 
-引导文案可由业务包注入(通过 defineCli 的 `messages.credentialsPrompt`)。非交互环境(agent 场景)不引导,直接返回错误信封 + hint:
+引导文案可由业务包注入(通过 defineCli 的 `messages.credentialsPrompt`)。非交互环境(agent 场景)不引导,直接返回错误输出 + hint:
 
 ```json
 {

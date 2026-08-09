@@ -5,9 +5,9 @@
  * 把 URL 生成二维码(终端 ASCII 或 PNG 文件),服务 agent split-flow 登录场景。
  * URL 视为 opaque string,不做任何修改。
  *
- * 输出约定(对齐信封契约):
- *   - --output <path>:写 PNG 文件,stdout 返回信封 {ok, data:{output}}
- *   - 默认:ASCII 二维码打到 stderr(人看),stdout 返回信封 {ok, data:{ascii:true}}
+ * 输出约定(对齐输出契约):
+ *   - --output <path>:写 PNG 文件,stdout 返回统一输出 {ok, data:{output}}
+ *   - 默认:ASCII 二维码打到 stderr(人看),stdout 返回统一输出 {ok, data:{ascii:true}}
  *     (ASCII 走 stderr 不污染 stdout;若走 stdout 会破坏管道且非结构化)
  */
 

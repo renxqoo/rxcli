@@ -28,7 +28,7 @@ describe("unwrap", () => {
     }
   });
 
-  it("非标准信封(无 code)原样返回 data", () => {
+  it("非标准统一输出格式(无 code)原样返回 data", () => {
     const res = { status: 200, data: { foo: "bar" }, headers: {} };
     expect(unwrap(res)).toEqual({ foo: "bar" });
   });

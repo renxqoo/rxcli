@@ -5,9 +5,9 @@
  * 这些命令由 defineCli 在有 skillsDir 时自动注入(作为 'skills' 子命名空间)。
  *
  * 输出约定:
- *   - list / sync:走标准成功信封 {ok, data, meta}
- *   - gen:写到文件 + 返回信封(生成的路径)
- *   - read:**信封契约例外**(stdout 吐 SKILL.md 原文,见 03-envelopes.md)
+ *   - list / sync:走标准成功输出 {ok, data, meta}
+ *   - gen:写到文件 + 返回统一输出(生成的路径)
+ *   - read:**输出契约例外**(stdout 吐 SKILL.md 原文,见 03-envelopes.md)
  */
 
 import { defineCommand, defineCommands } from "../define.js";
@@ -38,7 +38,7 @@ export function createBuiltinSkillsCommands(
   cliOptions: Pick<DefineCliOptions<any>, "commands" | "namespaces" | "name" | "binName">,
 ) {
   return defineCommands({
-    // list:列出所有 skill(信封),或列举一层(带 name/path 参数)
+    // list:列出所有 skill(统一输出格式),或列举一层(带 name/path 参数)
     list: defineCommand<any, unknown>({
       name: "list",
       description: "列出所有 skill,或列举某 skill 下的一层",
@@ -54,10 +54,10 @@ export function createBuiltinSkillsCommands(
       },
     }),
 
-    // read:读 SKILL.md 或 reference。**信封契约例外**:stdout 吐原文
+    // read:读 SKILL.md 或 reference。**输出契约例外**:stdout 吐原文
     read: defineCommand<any, unknown>({
       name: "read",
-      description: "读 skill 的 SKILL.md 或 reference(原文到 stdout,信封例外)",
+      description: "读 skill 的 SKILL.md 或 reference(原文到 stdout,输出契约例外)",
       internal: true,
       args: {
         name: {
@@ -79,7 +79,7 @@ export function createBuiltinSkillsCommands(
           content = r.content.toString("utf8");
           pathLabel = r.cleaned;
         }
-        // 信封例外:meta._rawOutput=true 让 pipeline 直接吐 data 原文(不走信封)
+        // 输出契约例外:meta._rawOutput=true 让 pipeline 直接吐 data 原文(不走统一输出格式)
         return { data: content, meta: { skill: skillName, path: pathLabel, _rawOutput: true } };
       },
     }),

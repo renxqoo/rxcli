@@ -93,7 +93,7 @@ rxcordys util raw GET /lead/view/view                  # 透传未覆盖端点
 
 ## 输出契约
 
-遵循 agent-data-cli 信封:`{ ok, source, data, meta }`。列表命令自动计算 `meta.pagination.complete`。
+遵循 agent-data-cli 统一输出格式:`{ ok, source, data, meta }`。列表命令自动计算 `meta.pagination.complete`。
 
 ## 开发
 

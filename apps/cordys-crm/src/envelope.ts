@@ -1,5 +1,5 @@
 /**
- * rxcordys 信封工具:Cordys 统一响应解包 + 分页载荷构造 + 分页 meta。
+ * rxcordys 统一输出格式工具:Cordys 统一响应解包 + 分页载荷构造 + 分页 meta。
  *
  * Cordys 统一响应结构:
  *   { code: 100200, message, messageDetail, data }
@@ -12,7 +12,7 @@
 import { errs, type Meta, type TransportResponse } from "@renxqoo/agent-data-cli";
 import { DEFAULT_PAGE_PAYLOAD, SUCCESS_CODE, type PagePayload } from "./constants.js";
 
-/** Cordys 统一信封的 data 字段类型。 */
+/** Cordys 统一统一输出格式的 data 字段类型。 */
 interface CordysEnvelope {
   code?: number;
   message?: string | null;
@@ -28,7 +28,7 @@ interface CordysEnvelope {
  */
 export function unwrap<T = unknown>(res: TransportResponse): T {
   const env = res.data as CordysEnvelope | undefined;
-  // 非标准信封(无 code 字段):HTTP 非 2xx 由 errorOnStatus 兜底;2xx 原样返回
+  // 非标准统一输出格式(无 code 字段):HTTP 非 2xx 由 errorOnStatus 兜底;2xx 原样返回
   if (!env || typeof env.code !== "number") {
     return (res.data as T) ?? (null as unknown as T);
   }

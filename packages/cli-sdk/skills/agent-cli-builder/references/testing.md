@@ -160,9 +160,9 @@ expect(logs).toContain("info:开始查询");
 
 ---
 
-## 6. 端到端测试(整 CLI + 信封渲染)
+## 6. 端到端测试(整 CLI + 统一输出格式渲染)
 
-测试**完整链路**(parseArgs → 路由 → 插件钩子 → run → 信封序列化 → exit code),用 `app.run(argv)`:
+测试**完整链路**(parseArgs → 路由 → 插件钩子 → run → 统一输出序列化 → exit code),用 `app.run(argv)`:
 
 ```ts
 import { defineCli } from "@renxqoo/agent-data-cli";
@@ -188,7 +188,7 @@ afterEach(() => {
 });
 
 describe("CLI 端到端", () => {
-  it("list 输出 JSON 信封", async () => {
+  it("list 输出 JSON 统一输出", async () => {
     const app = defineCli({
       name: "todos",
       description: "x",
@@ -221,7 +221,7 @@ describe("CLI 端到端", () => {
     });
   });
 
-  it("未知命令 → exit 2 + stderr 错误信封", async () => {
+  it("未知命令 → exit 2 + stderr 错误输出", async () => {
     const app = defineCli({
       name: "todos",
       description: "x",
@@ -268,5 +268,5 @@ export default defineConfig({
 3. **createTestCtx 不传 state 但访问 ctx.state.X** —— TS 编译报错(`{}` 类型没 X)。传 `state: {} as MyState`。
 4. **测试后没恢复 process.exitCode** —— 影响后续测试。加 `afterEach(() => { process.exitCode = undefined })`。
 5. **mock fetch 没返回 headers 对象** —— 框架读 headers 会抛。用 `new Headers()` 或 `{}`。
-6. **只测 `command.run`** —— 会绕过 argv/schema、plugin lifecycle、信封与 source。参数、401、route ownership、输出契约至少各保留一个 `app.run(argv)` 端到端测试。
+6. **只测 `command.run`** —— 会绕过 argv/schema、plugin lifecycle、统一输出格式与 source。参数、401、route ownership、输出契约至少各保留一个 `app.run(argv)` 端到端测试。
 7. **返回 `{}` 仍断言成功** —— runtime 会报 `internal/contract_violation`；纯副作用返回 `void`，空业务结果返回 `{ data: null }`。

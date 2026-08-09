@@ -361,7 +361,7 @@ ctx.state.foo // ❌ 报错,没声明
 
 ### 输出机制:run 返回数据,框架调序列化
 
-**命令通过 `return` 输出数据,不调用任何 out 方法。** run 返回 `CommandResult`,框架负责包信封 + 序列化到 stdout。
+**命令通过 `return` 输出数据,不调用任何 out 方法。** run 返回 `CommandResult`,框架负责包装成统一输出格式 + 序列化到 stdout。
 
 ```ts
 async run(args, ctx): Promise<CommandResult | void> {
@@ -379,7 +379,7 @@ async run(args, ctx): Promise<CommandResult | void> {
 1. 跑插件 beforeCommand(填 state)
 2. 跑命令 run(args, ctx),拿返回值
 3. 若有返回值:跑插件 beforeOutput(transform data)
-4. 框架包信封 + 序列化到 stdout
+4. 框架包装成统一输出格式 + 序列化到 stdout
 ```
 
 **关键纪律:**
@@ -724,7 +724,7 @@ export function createCrmAuth<State extends { user?: unknown }>(opts: {
       // ③ scopes(让 ctx.auth.requireScope 工作;api-key 场景无 scopes → 不检查)
       ctx.auth._setScopes?.(resolved.token.scopes);
 
-      // ④ identity(填信封顶层 + state.user)
+      // ④ identity(填统一输出格式顶层 + state.user)
       const identity = await resolveIdentityWithChain(providers, pctx);
       (ctx as any)._identity = identity ?? undefined;
       if (identity) ctx.state.user = { userId: identity.userId, name: identity.name };
@@ -765,7 +765,7 @@ export function createCrmAuth<State extends { user?: unknown }>(opts: {
 ```
 run() 返回结构化数据
   ↓ beforeOutput 插件(业务包定义)→ 改 payload,但仍是结构化(StructuredData)
-  ↓ cli-sdk 包成信封 + 序列化(format:JSON/table)
+  ↓ cli-sdk 包装成统一输出格式 + 序列化(format:JSON/table)
   ↓ stdout
 ```
 
@@ -789,9 +789,9 @@ run() 返回结构化数据
   ↓
 插件 beforeOutput(pre→normal→post)      transform data(返回 StructuredData)
   ↓
-框架序列化 → stdout                       信封(框架调,业务包不调)
+框架序列化 → stdout                       统一输出格式(框架调,业务包不调)
 
-任意阶段抛错 → 插件 onError 链(每个都跑)→ 渲染错误信封到 stderr + exit code
+任意阶段抛错 → 插件 onError 链(每个都跑)→ 渲染错误输出到 stderr + exit code
 ```
 
 ---

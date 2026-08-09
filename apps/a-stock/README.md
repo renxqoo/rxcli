@@ -34,7 +34,7 @@
 - 🔄 **多源 fallback** —— 任一数据源失败自动回落
 - ⚡ **性能优化** —— 进程内 TTL 缓存(秒级~分钟级)+ singleflight
 - 🔁 **自动重试** —— 网络错误/5xx 自动 2 次指数退避重试
-- 📦 **JSON 信封** —— agent 可直接解析;`--no-json` 切人类可读表格
+- 📦 **JSON 统一输出** —— agent 可直接解析;`--no-json` 切人类可读表格
 - 🚇 **管道友好** —— unix 管道串联,与 jq / ripgrep 等工具组合
 - 📖 **skill 自服务** —— AI agent 读 SKILL.md 自动学会所有命令
 
@@ -216,7 +216,7 @@ rxstock 自动判定市场:
 
 ## 输出模式
 
-### 默认(JSON 信封)
+### 默认(JSON 统一输出)
 
 ```bash
 $ rxstock quote 600519

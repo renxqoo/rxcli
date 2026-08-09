@@ -17,7 +17,7 @@ async function collect(iter: AsyncIterable<PipeRecord>): Promise<PipeRecord[]> {
   return out;
 }
 
-describe("pipe: 信封整包 parse → 逐条 yield PipeRecord", () => {
+describe("pipe: 统一输出格式整包 parse → 逐条 yield PipeRecord", () => {
   it("data 是数组 → 逐条 yield,每条包成 PipeRecord", async () => {
     const stdin = makeStdin(
       JSON.stringify({
@@ -96,12 +96,12 @@ describe("pipe: 信封整包 parse → 逐条 yield PipeRecord", () => {
     expect(records[0]).toEqual({ type: "products", id: "p1", data: item });
   });
 
-  it("拒绝把失败信封静默当成空管道", async () => {
+  it("拒绝把失败输出静默当成空管道", async () => {
     const stdin = makeStdin(
       JSON.stringify({ ok: false, error: { type: "api", subtype: "server_error" } }),
     );
     const reader = createPipeReader(stdin as NodeJS.ReadableStream & { isTTY?: boolean }, "orders");
-    await expect(collect(reader.in())).rejects.toThrow(/失败信封|pipe/i);
+    await expect(collect(reader.in())).rejects.toThrow(/失败输出|pipe/i);
   });
 
   it("空 stdin → 无记录", async () => {
@@ -118,11 +118,11 @@ describe("pipe: 信封整包 parse → 逐条 yield PipeRecord", () => {
     await expect(collect(reader.in())).rejects.toThrow(/不是合法 JSON|管道输入/);
   });
 
-  it("缺少 ok/data 的普通对象不是合法成功信封", async () => {
+  it("缺少 ok/data 的普通对象不是合法成功输出", async () => {
     const reader = createPipeReader(
       makeStdin(JSON.stringify({ hello: "world" })) as NodeJS.ReadableStream & { isTTY?: boolean },
       "orders",
     );
-    await expect(collect(reader.in())).rejects.toThrow(/成功信封/);
+    await expect(collect(reader.in())).rejects.toThrow(/成功输出/);
   });
 });

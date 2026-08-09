@@ -2,7 +2,7 @@
  * @renxqoo/agent-data-cli —— 管道(pipe)
  *
  * 设计依据:docs/01-cli-usage.md "管道用法"、docs/03-envelopes.md "PipeRecord"。
- * 方案(已批准):信封整包。上游 stdout 是完整信封 {ok,data,meta};
+ * 方案(已批准):统一输出格式整包。上游 stdout 是完整统一输出格式 {ok,data,meta};
  * 下游读完整 stdin → JSON.parse → 取 envelope.data → 数组逐条 yield PipeRecord,单对象 yield 一条。
  * isInPipe:stdin 非 TTY 即管道(下游命令据此分流)。
  *
@@ -35,8 +35,8 @@ async function readAll(stream: StdinLike): Promise<string> {
 }
 
 /**
- * 创建管道读取器。namespace 仅用于兼容没有 source 的旧信封。
- * 新信封以顶层 source 作为 PipeRecord.type；显式 PipeRecord 则保留自身 type。
+ * 创建管道读取器。namespace 仅用于兼容没有 source 的旧统一输出格式。
+ * 新统一输出格式以顶层 source 作为 PipeRecord.type；显式 PipeRecord 则保留自身 type。
  */
 export function createPipeReader(
   stdin: StdinLike = process.stdin as StdinLike,
@@ -60,16 +60,19 @@ export function createPipeReader(
         });
       }
 
-      // 信封结构:{ ok, data, meta };data 可能是数组或单对象
+      // 统一输出结构:{ ok, data, meta };data 可能是数组或单对象
       if (!envelope || typeof envelope !== "object") {
-        throw new InternalError({ subtype: "decode_failure", message: "管道输入不是对象信封" });
+        throw new InternalError({
+          subtype: "decode_failure",
+          message: "管道输入不是对象统一输出格式",
+        });
       }
       const env = envelope as { ok?: unknown; source?: unknown; data?: unknown };
       if (env.ok === false) {
-        throw new InternalError({ subtype: "decode_failure", message: "管道输入是失败信封" });
+        throw new InternalError({ subtype: "decode_failure", message: "管道输入是失败输出" });
       }
       if (env.ok !== true || !Object.prototype.hasOwnProperty.call(env, "data")) {
-        throw new InternalError({ subtype: "decode_failure", message: "管道输入缺少成功信封字段" });
+        throw new InternalError({ subtype: "decode_failure", message: "管道输入缺少成功输出字段" });
       }
       const data = env.data;
       const source = typeof env.source === "string" && env.source ? env.source : fallbackNamespace;

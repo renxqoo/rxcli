@@ -9,10 +9,10 @@
  *      ├ 每次 ctx.get/post:
  *      │    插件 beforeRequest → 真正发请求 → 插件 afterRequest
  *   3. 若有返回值:跑插件 beforeOutput(pre→normal→post) transform data
- *   4. 框架包信封 + 序列化到 stdout(process.stdout.write,无 \n)
+ *   4. 框架包装成统一输出格式 + 序列化到 stdout(process.stdout.write,无 \n)
  *
- *   任意阶段抛错 → 非 CliError 包装 InternalError → onError 链 → 渲染错误信封到 stderr + exit code
- *   BareError → 直接 exit code,不渲染信封(谓词命令例外)
+ *   任意阶段抛错 → 非 CliError 包装 InternalError → onError 链 → 渲染错误输出到 stderr + exit code
+ *   BareError → 直接 exit code,不渲染统一输出(谓词命令例外)
  */
 
 import type { CommandSpec, CommandContext, Plugin, Meta, StructuredData } from "./types.js";
@@ -23,7 +23,7 @@ import { runBeforeCommand, runBeforeOutput, runOnError } from "./plugin.js";
 import { credentialArgsKey } from "./context.js";
 
 // ============================================================================
-// 执行单个命令(返回 exit code;信封已写到 stdout/stderr)
+// 执行单个命令(返回 exit code;统一输出格式已写到 stdout/stderr)
 // ============================================================================
 
 export interface RunCommandOptions<State> {
@@ -32,7 +32,7 @@ export interface RunCommandOptions<State> {
   args: Record<string, unknown> | (() => Record<string, unknown>);
   ctx: CommandContext<State>;
   plugins: Plugin<State>[];
-  /** identity(由 auth 插件注入;信封顶层用)。可传函数延迟读(beforeCommand 后才有值)。 */
+  /** identity(由 auth 插件注入;统一输出格式顶层用)。可传函数延迟读(beforeCommand 后才有值)。 */
   identity?: "user" | "bot" | (() => "user" | "bot" | undefined);
   /** 当前命令路径段(如 ['auth','login']);用于精确豁免 plugin 自己的 beforeCommand。 */
   route?: string[];
@@ -42,7 +42,7 @@ export interface RunCommandOptions<State> {
   pluginArgs?: Record<string, unknown>;
   /** App 装配期计算的 plugin route ownership，避免把运行时元数据绑在可复用 plugin 对象上。 */
   ownedRoutes?: ReadonlyMap<Plugin<State>, string[][]>;
-  /** 输出信封的来源 namespace，供下游 pipe 保留上游类型。 */
+  /** 输出统一格式的来源 namespace，供下游 pipe 保留上游类型。 */
   source?: string;
 }
 
@@ -74,7 +74,7 @@ export async function runCommand<State>(opts: RunCommandOptions<State>): Promise
     // 2. run(业务逻辑)
     const result = await spec.run(args, ctx);
 
-    // 3. void 返回(纯副作用命令,如管道下游边读边写)→ 输出空成功信封
+    // 3. void 返回(纯副作用命令,如管道下游边读边写)→ 输出空成功输出
     if (result === undefined || result === null) {
       if (opts.humanReadable) {
         process.stdout.write("（无输出）\n");
@@ -107,7 +107,7 @@ export async function runCommand<State>(opts: RunCommandOptions<State>): Promise
     const meta = result.meta;
 
     // 4. 序列化输出到 stdout
-    // 信封例外:meta._rawOutput=true 的命令(如 skills read)直接吐 data 原文,不走信封
+    // 输出契约例外:meta._rawOutput=true 的命令(如 skills read)直接吐 data 原文,不走统一输出格式
     if (meta && meta._rawOutput) {
       process.stdout.write(
         typeof transformed === "string" ? transformed : String(transformed ?? ""),
@@ -115,7 +115,7 @@ export async function runCommand<State>(opts: RunCommandOptions<State>): Promise
       return 0;
     }
 
-    // 标准输出:--no-json(且非管道)→ 人类可读文本;否则 JSON 信封
+    // 标准输出:--no-json(且非管道)→ 人类可读文本;否则 JSON 统一输出
     const cleanMeta = meta ? stripInternalMeta(meta) : undefined;
     if (opts.humanReadable) {
       // 命令声明了 humanFormat 用命令的;否则用框架通用兜底 prettyPrint
@@ -156,7 +156,7 @@ function stripInternalMeta(meta: Meta): Meta {
 }
 
 // ============================================================================
-// 错误处理:onError 链 → 渲染错误信封 → exit code
+// 错误处理:onError 链 → 渲染错误输出 → exit code
 // ============================================================================
 
 async function handleCommandError<State>(
@@ -167,7 +167,7 @@ async function handleCommandError<State>(
   humanReadable?: boolean,
   source?: string,
 ): Promise<number> {
-  // BareError:唯一绕过信封的特例,只设 exit code
+  // BareError:唯一绕过统一输出格式的特例,只设 exit code
   if (err instanceof BareError) {
     return err.exitCode;
   }
@@ -184,7 +184,7 @@ async function handleCommandError<State>(
     after = hookError;
   }
   if (after === undefined) {
-    // 被插件吞掉(命令变成功)—— 输出空成功信封,exit 0
+    // 被插件吞掉(命令变成功)—— 输出空成功输出,exit 0
     if (humanReadable) {
       process.stdout.write("（无输出）\n");
     } else {
@@ -194,7 +194,7 @@ async function handleCommandError<State>(
   }
   cliErr = toCliError(after);
 
-  // 渲染错误到 stderr:--no-json(且非管道)→ 人类可读文本;否则 JSON 信封
+  // 渲染错误到 stderr:--no-json(且非管道)→ 人类可读文本;否则 JSON 统一输出
   if (humanReadable) {
     process.stderr.write(prettyError(cliErr) + "\n");
   } else {
