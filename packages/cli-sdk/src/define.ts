@@ -365,6 +365,16 @@ function parseFlags(
     }
 
     if (!t.startsWith("--")) {
+      // 单短氢 flag(如 -x):不是负数(-1/-1.5)、不是单个 - → 报错(未知短 flag)
+      // 负数 / 单个 - 仍当 positional(合法值)
+      if (t.startsWith("-") && t.length > 1 && !isNegativeNumber(t)) {
+        throw new errs.ValidationError({
+          subtype: "invalid_argument",
+          param: t,
+          message: `未知短 flag ${t}(本框架只支持长 flag --xxx)`,
+          hint: `如需传负数值,用 -- 分隔:rxcordys cmd -- ${t}`,
+        });
+      }
       // 非 flag → positional
       positionals.push(t);
       continue;
