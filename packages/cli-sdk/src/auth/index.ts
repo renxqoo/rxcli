@@ -21,25 +21,14 @@
 
 import { homedir } from "node:os";
 import { join } from "node:path";
-import * as readline from "node:readline/promises";
-import { stdin, stdout } from "node:process";
-import type {
-  Plugin,
-  CommandGroup,
-  CommandContext,
-  CommandResult,
-  CredentialsApi,
-} from "../types.js";
-import { defineCommand } from "../define.js";
-import { errs, AuthenticationError } from "../errs/index.js";
+import type { Plugin, CommandGroup, CommandContext, CredentialsApi } from "../types.js";
+import { AuthenticationError } from "../errs/index.js";
 import {
   injectAuthHeader,
-  createOn401Hook,
-  refreshAccessToken,
-  type AuthStyle,
+  type ClientMetadata,
   type OAuthClientConfig,
   type PollResult,
-  type ClientMetadata,
+  type AuthStyle,
 } from "../oauth.js";
 import { deviceFlow } from "../flows/device.js";
 import { authCodeFlow } from "../flows/authCode.js";
@@ -51,7 +40,6 @@ import { createLogoutCommand } from "./commands/logout.js";
 import { createRegisterCommand } from "./commands/register.js";
 import {
   fileStore,
-  defaultProviders,
   resolveWithChain,
   resolveIdentityWithChain,
   type ConfigStore,
@@ -60,6 +48,7 @@ import {
 } from "../credentials/index.js";
 import type { CredentialProvider } from "../credentials/types.js";
 import { credentialArgsKey } from "../context.js";
+import { resolveAuthConfig, buildProviderChain, buildOn401Handler } from "./helpers.js";
 
 // ============================================================================
 // 工厂入参/出参类型
@@ -144,45 +133,20 @@ export interface DefineAuthOptions {
 export async function defineAuth<State = Record<string, never>>(
   opts: DefineAuthOptions,
 ): Promise<Plugin<State> & { _transportConfig?: { on401?: () => Promise<string | null> } }> {
+  // —— 基础配置 ——
   const cmdNs = opts.commandNamespace ?? "auth";
   const credNs = opts.credentialNamespace;
   const store = opts.store ?? fileStore({ dir: join(homedir(), ".rxcli") });
-  const authStyle = opts.authStyle ?? "bearer";
 
-  // env→config.json 回填 clientId/clientSecret(原 createAuthConfig 的 S3 逻辑)
-  let clientId = opts.clientId ?? process.env.RXCLI_CLIENT_ID ?? "";
-  let clientSecret = opts.clientSecret ?? process.env.RXCLI_CLIENT_SECRET ?? "";
-  if (!clientId || !clientSecret) {
-    try {
-      const config = (await store.loadConfig()) as { clientId?: string; clientSecret?: string };
-      if (!clientId && config.clientId) clientId = config.clientId;
-      if (!clientSecret && config.clientSecret) clientSecret = config.clientSecret;
-    } catch {
-      /* config.json 读失败:保持空,向后兼容 */
-    }
-  }
-  const oauth: OAuthClientConfig = { baseUrl: opts.baseUrl, clientId, clientSecret };
-  // 构建 provider chain:bearerToken(注入)→ 自定义 providers → 默认 chain
-  const providers: CredentialProvider[] = [];
-  if (opts.bearerToken) {
-    providers.push({
-      name: () => "injected-bearer",
-      priority: () => 2, // 低于 --api-key(1),高于 env(5),允许命令行覆盖
-      async resolveToken() {
-        return {
-          token: opts.bearerToken!,
-          type: "bearer" as const,
-          source: "injected:bearerToken",
-        };
-      },
-    });
-  }
-  providers.push(...(opts.providers ?? defaultProviders()));
+  // —— ① 解析 client 凭证(env → config.json → 空)——
+  const { oauth, authStyle } = await resolveAuthConfig(opts, store);
+
+  // —— ② 构造 provider chain ——
+  const providers = buildProviderChain(opts);
+
+  // —— ③ 选 flow + 构造 on401 handler ——
   const flowType = opts.flow ?? "device";
   const flow = resolveFlow(flowType);
-
-  // 401 续期:flow 有自定义 refresh(如 client_credentials)用它,否则用默认 refresh_token
-  const defaultRefresh = createOn401Hook({ cfg: oauth, store, namespace: credNs });
   const flowDeps: FlowDeps = {
     cfg: oauth,
     scope: opts.scope,
@@ -191,33 +155,18 @@ export async function defineAuth<State = Record<string, never>>(
   };
   let currentToken: string | undefined;
   const on401 = async () => {
-    let refreshed: string | null | undefined;
-    if (flow.refresh) {
-      // client_credentials 等:没有 refresh_token,重新 login
-      try {
-        const token = await flow.refresh(flowDeps);
-        refreshed = token.access_token;
-        if (refreshed) {
-          await store.saveCredentials(credNs, {
-            token: token.access_token,
-            refreshToken: token.refresh_token ?? "",
-            expiresAt: Date.now() + token.expires_in * 1000,
-            scopes: token.scope?.split(/\s+/).filter(Boolean) ?? [],
-            storedAt: Date.now(),
-            authMethod: flowType,
-          } as unknown as Record<string, unknown>);
-        }
-      } catch {
-        refreshed = null;
-      }
-    } else {
-      refreshed = await defaultRefresh();
-    }
+    const refreshed = await buildOn401Handler({
+      flow,
+      oauth,
+      store,
+      namespace: credNs,
+      flowDeps,
+    })();
     if (refreshed) currentToken = refreshed;
     return refreshed;
   };
 
-  // —— 构造 auth 命令组(login/status/logout/register)——
+  // —— 构造 auth 命令组 ——
   const commands = createAuthCommands({
     oauth,
     store,
@@ -232,7 +181,7 @@ export async function defineAuth<State = Record<string, never>>(
     scopeFromMetadata: opts.scopeFromMetadata,
   });
 
-  // —— 返回 plugin:钩子(beforeCommand 注入 token / beforeRequest 注入 header)+ 命令 ——
+  // —— 返回 plugin ——
   return {
     name: `auth:${credNs}`,
     enforce: "pre",
@@ -249,17 +198,13 @@ export async function defineAuth<State = Record<string, never>>(
         args: { apiKey: credentialArgs?.apiKey },
         env: process.env,
       };
-
       const resolved = await resolveWithChain(providers, pctx);
-      if (!resolved) {
+      if (!resolved)
         throw new AuthenticationError({
           subtype: "no_credentials",
           message: `${credNs} is not logged in`,
           hint: `run \`${cmdNs} login\` to log in`,
         });
-      }
-
-      // 填 ctx.credentials(store 包装)
       (ctx as { credentials: CredentialsApi }).credentials = {
         get: async (ns: string) => {
           const c = await store.loadCredentials(ns);
@@ -274,11 +219,8 @@ export async function defineAuth<State = Record<string, never>>(
         save: (ns: string, data: Record<string, unknown>) => store.saveCredentials(ns, data),
         clear: (ns: string) => store.clearCredentials(ns),
       };
-
-      // identity(统一输出格式顶层 user/bot 用);业务权限不本地预检,交服务端 403(对齐 v1)
       const identity: IdentityHint | null = await resolveIdentityWithChain(providers, pctx);
       (ctx as unknown as { _identity?: IdentityHint })._identity = identity ?? undefined;
-      // 若业务 State 声明了 user 字段,填进去(统一输出格式顶层展示)
       (ctx.state as Record<string, unknown>).user = identity
         ? {
             ...(identity.userId ? { userId: identity.userId } : {}),
