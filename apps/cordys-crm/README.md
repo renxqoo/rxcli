@@ -2,21 +2,33 @@
 
 Cordys CRM L2C 全链路 agent 命令行工具 —— 基于 [`@renxqoo/agent-data-cli`](../../packages/cli-sdk) 框架,全量覆盖 CordysCRM 接口。
 
-## 快速开始(三步)
+## 快速开始
 
-### 第 1 步:安装 CLI
+### 一键安装(推荐)
+
+```bash
+npx @renxqoo/rxcordys-cli install
+```
+
+自动完成三步:① 全局安装 CLI → ② 安装 Skill 到 `~/.agents/skills/`(AI 工具发现路径)→ ③ 凭证配置。需 Node ≥ 18。
+
+> `npx` 无需预装,跑完即得全局 `rxcordys` 命令 + 已就位的 skill。
+
+### 手动安装(分步,等价于一键安装)
+
+如果一键安装某步失败或想单独执行:
+
+**第 1 步:安装 CLI**
 
 ```bash
 npm install -g @renxqoo/rxcordys-cli
 ```
 
-> 需 Node ≥ 18。安装后跑 `rxcordys --help` 确认可用。
->
-> 不想全局装?用 `npx @renxqoo/rxcordys-cli <命令>` 临时执行。
+安装后跑 `rxcordys --help` 确认可用。不想全局装?用 `npx @renxqoo/rxcordys-cli <命令>` 临时执行。
 
-### 第 2 步:安装 Skill(让 AI 工具发现)
+**第 2 步:安装 Skill(让 AI 工具发现)**
 
-装好 CLI 后,把 skill 同步到 `~/.agents/skills/`(Claude Code / Cursor / Trae 等 AI 工具的通用发现路径):
+把 skill 同步到 `~/.agents/skills/`(Claude Code / Cursor / Trae 等 AI 工具的通用发现路径):
 
 ```bash
 rxcordys skills sync
@@ -25,13 +37,11 @@ rxcordys skills sync
 同步后 AI 工具即可在用户提到线索/客户/商机/合同等关键词时自动触发本 skill。验证:
 
 ```bash
-rxcordys skills list          # 列出已装的 skill
+rxcordys skills list                # 列出已装的 skill
 ls ~/.agents/skills/rxcordys-cli/   # 确认 skill 文件就位
 ```
 
-> 也可用 `rxcordys install` 一键完成(CLI + skills + 凭证向导)。
-
-### 第 3 步:配置凭证
+**第 3 步:配置凭证
 
 凭证从 Cordys 管理后台「个人中心 → API Keys」获取,两种方式任选:
 
