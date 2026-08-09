@@ -58,10 +58,11 @@ export async function runBeforeCommand<State>(
   plugins: Plugin<State>[],
   ctx: CommandContext<State>,
   route?: string[],
+  ownedRoutes?: ReadonlyMap<Plugin<State>, string[][]>,
 ): Promise<void> {
   for (const p of withHook(plugins, "beforeCommand")) {
     // 精确豁免:plugin 自己的命令跳自己的 beforeCommand(不跳别的 plugin)
-    if (route && isOwnedRoute(p._ownedRoutes, route)) continue;
+    if (route && isOwnedRoute(ownedRoutes?.get(p) ?? p._ownedRoutes, route)) continue;
     await p.beforeCommand!(ctx);
   }
 }
@@ -134,7 +135,12 @@ export async function runOnError<State>(
 ): Promise<unknown> {
   let current: unknown = err;
   for (const p of withHook(plugins, "onError")) {
-    current = await p.onError!(ctx, current);
+    try {
+      current = await p.onError!(ctx, current);
+    } catch (hookError) {
+      // 一个错误钩子失效不应阻断后续审计/脱敏钩子。
+      current = hookError;
+    }
     // undefined = 吞掉;但继续跑后续插件(它们可能重新抛出)
   }
   return current;

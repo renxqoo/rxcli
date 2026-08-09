@@ -18,69 +18,73 @@ type StdinLike = NodeJS.ReadableStream & { isTTY?: boolean };
 /** 读完整 stream 为字符串(stdin 是 Readable)。 */
 async function readAll(stream: StdinLike): Promise<string> {
   const chunks: Buffer[] = [];
+  let size = 0;
+  const maxBytes = 16 * 1024 * 1024;
   for await (const chunk of stream) {
-    chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : (chunk as Buffer));
+    const buffer = typeof chunk === "string" ? Buffer.from(chunk) : (chunk as Buffer);
+    size += buffer.byteLength;
+    if (size > maxBytes) {
+      throw new InternalError({
+        subtype: "contract_violation",
+        message: `管道输入超过 ${maxBytes} bytes 上限`,
+      });
+    }
+    chunks.push(buffer);
   }
   return Buffer.concat(chunks).toString("utf8");
 }
 
 /**
- * 创建管道读取器。namespace 用于给 PipeRecord.type 兜底(上游信封若未带类型信息)。
- * 实际 type 取上游信封的来源命名空间(若上游 data 项是对象且带 type 字段则优先用它,否则用本 namespace)。
+ * 创建管道读取器。namespace 仅用于兼容没有 source 的旧信封。
+ * 新信封以顶层 source 作为 PipeRecord.type；显式 PipeRecord 则保留自身 type。
  */
 export function createPipeReader(
   stdin: StdinLike = process.stdin as StdinLike,
   fallbackNamespace = "unknown",
 ): PipeApi {
-  let cached: PipeRecord[] | undefined;
+  let cached: Promise<PipeRecord[]> | undefined;
 
   const load = async (): Promise<PipeRecord[]> => {
     if (cached !== undefined) return cached;
-    const raw = await readAll(stdin);
-    if (!raw.trim()) {
-      cached = [];
-      return cached;
-    }
-    let envelope: unknown;
-    try {
-      envelope = JSON.parse(raw);
-    } catch (e) {
-      throw new InternalError({
-        subtype: "decode_failure",
-        message: "管道输入不是合法 JSON",
-        cause: e,
-      });
-    }
-
-    // 信封结构:{ ok, data, meta };data 可能是数组或单对象
-    const env = envelope as { data?: unknown };
-    const data = env.data;
-    const records: PipeRecord[] = [];
-
-    if (Array.isArray(data)) {
-      for (const item of data) {
-        if (item && typeof item === "object" && "type" in item) {
-          // 上游已是 PipeRecord 形态(多级管道)
-          records.push(item as PipeRecord);
-        } else {
-          const obj = (item ?? {}) as Record<string, unknown>;
-          records.push({
-            type: typeof obj.type === "string" ? obj.type : fallbackNamespace,
-            ...(obj.id !== undefined ? { id: String(obj.id) } : {}),
-            data: item,
-          });
-        }
+    cached = (async () => {
+      const raw = await readAll(stdin);
+      if (!raw.trim()) return [];
+      let envelope: unknown;
+      try {
+        envelope = JSON.parse(raw);
+      } catch (e) {
+        throw new InternalError({
+          subtype: "decode_failure",
+          message: "管道输入不是合法 JSON",
+          cause: e,
+        });
       }
-    } else if (data && typeof data === "object") {
-      const obj = data as Record<string, unknown>;
-      records.push({
-        type: typeof obj.type === "string" ? obj.type : fallbackNamespace,
-        ...(obj.id !== undefined ? { id: String(obj.id) } : {}),
-        data,
-      });
-    }
-    cached = records;
-    return records;
+
+      // 信封结构:{ ok, data, meta };data 可能是数组或单对象
+      if (!envelope || typeof envelope !== "object") {
+        throw new InternalError({ subtype: "decode_failure", message: "管道输入不是对象信封" });
+      }
+      const env = envelope as { ok?: unknown; source?: unknown; data?: unknown };
+      if (env.ok === false) {
+        throw new InternalError({ subtype: "decode_failure", message: "管道输入是失败信封" });
+      }
+      if (env.ok !== true || !Object.prototype.hasOwnProperty.call(env, "data")) {
+        throw new InternalError({ subtype: "decode_failure", message: "管道输入缺少成功信封字段" });
+      }
+      const data = env.data;
+      const source = typeof env.source === "string" && env.source ? env.source : fallbackNamespace;
+      const records: PipeRecord[] = [];
+
+      if (Array.isArray(data)) {
+        for (const item of data) {
+          records.push(toPipeRecord(item, source));
+        }
+      } else if (data !== null && data !== undefined) {
+        records.push(toPipeRecord(data, source));
+      }
+      return records;
+    })();
+    return cached;
   };
 
   return {
@@ -93,6 +97,23 @@ export function createPipeReader(
     isInPipe() {
       return !stdin.isTTY;
     },
+  };
+}
+
+function toPipeRecord(item: unknown, fallbackNamespace: string): PipeRecord {
+  if (
+    item &&
+    typeof item === "object" &&
+    typeof (item as Record<string, unknown>).type === "string" &&
+    Object.prototype.hasOwnProperty.call(item, "data")
+  ) {
+    return item as PipeRecord;
+  }
+  const obj = (item ?? {}) as Record<string, unknown>;
+  return {
+    type: fallbackNamespace,
+    ...(obj.id !== undefined ? { id: String(obj.id) } : {}),
+    data: item,
   };
 }
 

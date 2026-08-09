@@ -152,7 +152,7 @@ export interface TableColumn<T> {
  */
 function displayWidth(s: string): number {
   let w = 0;
-  for (const ch of [...s]) {
+  for (const ch of s) {
     // CJK 统一表意文字 + 全角标点区间(常见中日韩)按 2 列
     const code = ch.codePointAt(0) ?? 0;
     w +=

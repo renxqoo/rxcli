@@ -1,9 +1,8 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
   resolveWithChain,
   flagProvider,
   envProvider,
-  fileProvider,
   defaultProviders,
 } from "../credentials/providers.js";
 import { memoryStore } from "../credentials/config-store.js";
@@ -90,29 +89,18 @@ describe("provider chain: 命中即停", () => {
   });
 });
 
-// ============================================================================
-// M6: flagProvider 在真实流程中是死代码(确认测试,不修 Plugin 接口)
-// ============================================================================
-// 根因:auth 插件的 beforeCommand 构造 ProviderContext 时恒传 args: {}(见 apps/crm/src/auth.ts:84),
-// 而 Plugin.beforeCommand 签名只收 ctx、拿不到解析后的 args(parsed args 只传给 spec.run)。
-// 所以 flagProvider 读 pctx.args.apiKey 恒为 undefined → 永远返回 null。
-// 本测试固化这个已知缺口:真实流程下 flag provider 永不命中,需改 Plugin 接口才能根治(留待设计决策)。
-describe("M6: flagProvider 在真实 ProviderContext(args:{})下永不命中(死代码确认)", () => {
+describe("flagProvider: 未提供一次性 key 时继续 provider chain", () => {
   it("args 为空对象时 → flagProvider 返回 null", async () => {
     const flag = flagProvider();
-    // 模拟 auth 插件构造的真实 pctx(args:{},无 apiKey)
     const pctx = makePctx(memoryStore(), {}, {});
     const result = await flag.resolveToken(pctx);
     expect(result).toBeNull();
   });
 
-  it("即便 env 有 token,flag 在 chain 里也恒跳过(因 args.apiKey 缺失)", async () => {
-    // 真实流程:--api-key 从命令行传不进 pctx.args,所以 flag 永远不命中
+  it("未给 flag 但 env 有 token 时回退到 env", async () => {
     const pctx = makePctx(memoryStore(), {}, { ORDERS_API_KEY: "sk_env" });
     const result = await resolveWithChain(defaultProviders(), pctx);
-    // 落到 env provider,而非 flag
     expect(result?.token.source).toBe("env:ORDERS_API_KEY");
-    expect(result?.token.source).not.toBe("flag:--api-key");
   });
 });
 

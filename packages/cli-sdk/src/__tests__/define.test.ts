@@ -10,11 +10,9 @@ import type { CommandSpec } from "../types.js";
 // 捕获 stdout/stderr + exitCode
 let stdoutBuf = "";
 let stderrBuf = "";
-let exitCode: number | undefined;
 beforeEach(() => {
   stdoutBuf = "";
   stderrBuf = "";
-  exitCode = undefined;
   vi.spyOn(process.stdout, "write").mockImplementation((chunk: string | Uint8Array) => {
     stdoutBuf += typeof chunk === "string" ? chunk : Buffer.from(chunk).toString();
     return true;
@@ -27,8 +25,6 @@ beforeEach(() => {
   const spy = vi.spyOn(process, "exit").mockImplementation((() => {
     throw new Error("process.exit called");
   }) as never);
-  // 记录每帧 exitCode(由 pipeline 设 process.exitCode,不调 exit)
-  exitCode = process.exitCode;
   void spy;
 });
 afterEach(() => {
@@ -473,52 +469,6 @@ describe("M10: -- 分隔符之后全为 positional", () => {
     await app.run(["echo", "--verbose", "--", "--msg"]);
     expect(capturedVerbose).toBe("true"); // -- 在前,--verbose 正常解析为 flag
     expect(capturedMsg).toBe("--msg"); // -- 之后 --msg 当 positional
-  });
-});
-
-// ============================================================================
-// D1: --json / --no-json / TTY 表格输出(01-cli-usage.md:64 契约)
-// ============================================================================
-// 文档承诺:stdout 是 TTY 时默认表格;管道时默认 JSON;--json/--no-json 显式覆盖。
-// 当前实现:永远输出 JSON 信封,该契约未实现(D1)。本测试用 skip 记录此缺口,
-// 实现需在 define.ts 接入 TTY 检测 + 表格渲染器(较大功能,单独排期)。
-describe.skip("D1: --json/--no-json/TTY 表格输出(文档承诺,尚未实现)", () => {
-  it("stdout 非 TTY(管道)→ 默认 JSON(当前行为,已满足)", async () => {
-    // 这个分支当前恰好满足(管道默认 JSON)
-    const app = defineCli({
-      name: "demo",
-      description: "demo",
-      commands: {
-        hello: defineCommand({
-          name: "hello",
-          description: "x",
-          async run() {
-            return { data: { a: 1 } };
-          },
-        }),
-      },
-    });
-    await app.run(["hello"]);
-    expect(stdoutBuf.trim().startsWith("{")).toBe(true);
-  });
-
-  it("--no-json → 表格输出(尚未实现,skip)", async () => {
-    // TODO(D1):实现后取消 skip。当前 --no-json 仍输出 JSON。
-    const app = defineCli({
-      name: "demo",
-      description: "demo",
-      commands: {
-        hello: defineCommand({
-          name: "hello",
-          description: "x",
-          async run() {
-            return { data: { a: 1 } };
-          },
-        }),
-      },
-    });
-    await app.run(["hello", "--no-json"]);
-    expect(stdoutBuf.trim().startsWith("{")).toBe(false); // 期望表格
   });
 });
 

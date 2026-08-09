@@ -132,18 +132,22 @@ describe("plugin.provides.namespaces: namespace 命令自动注入", () => {
   });
 });
 
-describe("plugin.provides: _ownedRoutes 自动填充", () => {
-  it("plugin 贡献的 route 记到 _ownedRoutes(供精确豁免)", () => {
+describe("plugin.provides: route ownership", () => {
+  it("does not mutate the input plugin while keeping ownership internal to the app", async () => {
+    let guardCalls = 0;
     const p: Plugin = {
       name: "auth",
+      async beforeCommand() {
+        guardCalls++;
+      },
       provides: {
         namespaces: { auth: { login: mkCmd("login", "x"), logout: mkCmd("logout", "x") } },
         commands: { whoami: mkCmd("whoami", "x") },
       },
     };
-    defineCli({ name: "demo", description: "d", plugins: [p], commands: {} });
-    expect(p._ownedRoutes).toEqual(
-      expect.arrayContaining([["auth", "login"], ["auth", "logout"], ["whoami"]]),
-    );
+    const app = defineCli({ name: "demo", description: "d", plugins: [p], commands: {} });
+    await app.run(["auth", "login"]);
+    expect(guardCalls).toBe(0);
+    expect(p._ownedRoutes).toBeUndefined();
   });
 });

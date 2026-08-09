@@ -15,7 +15,7 @@
 | **register 命令**      | 用注册令牌换独立 clientId/Secret,写 `~/.rxcli/config.json`                                                |
 | **beforeCommand 钩子** | 跑 provider chain 取 token → 填 `ctx.credentials` / `ctx.state.user`                                      |
 | **beforeRequest 钩子** | 按 `authStyle` 注入 header(bearer/x-api-key/basic)                                                        |
-| **on401 续期 hook**    | `_transportConfig.on401`(singleflight refresh + 落盘 + 重试一次)                                          |
+| **on401 续期 hook**    | `_transportConfig.on401`(singleflight refresh + 落盘 + 重跑 request hooks 后重试一次)                     |
 | **精确豁免**           | `auth login/register` 等自动跳过自身 `beforeCommand`(不会被"必须登录"拦截)                                |
 
 ### ⚠️ 最小用法(永远 await,这是高频致命坑)
@@ -121,7 +121,7 @@ if (isMainEntry()) app.run(argv);
 3. `<bin> auth register`(若 `~/.rxcli/config.json` 无 clientId)
 4. `<bin> auth login`(失败仅 warn,不阻断)
 
-**`skillsSource` 决定 skills 怎么装**(对应 `defineCli({ skillsSource })` 同一个 env):空 → 本地 `skills/` 同步到 `~/.agents/skills/`;设 URL → `npx skills add`(覆盖 30+ AI 工具发现路径)。
+**传给 `runInstallWizard` 的 `skillsSource` 决定 skills 怎么装**:空 → 本地 `skills/` 同步到 `~/.agents/skills/`;设 URL → `npx skills add`(覆盖 30+ AI 工具发现路径)。当前 `defineCli({ skillsSource })` 不会自动转交该配置。
 
 ---
 
@@ -351,6 +351,10 @@ defineCli({
 4. 重试仍 401 → 抛 `AuthenticationError(token_expired)`,触发用户重新登录
 
 **前提**:auth Plugin 必须挂 `_transportConfig.on401`。**没挂的 auth Plugin 不支持 401 自动续期。**
+
+重试会先替换现有认证 header（大小写不敏感），并重新执行全部 `beforeRequest` hook，因此 Bearer / X-Api-Key / Basic 以及 HMAC nonce、时间戳、签名都会按新 token 重算。任何最终 401 都是认证错误，不会因为遗漏 `errorOnStatus` 而被当成成功响应。
+
+`--api-key <key>` 是框架级一次性凭证，只定向提供给 auth provider chain，不会混入业务命令 args 或暴露给其他 telemetry/plugin hook；裸 `--api-key` 会在命令运行前得到 validation 错误。
 
 ---
 

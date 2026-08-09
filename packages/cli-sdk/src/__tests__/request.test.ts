@@ -129,6 +129,11 @@ describe("H3: errorOnStatus 按 subtype 隐含 category 选构造器(全 9 类)"
 });
 
 describe("H4: 401 on401 返回 null(refresh 失败)应抛 AuthenticationError,不透传 401 当数据", () => {
+  it("未配置 on401/errorOnStatus 的 401 也不会作为成功响应返回", async () => {
+    const t = createTransport();
+    fetchMock.mockResolvedValue(jsonResponse(401, { message: "unauthorized" }));
+    await expect(t.get("/x")).rejects.toBeInstanceOf(AuthenticationError);
+  });
   it("on401 返回 null + 401 响应 → 抛 AuthenticationError(token_expired)", async () => {
     // 无 errorOnStatus 配 401 时,修复前 401 body 会被当成功数据返回
     const t = createTransport({
@@ -161,6 +166,39 @@ describe("H4: 401 on401 返回 null(refresh 失败)应抛 AuthenticationError,�
     expect(authHeader).toBe("Bearer new-token");
   });
 
+  it("401 重试会替换大小写不同的旧 authorization header,不发送重复凭证", async () => {
+    const t = createTransport({ on401: async () => "new-token" });
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(401, {}))
+      .mockResolvedValueOnce(jsonResponse(200, {}));
+    await t.request({ method: "GET", path: "/x", headers: { authorization: "Bearer old" } });
+    const headers = (fetchMock.mock.calls[1]![1] as { headers: Record<string, string> }).headers;
+    expect(headers.authorization).toBe("Bearer new-token");
+    expect(headers.Authorization).toBeUndefined();
+  });
+
+  it("401 retry reruns the configured request preparation hook", async () => {
+    const beforeRetry = vi.fn(async (req: { headers?: Record<string, string> }) => {
+      req.headers = { ...req.headers, "x-signature": "fresh" };
+    });
+    const t = createTransport({ on401: async () => "new-token", beforeRetry });
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(401, {}))
+      .mockResolvedValueOnce(jsonResponse(200, {}));
+    await t.get("/x");
+    expect(beforeRetry).toHaveBeenCalledTimes(1);
+    expect((fetchMock.mock.calls[1]![1] as RequestInit).headers).toMatchObject({
+      "x-signature": "fresh",
+    });
+  });
+
+  it("向已有 query 的 path 追加参数时使用 &,不会生成第二个 ?", async () => {
+    const t = createTransport({ baseUrl: "https://example.test" });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, {}));
+    await t.get("/items?fixed=1", { page: 2 });
+    expect(fetchMock.mock.calls[0]![0]).toBe("https://example.test/items?fixed=1&page=2");
+  });
+
   it("on401 刷新成功但重试仍是 401 → 走 errorOnStatus 抛错,不当成功数据返回", async () => {
     // 回归:重试响应必须同样经过 errorOnStatus,否则重试 401 的 body 会被当 data 返回(exit 0)
     const t = createTransport({
@@ -176,6 +214,21 @@ describe("H4: 401 on401 返回 null(refresh 失败)应抛 AuthenticationError,�
 });
 
 describe("请求层: 网络错误包装", () => {
+  it("merges default/request headers case-insensitively", async () => {
+    const t = createTransport({ defaultHeaders: { Authorization: "Bearer default" } });
+    fetchMock.mockResolvedValue(jsonResponse(200, {}));
+    await t.request({
+      method: "GET",
+      path: "/x",
+      headers: { authorization: "Bearer request" },
+    });
+    const headers = (fetchMock.mock.calls[0]![1] as RequestInit).headers as Record<string, string>;
+    expect(
+      Object.keys(headers).filter((key) => key.toLowerCase() === "authorization"),
+    ).toHaveLength(1);
+    expect(headers.authorization ?? headers.Authorization).toBe("Bearer request");
+  });
+
   it("fetch reject → NetworkError(retryable)", async () => {
     const t = createTransport();
     fetchMock.mockRejectedValue(new TypeError("fetch failed"));

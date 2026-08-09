@@ -139,7 +139,7 @@ const errorNormalizePlugin = {
 };
 ```
 
-**onError 是链式的**:每个插件都跑一遍,返回值传给下一个。返回 `undefined` = **吞掉错误**(命令变成功)——这是危险操作,慎用。
+**onError 是链式的**:每个插件都跑一遍,返回值传给下一个。某个 `onError` 自己抛错时，框架把该异常作为当前错误并继续后续 hook，保证审计/脱敏插件不会被跳过。返回 `undefined` = **吞掉错误**(命令变成功)——这是危险操作,慎用。
 
 ---
 
@@ -170,7 +170,7 @@ const myPlugin = {
 };
 ```
 
-**精确豁免**:plugin 自己的命令(由 `_ownedRoutes` 自动标记)**跳该 plugin 自身的 beforeCommand**,但**不跳别的 plugin**。所以 auth plugin 的 `login` 命令豁免 auth plugin 的"必须登录"校验,但日志/审计 plugin 照跑。
+**精确豁免**:plugin 自己贡献的命令**跳该 plugin 自身的 beforeCommand**,但**不跳别的 plugin**。ownership 由每个 App 在装配期独立计算，不会修改 plugin 对象；同一个 frozen plugin 或带私有字段的 class plugin 可安全复用于多个 App。业务显式覆盖同 route 后，该命令不再被视为 plugin 自有命令。
 
 ---
 
@@ -227,4 +227,4 @@ const debugPlugin = {
 3. **`beforeOutput` 返回 string** —— TS 编译会拦(StructuredData 类型排除 string),但运行时报错更糟。
 4. **onError 返回 undefined** —— 错误被吞掉,exit 0,agent 误以为成功。**只有"这是正常分支"才用**。
 5. **plugin 之间共享 state 字段没声明** —— `defineCli<State>` 没声明,ctx.state.X = Y 编译报错。
-6. **`_ownedRoutes` 手写** —— 业务开发者**不写**,defineCli 自动填。
+6. **`_ownedRoutes` 手写** —— 业务开发者**不写**；route ownership 是框架的 App-local 内部状态。

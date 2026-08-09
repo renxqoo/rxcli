@@ -138,7 +138,7 @@ export {
 } from "./skills/index.js";
 
 // 参数解析
-export { parseArgs, signatureOfArgs, positionalLabel } from "./args.js";
+export { parseArgs, signatureOfArgs, positionalLabel, type ParsedArgs } from "./args.js";
 
 // 执行器
 export { runCommand } from "./pipeline.js";

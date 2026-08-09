@@ -124,7 +124,7 @@ my-cli todos list --limit 10   # 限制返回数量
 ### 输出示例
 
 ```json
-{ "ok": true, "data": [{ "id": "t_1001", "title": "写周报", "done": false }] }
+{ "ok": true, "source": "rx-todos", "data": [{ "id": "t_1001", "title": "写周报", "done": false }] }
 ```
 
 ## todos get
@@ -231,16 +231,16 @@ vi skills/rx-todos/references/todos-list.md   # 手写,gen 不碰
 # package.json 的 "files": ["dist", "skills"]
 ```
 
-### skills 分发:skillsSource + install 向导
+### skills 分发:把 skillsSource 传给 install 向导
 
-业务包配 `defineCli({ skillsSource: process.env.X_SKILLS_SOURCE })`,决定 install 向导怎么装 skills:
+业务包入口读取 `skillsSource`，并显式传给 `runInstallWizard({ skillsSource })`，决定向导怎么装 skills:
 
 | `skillsSource`                         | install 向导行为                                                                               |
 | -------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | 空(默认)                               | 跑 `my-cli skills sync`,把包内本地 `skills/` 写到 `~/.agents/skills/`(主流 agent 工具发现路径) |
 | 设了 URL(如 `https://skills.sh/p/xxx`) | 优先 `npx skills add <url>`(覆盖 30+ AI 工具发现路径),失败回退本地 sync                        |
 
-业务包入口拦截 `argv[0]==='install'` → `runInstallWizard({ skillsSource })`(4 步:npm i -g → 装 skills → register → login)。详见主 SKILL.md §8。
+业务包入口拦截 `argv[0]==='install'` → `runInstallWizard({ skillsSource })`(4 步:npm i -g → 装 skills → register → login)。`defineCli({ skillsSource })` 当前不会自动转交该值；必须显式传给向导。详见主 SKILL.md §7。
 
 ---
 
@@ -299,11 +299,12 @@ args: {
 
 ## 10. 安全:路径穿越校验
 
-`skills read <name>/<path>` 拒绝路径穿越:
+`skills read` 和 `skills gen` 拒绝路径穿越:
 
 - 拒绝绝对路径(`/etc/...` 和 Windows `C:\...`)
 - 拒绝含 `..` 的路径(归一化后检查)
 - 只允许相对路径
+- realpath 必须仍在 `skillsDir` 内，指向外部的 symlink 也会拒绝
 
 ```bash
 $ my-cli skills read rx-todos/../../../etc/passwd
@@ -311,3 +312,5 @@ $ my-cli skills read rx-todos/../../../etc/passwd
 ```
 
 CLI 参数来自不可信的 agent,框架已自动校验,业务包**不用**自己处理。
+
+`skills sync` 会在目标目录的 `.rxcli-sync-manifests/` 按源目录记录 ownership，只清理当前源上次同步但本次已删除的 skill，不会扫描删除其他业务包或用户自己的 skill；同名 skill 还有其他 owner 时会恢复其他源的副本。

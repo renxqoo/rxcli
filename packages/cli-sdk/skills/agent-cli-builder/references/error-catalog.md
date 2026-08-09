@@ -88,7 +88,6 @@
 ```ts
 defineCli({
   errorOnStatus: {
-    401: "token_expired",
     403: "forbidden",
     404: "not_found",
     409: "already_exists",
@@ -100,7 +99,6 @@ defineCli({
 
 | status | subtype          | → Category               | → exit |
 | ------ | ---------------- | ------------------------ | :----: |
-| 401    | `token_expired`  | authentication           |   3    |
 | 403    | `forbidden`      | authorization            |   3    |
 | 404    | `not_found`      | api                      |   1    |
 | 409    | `already_exists` | api                      |   1    |
@@ -108,6 +106,8 @@ defineCli({
 | 5xx    | `server_error`   | api(自动 retryable:true) |   1    |
 
 `errorOnStatus` 的值**只写 subtype 字符串**,不写构造器名。cli-sdk 自动从 subtype 注册表查 Category 选构造器。
+
+401 是请求层保留状态：框架会尝试一次 auth refresh/retry，最终仍为 401 时固定抛 `AuthenticationError(token_expired)`；不需要也不应依赖 `errorOnStatus` 配置 401。
 
 ---
 
@@ -125,7 +125,7 @@ defineCli({
 - 想给特定 status 加扩展字段(如 `missingScopes`)
 
 ```ts
-// errorOnStatus 兜底,命令内 if 覆盖特殊场景
+// 该 status 需要命令专属语义时，不要把它放进全局 errorOnStatus
 get: defineCommand({
   async run({ id }, ctx) {
     const res = await ctx.get(`/orders/${id}`)
@@ -137,6 +137,8 @@ get: defineCommand({
   },
 }),
 ```
+
+已配置进 `errorOnStatus` 的响应会在 `ctx.get/post/...` 返回前抛出，因此命令内同 status 的 `if` 分支不可达，不能用于覆盖全局映射。
 
 ---
 

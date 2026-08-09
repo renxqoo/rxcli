@@ -13,7 +13,7 @@ import {
   registerClient,
   type OAuthClientConfig,
 } from "../oauth.js";
-import { InternalError, APIError, AuthenticationError } from "../errs/index.js";
+import { InternalError, APIError, AuthenticationError, NetworkError } from "../errs/index.js";
 
 const cfg: OAuthClientConfig = {
   baseUrl: "http://test",
@@ -111,5 +111,17 @@ describe("oauth: 正常 JSON 路径仍工作(回归保护)", () => {
   it("refreshAccessToken 失败(!ok)→ AuthenticationError(token_expired)", async () => {
     fetchMock.mockResolvedValue(jsonResponse(400, { error: "invalid_grant" }));
     await expect(refreshAccessToken(cfg, "rt")).rejects.toBeInstanceOf(AuthenticationError);
+  });
+});
+
+describe("OAuth transport boundary", () => {
+  it("classifies fetch failures as NetworkError", async () => {
+    fetchMock.mockRejectedValue(new TypeError("fetch failed"));
+    await expect(getUserInfo(cfg, "token")).rejects.toBeInstanceOf(NetworkError);
+  });
+
+  it("rejects a successful response whose required fields are missing", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, {}));
+    await expect(getUserInfo(cfg, "token")).rejects.toBeInstanceOf(InternalError);
   });
 });

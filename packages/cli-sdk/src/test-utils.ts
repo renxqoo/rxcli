@@ -13,8 +13,8 @@ import type {
   PipeApi,
   LogApi,
 } from "./types.js";
-import { createTransport, type Transport } from "./request.js";
-import { createContext, createStderrLog } from "./context.js";
+import type { Transport } from "./request.js";
+import { createContext } from "./context.js";
 
 /** mock 的 request 函数:接收 RequestOptions,返回 TransportResponse。 */
 export type MockRequest = (opts: RequestOptions) => Promise<TransportResponse> | TransportResponse;

@@ -34,21 +34,21 @@
 ## 特性
 
 - **🔐 鉴权工厂 `defineAuth`** —— OAuth 2.0 device flow(RFC 8628)+ 401 singleflight 自动刷新。一行配置,login/status/logout/register 命令自动注入。
-- **📦 结构化信封** —— stdout 永远是 JSON 信封(`{ok, data, meta}`),stderr 是错误信封,exit code 分类。agent 可靠解析,不被人类输出污染。
+- **📦 结构化信封** —— JSON 模式输出 `{ok, source, data, meta}`,stderr 是错误信封,exit code 分类；`defaultFormat` 可选择 JSON、人类文本或 TTY 自动模式。
 - **🏷️ 9 类类型化错误** —— validation/authentication/permission/config/network/api/not_found/policy/internal,每类映射 exit code。
 - **🔌 vite 式插件** —— beforeCommand/beforeRequest/afterRequest/beforeOutput/onError 钩子 + `provides` 自动贡献命令。
 - **🔑 provider chain** —— flag/env/file/oauth 四级凭证解析优先级,业务自定义凭证源。
 - **🚇 unix 管道** —— `rxcli orders list | rxcli report` 自动把上游信封拆成记录流。
 - **📖 skill 系统** —— SKILL.md 命令文档自动生成,同步到 `~/.agents/skills/`,供 AI agent 自服务发现。
-- **🖥️ 双模输出** —— 默认 JSON(agent);`--no-json` 切人类可读文本(自动表格 + CJK 对齐);`defaultFormat` 业务可选默认。
+- **🖥️ 双模输出** —— 默认 `auto`(TTY 文本、脚本/管道 JSON);`--json` / `--no-json` 显式覆盖；`defaultFormat` 可固定默认。
 - **🧙 install 向导** —— 全局安装 + skills 装载 + 注册 + 登录引导,业务包拦截 `install` 命令即可。
 
 ### 实际业务包(基于本框架)
 
-| 业务包 | 场景 | 鉴权模式 | 看点 |
-| --- | --- | --- | --- |
-| [`@renxqoo/rxstock`](../../apps/a-stock) | A 股行情/财务/技术指标 | 无(公开数据) | 多源 fallback、统一 fallback 执行器、技术指标本地计算 |
-| [`@renxqoo/cli`](../../apps/crm) | 公司业务(订单/商品) | OAuth device flow | 中间层鉴权、split-flow 登录、install 向导 |
+| 业务包                                   | 场景                   | 鉴权模式          | 看点                                                  |
+| ---------------------------------------- | ---------------------- | ----------------- | ----------------------------------------------------- |
+| [`@renxqoo/rxstock`](../../apps/a-stock) | A 股行情/财务/技术指标 | 无(公开数据)      | 多源 fallback、统一 fallback 执行器、技术指标本地计算 |
+| [`@renxqoo/cli`](../../apps/crm)         | 公司业务(订单/商品)    | OAuth device flow | 中间层鉴权、split-flow 登录、install 向导             |
 
 ---
 
@@ -230,16 +230,16 @@ const myPlugin: Plugin = {
 
 **exit code 映射**(框架按错误类别自动设,agent 可据此判断处理策略):
 
-| code | 类别 | 含义 |
-| ---- | ---- | ---- |
-| 0 | — | 成功 |
-| 1 | api | 服务端业务错误(404/500/429 等) |
-| 2 | validation | 参数不合法 |
-| 3 | authentication / authorization / config | 需登录 / 缺权限 / 配置缺失 |
-| 4 | network | DNS / 超时 / 拒绝 |
-| 5 | internal | SDK 内部错误(几乎不该发生) |
-| 6 | policy | 风控拦截 |
-| 10 | confirmation | 高危写入需 `--yes` |
+| code | 类别                                    | 含义                           |
+| ---- | --------------------------------------- | ------------------------------ |
+| 0    | —                                       | 成功                           |
+| 1    | api                                     | 服务端业务错误(404/500/429 等) |
+| 2    | validation                              | 参数不合法                     |
+| 3    | authentication / authorization / config | 需登录 / 缺权限 / 配置缺失     |
+| 4    | network                                 | DNS / 超时 / 拒绝              |
+| 5    | internal                                | SDK 内部错误(几乎不该发生)     |
+| 6    | policy                                  | 风控拦截                       |
+| 10   | confirmation                            | 高危写入需 `--yes`             |
 
 9 类类型化错误:`ValidationError` / `AuthenticationError` / `PermissionError` / `ConfigError` / `NetworkError` / `APIError`(`NotFoundError` 子类)/ `PolicyError` / `InternalError` / `ConfirmationRequiredError`。永远用 `errs.*` 构造,不要 `throw new Error()`(会被降级成 internal/unknown)。
 
@@ -278,6 +278,7 @@ const myPlugin: Plugin = {
 框架自带一个 AI Agent Skill([`skills/agent-cli-builder`](skills/agent-cli-builder/SKILL.md)),教 AI 如何用本框架从零构建 agent-native CLI 业务包。AI Agent 读它即可学会:5 分钟写出无鉴权 CLI、配置 OAuth 鉴权、多源 fallback、写 SKILL.md 让 Agent 自服务发现。这是"用 AI 做 CLI"的关键能力。
 
 包含进阶参考:
+
 - [`auth-patterns.md`](skills/agent-cli-builder/references/auth-patterns.md) — defineAuth / split-flow 登录 / register / HMAC
 - [`patterns.md`](skills/agent-cli-builder/references/patterns.md) — 分页续拉 / 管道下游 / humanFormat
 - [`error-catalog.md`](skills/agent-cli-builder/references/error-catalog.md) — 30+ subtype 速查 + errorOnStatus 配置

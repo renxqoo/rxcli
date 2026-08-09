@@ -79,12 +79,16 @@ generate: defineCommand({
 
 ```ts
 interface PipeRecord {
-  type: string; // 来源 CLI 的 defineCli.name,下游按它分流
+  type: string; // 上游成功信封的 source(通常是 defineCli.name),下游按它分流
   id?: string; // 稳定标识
-  data?: unknown; // payload(已过 beforeOutput 转换)
+  data: unknown; // payload(已过 beforeOutput 转换)
   meta?: Record<string, unknown>;
 }
 ```
+
+上游必须输出严格成功信封（`ok === true` 且自有 `data` 字段）；失败信封、缺 `data`、非法 JSON 都会被拒绝。普通业务对象即使有 `type` 字段，也仍用信封 `source` 包装；只有同时有字符串 `type` 和自有 `data` 的对象才被视为显式 `PipeRecord`。单值和数组元素都产生记录，`data:null` 产生 0 条记录。
+
+当前 reader 会缓冲并解析一整个 JSON 信封（上限 16 MiB），不接受 NDJSON 或 `jq -c` 输出的多段对象流。需要组合时让中间工具仍输出一个完整成功信封。
 
 用法:`rx-shop orders list --status unpaid | rx-shop invoices generate`
 
