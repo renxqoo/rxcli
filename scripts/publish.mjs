@@ -262,9 +262,9 @@ async function main() {
       }
     }
 
-    // 发布
+    // 发布(用 pnpm publish:它会自动把 workspace:* 替换成真实版本号)
     const otpFlag = OTP ? ` --otp=${OTP}` : "";
-    const publishCmd = `npm publish --access public${DRY_RUN ? " --dry-run" : ""}${otpFlag}`;
+    const publishCmd = `pnpm publish --access public --no-git-checks${DRY_RUN ? " --dry-run" : ""}${otpFlag}`;
     try {
       runInherit(publishCmd, pkg.dir);
       console.log(`   ✅ ${pkg.name}@${publishVer} published`);
