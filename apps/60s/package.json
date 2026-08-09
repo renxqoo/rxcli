@@ -1,6 +1,6 @@
 {
   "name": "@renxqoo/rx60s-cli",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "rx60s — 每天 60 秒读懂世界 · 开放 API 命令行工具,基于 @renxqoo/agent-data-cli 框架,封装 vikiboss/60s 开源项目的全部公开接口(新闻/热搜/天气/油价/老黄历/翻译/二维码等 60+ 接口)",
   "keywords": [
     "60s",

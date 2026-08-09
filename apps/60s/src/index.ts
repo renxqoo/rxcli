@@ -87,12 +87,12 @@ const app = defineCli<Rx60sState>({
   baseUrl: process.env.RX60S_BASE_URL ?? DEFAULT_BASE_URL,
   skillsDir: SKILLS_DIR,
   skillsSource: process.env.RX60S_SKILLS_SOURCE,
-  // 60s 业务错误 HTTP 状态对应(200 + code≠200 由 unwrap 兜底)
+  // 60s 业务错误:400/404/429 走 errorOnStatus 自动 throw;
+  // 5xx 不在此配,统一交给 unwrap 处理(上游 500 时 message 常含自身解析失败信息,需美化)
   errorOnStatus: {
     400: "invalid_argument",
     404: "not_found",
     429: "rate_limited",
-    "5xx": "server_error",
   },
   defaultFormat: "auto",
 });

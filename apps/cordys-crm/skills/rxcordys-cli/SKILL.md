@@ -2,7 +2,6 @@
 name: rxcordys-cli
 description: |
   查询和管理 Cordys CRM 的销售全流程数据(线索→客户→商机→合同→回款→发票→订单)。当用户提到线索、客户、商机、合同、回款、发票、订单、报价单、联系人、跟进、审批、漏斗、统计、工商抬头、销售数据、CRM,或想查/改 Cordys 系统里的任何业务记录时使用——即使用户没说"Cordys"或"CRM"也要触发。
-version: 1.0.0
 metadata:
   requires:
     bins: ["rxcordys"]
@@ -219,3 +218,122 @@ rxcordys leads page --json
 | [references/intent.md](references/intent.md) | 模糊指令意图映射(含 L2C 全链路、Customer 360、漏斗分析) | 用户说"今天做什么""这周怎么样"等无动词指令时 |
 | [references/role.md](references/role.md) | 角色适配 + 工作流时间表(晨会/周会/月会) | 需要按用户身份调整展示,或切换团队/全公司数据范围时 |
 | [references/risk.md](references/risk.md) | 风险预警 + KPI 阈值 + L2C 断链检测 | 查询结果展示后扫描异常,或判断严重度时 |
+
+<!-- AUTO-GEN:START commands -->
+<!-- 本区块由 `rxcli skills gen` 自动生成,不要手改 -->
+## 命令
+
+| 操作 | 命令 |
+|------|------|
+| 查询当前用户信息(兼验证凭证是否有效) | `rxcordys whoami` |
+| 保存 Cordys 密钥对到凭证文件(~/.rxcli/credentials/cordys.json) | `rxcordys auth login --accessKey <string> --secretKey <string>` |
+| 显示当前凭证来源(环境变量 / 凭证文件 / 未配置) | `rxcordys auth status` |
+| 清除已保存的凭证文件(不影响环境变量) | `rxcordys auth logout` |
+| 按视图查询模块列表(支持 lead/account/opportunity/contact/contract/order) | `rxcordys records view <module> [--opts <string>]` |
+| 查询单条记录详情 | `rxcordys records get <module> <id>` |
+| 分页查询模块列表(带筛选/排序/关键词,POST page_payload) | `rxcordys records page <module> [payload]` |
+| 全局关键词搜索模块(/global/search/{module}) | `rxcordys records search <module> [payload]` |
+| 查询某客户/商机/线索下的联系人列表 | `rxcordys records contact <module> <id>` |
+| 产品字段源查询(用于商机/合同选产品) | `rxcordys records product [payload]` |
+| 查询模块表单字段定义(写入前必读,了解必填字段) | `rxcordys records form <module>` |
+| 线索视图列表(/{module}/view/list) | `rxcordys leads list [--opts <string>]` |
+| 线索详情 | `rxcordys leads get <id>` |
+| 线索分页列表(带筛选/排序/关键词) | `rxcordys leads page [payload]` |
+| 全局搜索线索 | `rxcordys leads search [payload]` |
+| 线索表单字段定义(写入前必读) | `rxcordys leads form` |
+| 新增线索(必填:name, phone, products[]) | `rxcordys leads add <data> [--dryRun] [--yes]` |
+| 更新线索(全量更新,需含 id + 全部必填字段) | `rxcordys leads update <data> [--dryRun] [--yes]` |
+| 批量更新线索(ids[], fieldId, fieldValue) | `rxcordys leads batch-update <data> [--dryRun] [--yes]` |
+| 线索转客户(必填 clueId, name) | `rxcordys leads transition <data> [--dryRun] [--yes]` |
+| 线索转商机(必填 clueId,可选 oppCreated/oppName) | `rxcordys leads transform <data> [--dryRun] [--yes]` |
+| 客户视图列表 | `rxcordys accounts list [--opts <string>]` |
+| 客户详情 | `rxcordys accounts get <id>` |
+| 客户分页列表(viewId 可用 ALL/SELF/CUSTOMER_COLLABORATION) | `rxcordys accounts page [payload]` |
+| 全局搜索客户 | `rxcordys accounts search [payload]` |
+| 客户表单字段定义(写入前必读) | `rxcordys accounts form` |
+| 新增客户(必填 name) | `rxcordys accounts add <data> [--dryRun] [--yes]` |
+| 更新客户(全量更新,需含 id + 必填字段) | `rxcordys accounts update <data> [--dryRun] [--yes]` |
+| 批量更新客户(ids[], fieldId, fieldValue) | `rxcordys accounts batch-update <data> [--dryRun] [--yes]` |
+| 客户 360 子资源查询(合同/商机/订单/回款/发票列表 + 对应统计) | `rxcordys accounts sub <type> <id> [payload]` |
+| 商机视图列表 | `rxcordys opportunities list [--opts <string>]` |
+| 商机详情 | `rxcordys opportunities get <id>` |
+| 商机会分页列表(带筛选/排序/关键词) | `rxcordys opportunities page [payload]` |
+| 全局搜索商机 | `rxcordys opportunities search [payload]` |
+| 商机表单字段定义(写入前必读) | `rxcordys opportunities form` |
+| 新增商机(必填 name, customerId, contactId, amount, owner, products[]) | `rxcordys opportunities add <data> [--dryRun] [--yes]` |
+| 更新商机(全量更新,需含 id + 必填字段) | `rxcordys opportunities update <data> [--dryRun] [--yes]` |
+| 报价单详情(注意路径带 /get/ 前缀) | `rxcordys opportunities quotation-get <id>` |
+| 报价单分页列表(报价单无全局搜索,用本命令) | `rxcordys opportunities quotation-page [payload]` |
+| 报价单表单字段定义(含 moduleFields/moduleFormConfigDTO 配置) | `rxcordys opportunities quotation-form` |
+| 新增报价单(必填 name, opportunityId, untilTime, products, moduleFields, moduleFormConfigDTO) | `rxcordys opportunities quotation-add <data> [--dryRun] [--yes]` |
+| 更新报价单(需 id + approvalStatus,建议先 quotation-get 再合并单字段) | `rxcordys opportunities quotation-update <data> [--dryRun] [--yes]` |
+| 联系人视图列表 | `rxcordys contacts list [--opts <string>]` |
+| 联系人详情 | `rxcordys contacts get <id>` |
+| 联系人分页列表 | `rxcordys contacts page [payload]` |
+| 全局搜索联系人 | `rxcordys contacts search [payload]` |
+| 联系人表单字段定义 | `rxcordys contacts form` |
+| 新增联系人(必填 customerId, name) | `rxcordys contacts add <data> [--dryRun] [--yes]` |
+| 更新联系人(全量更新,需含 id + 必填字段) | `rxcordys contacts update <data> [--dryRun] [--yes]` |
+| 批量更新联系人(ids[], fieldId, fieldValue) | `rxcordys contacts batch-update <data> [--dryRun] [--yes]` |
+| 合同视图列表 | `rxcordys contracts list [--opts <string>]` |
+| 合同详情 | `rxcordys contracts get <id>` |
+| 合同分页列表 | `rxcordys contracts page [payload]` |
+| 全局搜索合同 | `rxcordys contracts search [payload]` |
+| 合同表单字段定义 | `rxcordys contracts form` |
+| 新增合同 | `rxcordys contracts add <data> [--dryRun] [--yes]` |
+| 更新合同(全量更新,需含 id) | `rxcordys contracts update <data> [--dryRun] [--yes]` |
+| 批量更新合同(ids[], fieldId, fieldValue) | `rxcordys contracts batch-update <data> [--dryRun] [--yes]` |
+| 合同金额统计(返回 {amount, averageAmount}) | `rxcordys contracts stat [--payload <string>]` |
+| 回款计划分页列表 | `rxcordys contracts payment-plan-page [payload]` |
+| 回款计划详情 | `rxcordys contracts payment-plan-get <id>` |
+| 回款计划表单字段定义 | `rxcordys contracts payment-plan-form` |
+| 新增回款计划 | `rxcordys contracts payment-plan-add <data> [--dryRun] [--yes]` |
+| 更新回款计划(需含 id) | `rxcordys contracts payment-plan-update <data> [--dryRun] [--yes]` |
+| 回款计划金额统计 | `rxcordys contracts payment-plan-stat [--payload <string>]` |
+| 回款记录分页列表 | `rxcordys contracts payment-record-page [payload]` |
+| 回款记录详情 | `rxcordys contracts payment-record-get <id>` |
+| 回款记录表单字段定义 | `rxcordys contracts payment-record-form` |
+| 新增回款记录 | `rxcordys contracts payment-record-add <data> [--dryRun] [--yes]` |
+| 更新回款记录(需含 id) | `rxcordys contracts payment-record-update <data> [--dryRun] [--yes]` |
+| 回款记录金额统计 | `rxcordys contracts payment-record-stat [--payload <string>]` |
+| 工商抬头分页列表 | `rxcordys contracts business-title-page [payload]` |
+| 工商抬头表单字段定义 | `rxcordys contracts business-title-form` |
+| 新增工商抬头 | `rxcordys contracts business-title-add <data> [--dryRun] [--yes]` |
+| 更新工商抬头(需含 id) | `rxcordys contracts business-title-update <data> [--dryRun] [--yes]` |
+| 发票视图列表 | `rxcordys invoices list [--opts <string>]` |
+| 发票详情 | `rxcordys invoices get <id>` |
+| 发票分页列表 | `rxcordys invoices page [payload]` |
+| 发票表单字段定义 | `rxcordys invoices form` |
+| 新增发票 | `rxcordys invoices add <data> [--dryRun] [--yes]` |
+| 更新发票(全量更新,需含 id) | `rxcordys invoices update <data> [--dryRun] [--yes]` |
+| 订单视图列表 | `rxcordys orders list [--opts <string>]` |
+| 订单详情 | `rxcordys orders get <id>` |
+| 订单分页列表 | `rxcordys orders page [payload]` |
+| 全局搜索订单 | `rxcordys orders search [payload]` |
+| 订单表单字段定义 | `rxcordys orders form` |
+| 新增订单 | `rxcordys orders add <data> [--dryRun] [--yes]` |
+| 更新订单(全量更新,需含 id) | `rxcordys orders update <data> [--dryRun] [--yes]` |
+| 批量更新订单(ids[], fieldId, fieldValue) | `rxcordys orders batch-update <data> [--dryRun] [--yes]` |
+| 订单金额统计(返回 {amount, averageAmount}) | `rxcordys orders stat [--payload <string>]` |
+| 跟进计划分页查询(parent ∈ lead/account/opportunity) | `rxcordys follows plan <parent> [payload]` |
+| 跟进记录分页查询(parent ∈ lead/account/opportunity) | `rxcordys follows record <parent> [payload]` |
+| 跟进计划/记录的表单字段定义 | `rxcordys follows form <type>` |
+| 新增跟进计划(必填 content, method, owner, type) | `rxcordys follows plan-add <parent> <data> [--dryRun] [--yes]` |
+| 更新跟进计划(需含 id + 必填字段) | `rxcordys follows plan-update <parent> <data> [--dryRun] [--yes]` |
+| 新增跟进记录(必填 content, followMethod, owner, type) | `rxcordys follows record-add <parent> <data> [--dryRun] [--yes]` |
+| 更新跟进记录(需含 id + 必填字段) | `rxcordys follows record-update <parent> <data> [--dryRun] [--yes]` |
+| 查询审批待办(pending/processed/initiated/cc/count) | `rxcordys approvals todo <kind> [--payload <string>]` |
+| 执行审批动作(approve/reject/back/sign/revoke/batch-approve/batch-reject) | `rxcordys approvals action <action> <data> [--dryRun] [--yes]` |
+| 审批资源操作(push/revoke/simple-detail/detail) | `rxcordys approvals resource <action> [--arg <string>]` |
+| 审批流程配置(page/get/add/update/enable/disable/by-form/setting/webhook-test) | `rxcordys approvals flow <action> [--arg <string>] [--payload <string>] [--dryRun] [--yes]` |
+| 模块金额统计(返回 {amount, averageAmount}) | `rxcordys stats stat <module> [--payload <string>]` |
+| 首页线索统计(今日/本周/本月/本年 + 环比) | `rxcordys stats home-lead [--payload <string>]` |
+| 首页商机统计(type ∈ all/success/underway) | `rxcordys stats home-opportunity [--type <string>] [--payload <string>]` |
+| 查询当前用户可见的部门权限树 | `rxcordys stats dept-tree` |
+| 查询当前用户信息(兼验证凭证是否有效) | `rxcordys util whoami` |
+| 验证当前凭证是否有效(返回用户信息) | `rxcordys util verify` |
+| 查询部门组织树 | `rxcordys util org` |
+| 查询成员列表(分页) | `rxcordys util members [payload]` |
+| 全局搜索模块计数(按关键词返回各模块命中数) | `rxcordys util glocount <keyword>` |
+| 原始透传任意端点(相对路径拼 baseUrl,绝对 URL 直连) | `rxcordys util raw <method> <path> [--body <string>]` |
+<!-- AUTO-GEN:END -->

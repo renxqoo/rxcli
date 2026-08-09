@@ -47,6 +47,52 @@ describe("unwrap", () => {
       expect((e as errs.APIError).subtype).toBe("server_error");
     }
   });
+
+  it("HTTP 500 + 上游 parse failure(Unexpected token)消息被美化", () => {
+    const res = {
+      status: 500,
+      data: {
+        code: 500,
+        message: "服务器出错了... Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON",
+        data: null,
+      },
+      headers: {},
+    };
+    try {
+      unwrap(res);
+      throw new Error("should have thrown");
+    } catch (e) {
+      expect(e).toBeInstanceOf(errs.APIError);
+      expect((e as errs.APIError).subtype).toBe("server_error");
+      expect((e as errs.APIError).message).toBe("上游服务暂时不可用(数据源异常),请稍后重试");
+      expect((e as errs.APIError).retryable).toBe(true);
+    }
+  });
+
+  it("HTTP 500 + 有意义的上游 message(非 parse failure)保留原文", () => {
+    const res = {
+      status: 500,
+      data: { code: 500, message: "获取奖牌榜数据失败: 520", data: null },
+      headers: {},
+    };
+    try {
+      unwrap(res);
+      throw new Error("should have thrown");
+    } catch (e) {
+      expect((e as errs.APIError).message).toContain("获取奖牌榜数据失败");
+    }
+  });
+
+  it("HTTP 502 无 message 时给兜底提示", () => {
+    const res = { status: 502, data: "Bad Gateway", headers: {} };
+    try {
+      unwrap(res);
+      throw new Error("should have thrown");
+    } catch (e) {
+      expect(e).toBeInstanceOf(errs.APIError);
+      expect((e as errs.APIError).message).toContain("HTTP 502");
+    }
+  });
 });
 
 describe("withQuery", () => {

@@ -103,7 +103,7 @@ export function generateAutogenBlock(
   if (cmds.length === 0) return "";
 
   const lines: string[] = [];
-  // ## 命令表(操作 / 命令)
+  // ## 命令表(操作 / 命令)—— 仅命令索引,参数细节交给 references 按需加载
   lines.push("## 命令");
   lines.push("");
   lines.push("| 操作 | 命令 |");
@@ -112,21 +112,6 @@ export function generateAutogenBlock(
     const desc = cmd.spec.description ?? "";
     const sig = signatureLine(binName, cmd);
     lines.push(`| ${desc} | \`${sig}\` |`);
-  }
-  lines.push("");
-
-  // ### 参数说明(每个命令一节)
-  lines.push("### 参数说明");
-  lines.push("");
-  for (const cmd of cmds) {
-    lines.push(`**${cmd.path}**`);
-    const table = argsTable(cmd.spec.args);
-    if (table) {
-      lines.push(table);
-    } else {
-      lines.push("(无参数)");
-    }
-    lines.push("");
   }
 
   return lines.join("\n").trimEnd();
@@ -180,7 +165,6 @@ export function generateSkillSkeleton(
   return `---
 name: ${skillName}
 description: ${description || "{{FILL: 一句话描述何时用 —— agent 靠它语义匹配用户意图}}"}
-version: 1.0.0
 metadata:
   requires:
     bins: ["${binName}"]

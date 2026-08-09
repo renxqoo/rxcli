@@ -1,6 +1,6 @@
 {
   "name": "@renxqoo/agent-data-cli",
-  "version": "1.0.6",
+  "version": "1.1.6",
   "description": "Agent-native CLI framework — 让 AI agent 结构化获取业务数据的命令行框架(鉴权/统一输出格式/错误/凭证/管道/skill 全套能力)",
   "keywords": [
     "agent",

@@ -22,7 +22,7 @@
 | 命令                                          | 干什么                                              |
 | --------------------------------------------- | --------------------------------------------------- |
 | `my-cli skills list`                          | 列出所有 skill(返回统一输出)                            |
-| `my-cli skills read <name>`                   | 读 SKILL.md 原文(stdout,**输出契约例外**)           |
+| `my-cli skills read <name>`                   | 读 SKILL.md 原文(stdout,**输出契约例外**)              |
 | `my-cli skills read <name>/references/foo.md` | 读 reference 文件(带路径穿越校验)                   |
 | `my-cli skills sync`                          | 同步到 `~/.agents/skills/`(主流 agent 工具发现路径) |
 | `my-cli skills gen <name>`                    | 刷新已有 SKILL.md 的命令表(AUTO-GEN 块内)           |
@@ -35,7 +35,6 @@
 ````markdown
 ---
 name: rx-todos
-version: 1.0.0
 description: 查询和管理待办。当用户需要查待办、看待办列表、标记待办完成、新建待办时使用。
 metadata:
   requires:
@@ -105,7 +104,7 @@ metadata:
 
 首次使用前,本机需先注册一次:`my-cli auth register --token <注册令牌>`(令牌从管理员获取)。之后:
 
-**禁止直接跑 `my-cli auth login`(会阻塞数分钟,agent 拿不到 URL)**。用两步:
+**禁止直接跑 `my-cli auth login`(会阻塞数分钟,agent 拿不到 URL)**。用三步:
 
 1. 发起(当前轮):`my-cli auth login --no-wait --json` → 记住返回的 `data.device_code` 和 `data.verification_url`
 2. 生成二维码给用户:`my-cli qrcode <verification_url> --output /tmp/login-qr.png`,把 URL + 二维码给用户
@@ -142,7 +141,7 @@ my-cli todos get t_1001
 ```bash
 my-cli todos complete t_1001
 ```
-
+````
 ### 错误处理
 
 | 错误                      | 处理                                 |
@@ -157,32 +156,53 @@ my-cli todos complete t_1001
 
 ## 4. frontmatter 规范
 
+frontmatter **必须符合 Anthropic 官方 skill 规范**。具体的字段白名单、命名规则、长度限制等约束**以官方 [skill-creator](https://github.com/anthropics/skills/tree/main/skills/skill-creator) 当前规范为准**(官方会演进,不在此抄录,避免过时)。
+
+> 关键:`gen --init` 生成的骨架(见下)已只放官方允许的字段,直接可用;若你手改 frontmatter,请对照官方规范,跑 skill-creator 的校验确认合规。
+
+`gen --init` 生成的 frontmatter 形态(只含稳定字段):
+
 ```yaml
 ---
-name: <skill 名,必填,与目录名一致>
-description: <一句话描述何时用,必填,agent 靠它触发>
-version: <semver,可选>
-metadata:                       # 可选
+name: <skill 名,与目录名一致>
+description: <一句话描述何时用,agent 靠它触发>
+metadata:                       # 可选,嵌套键按需放 agent 需要的元信息
   requires:
     bins: ["my-cli"]            # 依赖的 bin(让 agent 知道要先装)
   cliHelp: "my-cli --help"      # 提示用户跑这个看完整命令
   category: business            # 分类(business / devops / data / ...)
 ---
-````
-
-### description 写法(关键!)
-
-✅ **好** —— 写清楚"何时用":
-
-```
-"查询和管理待办。当用户需要查待办、看待办列表、标记待办完成、新建待办时使用。"
 ```
 
-❌ **坏** —— 太抽象,agent 难匹配:
+> ⚠️ **不要加 `version`**:版本信息放 `package.json`,不进 frontmatter。历史上 `version` 曾被写进骨架,但官方规范不允许顶层 version 字段,已从 `gen.ts` 移除。
 
-```
-"待办管理工具"
-```
+### description 写法(skill 质量的命脉!)
+
+description 是 agent 决定**何时触发**你的 skill 的唯一依据。触发不了,后面全白搭——所以这是 SKILL.md 里最该花心思的一行。官方明确:Claude 倾向 undertrigger(该用而不用),所以 description 要主动把触发条件讲清楚、讲全。
+
+**4 条原则:**
+
+1. **写"何时用",不写"是什么"** —— 描述用户意图和场景,不是工具本身。
+
+   ✅ `查询和管理待办。当用户需要查待办、看待办列表、标记待办完成、新建待办时使用。`
+   ❌ `待办管理工具`(太抽象,agent 难匹配)
+
+2. **覆盖用户的主要说法(不止一种)** —— 用户不会直说命令名。把同义的、口语的、缩写的、甚至错别字的说法都塞进 description。
+
+   ✅ `...当用户提到 线索、客户、商机、合同、回款、发票、订单、CRM,或想查/改系统里的业务记录时使用——即使用户没说"CRM"也要触发。`
+   ❌ 只写一个词 `CRM`
+
+3. **划清边界,防误触发** —— 和相邻 skill 容易混淆时,点明"这个管什么、不管什么",让 agent 在歧义时选对。
+
+   ✅ `...仅限 A 股,港股/美股/基金/加密货币不在范围内。`
+
+4. **要"pushy"一点** —— 明确鼓励触发,别谦虚。Claude 默认倾向不用 skill,description 弱了就不触发。
+
+   ✅ `...即使用户没明说"rx60s"也要触发。`
+
+**实战参考:** 看仓库里已有的 skill(`apps/a-stock`、`apps/cordys-crm`、`apps/60s` 的 SKILL.md frontmatter)怎么写 description 的——它们都塞了大量触发词 + 边界声明,这是验证过触发率够高的写法。
+
+> description 长度有官方上限(以 skill-creator 当前规范为准),触发词虽多也别超长。发布前用真实任务评估验证触发率(见 §11)。
 
 ---
 
@@ -192,7 +212,7 @@ metadata:                       # 可选
 <!-- AUTO-GEN:START commands -->
 <!-- 本区块由 `my-cli skills gen` 自动生成,不要手改 -->
 
-... 自动生成的内容(命令表 + 参数说明) ...
+... 自动生成的命令索引表(操作 + 命令签名) ...
 <!-- AUTO-GEN:END -->
 ```
 
@@ -230,6 +250,13 @@ vi skills/rx-todos/references/todos-list.md   # 手写,gen 不碰
 # 6. 发布:skills/ 随包发布
 # package.json 的 "files": ["dist", "skills"]
 ```
+
+### AUTO-GEN 块只含命令索引,参数细节进 references
+
+AUTO-GEN 块只生成命令索引表(操作 + 命令签名),**不生成参数说明**——参数细节(类型/必填/默认/枚举/返回字段)交给 `references/` 按需加载。这是 progressive disclosure 的设计:SKILL.md 是路由层(agent 读完知道有哪些命令),references 是细节层(agent 构造精确调用时才读)。
+
+所以每个有参数的 namespace 都应在 `references/` 里有对应的参数文档。命令少的 CLI(1-2 个命令)也可以把参数说明直接写在 SKILL.md 语义部分(块外,gen 不碰)。
+
 
 ### skills 分发:把 skillsSource 传给 install 向导
 
@@ -314,3 +341,24 @@ $ my-cli skills read rx-todos/../../../etc/passwd
 CLI 参数来自不可信的 agent,框架已自动校验,业务包**不用**自己处理。
 
 `skills sync` 会在目标目录的 `.rxcli-sync-manifests/` 按源目录记录 ownership，只清理当前源上次同步但本次已删除的 skill，不会扫描删除其他业务包或用户自己的 skill；同名 skill 还有其他 owner 时会恢复其他源的副本。
+
+---
+
+## 11. 与官方 skill-creator 规范对齐
+
+SKILL.md 要符合 Anthropic 官方 [skill-creator](https://github.com/anthropics/skills/tree/main/skills/skill-creator) 规范。生成 SKILL.md 的工作流见 §6;这里只讲与官方规范对齐相关的事。
+
+### frontmatter 合规
+
+§4 的 frontmatter 规范已对齐官方。框架生成的骨架只放官方允许的字段(无 version 等);你手改 frontmatter 时不要加 version 等非官方字段。若想确认手改后仍合规,可用 skill-creator 的校验脚本(以官方仓库当前内容为准)。
+
+### 发布前必做:用 skill-creator 验证 skill 质量
+
+单元测试 / 端到端测试(能用真实数据就用真实数据,见 `references/testing.md`)只能验证代码跑得通,**验证不了 skill 写得好不好**(agent 该触发时会不会触发?能不能靠 SKILL.md 自发完成真实任务?)。**发布前必须跑一轮真实任务评估**(让 agent 带着 skill 真实调 CLI 完成任务),这是代码测试替代不了的。流程见 `references/testing.md` §9。
+
+### 触发不准?打包分发?
+
+- **触发不准**(agent 该触发时不触发,或误触发):用 skill-creator 的 description 自动优化能力,给一批 should-trigger / should-not-trigger 的真实 query 迭代 description。
+- **打包分发**:skill-creator 可把 skill 打包成单文件,供 `skills add` 安装。
+
+这两项的具体脚本以官方仓库为准。

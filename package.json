@@ -1,6 +1,6 @@
 {
   "name": "rxcli-monorepo",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "rxcli v2 —— agent-native CLI 框架(cli-sdk 基础包 + 业务包)",
   "license": "MIT",

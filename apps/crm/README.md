@@ -215,6 +215,41 @@ agent: (读 rx-orders skill) → rxcli orders list → 解析统一输出格式 
 
 ---
 
+## 测试
+
+rxcli 依赖 OAuth 鉴权中间层(device flow 授权 + JWT 签发 + 业务 API 网关)。测试或开发前,需先部署配套的 [**renxqoo/auth-proxy**](https://github.com/renxqoo/auth-proxy):
+
+```bash
+git clone https://github.com/renxqoo/auth-proxy.git
+cd auth-proxy
+
+# 1. 启动依赖(Postgres + Redis)
+docker compose up -d postgres redis
+
+# 2. 跑数据库迁移 + 初始化种子(生成 RSA 密钥 + 首个管理员)
+DATABASE_URL=postgres://localhost:5432/auth-proxy pnpm --filter @auth-proxy/db migrate
+DATABASE_URL=postgres://localhost:5432/auth-proxy \
+  ADMIN_USERNAME=admin ADMIN_PASSWORD=devpassword123 \
+  pnpm --filter @auth-proxy/db seed
+
+# 3. 启动服务(mock 公司应用 + 鉴权中间层)
+pnpm dev:all
+```
+
+启动后 auth-proxy 默认监听 `localhost:3000`(含 OAuth device flow + 业务 API 网关 + mock 公司应用)。rxcli 的默认配置(`RXCLI_AUTH_BASE_URL` / `RXCLI_API_BASE_URL` 均为 `http://localhost:3000`)直接对接,无需额外配置。
+
+然后在管理后台(`localhost:3001/admin`,用 seed 设置的账号登录)创建 client 并获取注册令牌,即可跑 rxcli 的注册 → 登录 → 查数据流程:
+
+```bash
+rxcli auth register --token <注册令牌>   # 注册本机 client
+rxcli auth login                          # 浏览器扫码授权
+rxcli orders list                         # 查询订单(走 auth-proxy → mock 公司应用)
+```
+
+> auth-proxy 的部署细节(Docker 生产部署、环境变量、架构)见其 [README](https://github.com/renxqoo/auth-proxy)。
+
+---
+
 ## 开发
 
 本包是 [rxcli monorepo](https://github.com/renxqoo/rxcli) 的业务应用,依赖 `@renxqoo/agent-data-cli` 框架。

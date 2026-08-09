@@ -457,6 +457,7 @@ const result = await todosCommands.list.run({ limit: 20 }, ctx);
 9. **配了 `errorOnStatus` 还手写 `if (res.status===404)`** → 死代码(框架已 throw,走不到)。见 §5 模式 2。
 10. **返回 `{}` / `{ data: undefined }`** → 违反稳定输出契约。纯副作用用 `return`，有结果就返回 `{ data }`（空结果用 `data:null`）。
 11. **把 `skillsSource` 只写进 `defineCli`** → 当前不会触发安装。显式传给 `runInstallWizard({ skillsSource })`。
+12. **frontmatter 加 `version` 等官方不允的字段** → 不符合官方 skill-creator 规范。`skills gen --init` 生成的骨架已只放稳定字段(无 version);手改 frontmatter 时对照官方规范(skill-creator 仓库),版本信息放 `package.json`。见 `references/skill-gen.md` §4/§11。
 
 > **鉴权相关坑**(要登录才看):credentialNamespace 撞名(静默共用凭证)、业务 SKILL.md 教 agent 直接跑 `auth login`(会卡死)——见 §0 命名必查 + `references/auth-patterns.md`。
 
@@ -467,10 +468,10 @@ const result = await todosCommands.list.run({ limit: 20 }, ctx);
 - **`references/auth-patterns.md`** —— **需要登录时读**:defineAuth 工厂、register、split-flow 登录、install 向导、凭证路径隔离、手写 auth Plugin(HMAC/mTLS)、provider chain
 - **`references/patterns.md`** —— **列表要分页 / 管道下游 / humanFormat 时读**:pagination 续拉、`ctx.pipe` 消费上游、`printTable` 自定义表格
 - `references/plugin-patterns.md` —— 自定义插件(钩子选择、enforce 顺序、onError 链)
-- `references/skill-gen.md` —— SKILL.md 完整模板(含 split-flow 占位)、AUTO-GEN 机制、frontmatter 规范
+- `references/skill-gen.md` —— SKILL.md 完整模板(含 split-flow 占位)、AUTO-GEN 机制、frontmatter 规范、**与官方 skill-creator 规范对齐(§11)**
 - `references/readme-gen.md` —— **生成 README 时读**:标准结构 + 模板(装CLI/装Skill/配凭证)+ 鉴权三分支 + 避坑
 - `references/error-catalog.md` —— 全部 30+ subtype 速查 + errorOnStatus 推荐配置
-- `references/testing.md` —— createTestCtx 全套(mock transport/store/pipe、端到端测试)
+- `references/testing.md` —— createTestCtx 全套(mock transport/store/pipe、端到端测试)、**真实任务评估第 3 层(skill-creator 集成,§9)**
 
 ---
 
@@ -484,9 +485,13 @@ const result = await todosCommands.list.run({ limit: 20 }, ctx);
 - [ ] 分页命令填了 `pagination.complete`
 - [ ] `package.json` 的 `files` 含 `["dist", "skills"]`
 - [ ] 跑 `skills gen <name> --init` 生成 SKILL.md 并填了语义部分
+- [ ] **SKILL.md description 触发质量**:覆盖用户多种说法(不止命令名)、划清边界防误触发、足够 pushy(见 `references/skill-gen.md` §4)
+- [ ] **SKILL.md 标了易踩坑点**:非显然的默认值/参数值(如某 flag 默认关、需查表的语言代码)、多步操作的前置依赖
 - [ ] 按 `references/readme-gen.md` 生成 README(含安装三步:CLI + Skill + 凭证)
 - [ ] **带鉴权的 CLI**:业务 SKILL.md 含 split-flow 登录指引
 - [ ] **带鉴权的 CLI**:入口处理了 `install` 向导(拦截 `argv[0]==='install'`)
 - [ ] **带鉴权的 CLI**:`defineAuth` 已 `await`(`const auth = await defineAuth(...)`,不是 `defineAuth(...)`)——见 §3① / §9 第 1 条
 - [ ] 没往 stdout 写非统一输出格式内容
 - [ ] 端到端测试断言成功输出含 `source: defineCli.name`
+- [ ] SKILL.md 通过官方 skill-creator 的校验(确认 frontmatter 合规;具体校验方式以 skill-creator 当前实现为准)
+- [ ] 发布前至少跑过一轮 skill-creator 真实任务评估(见 `references/testing.md` §9)

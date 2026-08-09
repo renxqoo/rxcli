@@ -116,15 +116,35 @@ describe("gen: AUTO-GEN 块生成", () => {
     }),
   };
 
-  it("generateAutogenBlock 含命令表 + 参数说明", () => {
+  it("generateAutogenBlock 只生成命令索引表(不含参数说明)", () => {
     const block = generateAutogenBlock("rxcli-orders", cliOptions);
     expect(block).toContain("## 命令");
     expect(block).toContain("| 操作 | 命令 |");
     expect(block).toContain("查询订单列表");
     expect(block).toContain("rxcli-orders list");
-    expect(block).toContain("### 参数说明");
-    expect(block).toContain("--limit");
-    expect(block).toContain("返回数量上限"); // desc 进文档
+    // 参数细节不进 AUTO-GEN 块(交给 references 按需加载)
+    expect(block).not.toContain("### 参数说明");
+    expect(block).not.toContain("| 参数 | 类型 |");
+    expect(block).not.toContain("返回数量上限");
+  });
+
+  it("generateAutogenBlock 含无参命令时只列命令索引", () => {
+    const opts: Pick<DefineCliOptions<any>, "commands" | "namespaces"> = {
+      commands: defineCommands({
+        ping: defineCommand({ name: "ping", description: "无参命令", async run() {} }),
+        list: defineCommand({
+          name: "list",
+          description: "有参命令",
+          args: { limit: { type: "number", default: 10, desc: "上限" } },
+          async run() {},
+        }),
+      }),
+    };
+    const block = generateAutogenBlock("demo", opts);
+    expect(block).toContain("demo ping");
+    expect(block).toContain("demo list");
+    expect(block).not.toContain("### 参数说明");
+    expect(block).not.toContain("无参数");
   });
 
   it("refreshAutogen 替换已有块,块外语义内容保留", () => {

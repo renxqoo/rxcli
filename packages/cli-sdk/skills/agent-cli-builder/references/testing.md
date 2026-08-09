@@ -270,3 +270,82 @@ export default defineConfig({
 5. **mock fetch 没返回 headers 对象** —— 框架读 headers 会抛。用 `new Headers()` 或 `{}`。
 6. **只测 `command.run`** —— 会绕过 argv/schema、plugin lifecycle、统一输出格式与 source。参数、401、route ownership、输出契约至少各保留一个 `app.run(argv)` 端到端测试。
 7. **返回 `{}` 仍断言成功** —— runtime 会报 `internal/contract_violation`；纯副作用返回 `void`，空业务结果返回 `{ data: null }`。
+
+---
+
+## 9. 真实任务验证(skill-creator 集成)
+
+前 8 节都是**不联网**的测试(mock transport / mock fetch)。它们验证的是"代码跑得通",但**验证不了「skill 写得好不好」**——agent 会不会在该触发时触发?能不能靠 SKILL.md 自发完成真实任务?输出对不对?这些只有真实任务评估能回答。
+
+### 测试三层分工
+
+| 层 | 验证什么 | 是否联网 | 何时跑 |
+| -- | -------- | :------: | ------ |
+| 第 1 层 `createTestCtx` mock 单测 | 命令逻辑、参数透传、错误抛出 | 否 | CI(必做) |
+| 第 2 层 `app.run(argv)` 端到端 | 装配/路由/统一输出格式/exit code | 否(mock fetch) | CI(必做) |
+| 第 3 层 skill-creator 真实任务评估 | **skill 触发准确率 + agent 自发完成能力** | **是**(真实 API) | **发布前做一次,不进 CI** |
+
+> 前两层进 CI 保证不退化;第三层慢、依赖网络/外部 API,只在发版前人工跑一轮。三层缺一不可——只做前两层,skill 可能"代码全对但 agent 用不起来"。
+
+### 第 3 层:用官方 skill-creator 评估闭环
+
+完整流程基于 [skill-creator](https://github.com/anthropics/skills/tree/main/skills/skill-creator)。
+
+> 下文给的是**方法论**(evals 怎么设计、expectations 怎么写、 analyst 看什么)——这些是稳定的评估套路。具体的脚本名、命令参数、文件结构(如 grading.json 的字段名)**以 skill-creator 当前实现为准**,官方会演进,不在此写死。
+
+**① 写 evals.json**(3-5 个真实场景,每个含 prompt + 可客观验证的 expectations):
+
+```json
+{
+  "skill_name": "rx-todos",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我看看今天的待办有哪些",
+      "expected_output": "列出当前用户的待办",
+      "expectations": [
+        "调用了 rx-todos CLI",
+        "输出包含至少 1 条待办",
+        "数据是真实的(非占位符)"
+      ]
+    }
+  ]
+}
+```
+
+**② 子代理并行跑 with-skill + baseline(无 skill)**:
+
+每个 eval 同时起两个子代理——一个带着 SKILL.md(走你的 CLI),一个不给 skill(只能靠 --help 或其它方式)。两者都真实调 CLI → 真实 API,输出存到工作区按 eval/config 分目录。
+
+```bash
+# with-skill 子代理:先读 SKILL.md,再真实调 CLI
+# baseline 子代理:不给 skill,只给 CLI 路径 + --help,看能否自发完成
+```
+
+**③ grading + 聚合 + 可视化**:
+
+用 skill-creator 自带的脚本完成:评分(每个 expectation 判 pass/fail + evidence)→ 聚合统计(benchmark)→ 可视化(Outputs + Benchmark 两 tab 的 viewer)。具体脚本与参数见 skill-creator 的 `scripts/` 与 `eval-viewer/` 目录。
+
+**④ analyst pass**:读 benchmark 找隐藏问题——
+- **断言非区分性**:某 expectation 在 with/baseline 都通过(没区分出 skill 价值),说明断言太弱
+- **高方差 eval**:同配置多次跑 pass 率波动大(可能 flaky)
+- **耗时/token 权衡**:skill 是否值得多花的开销
+
+### 设计 expectations 的关键:区分性
+
+实战教训——**别只测「调用了 CLI」**。如果 CLI 的 `--help` 足够完善,baseline 不靠 skill 也能通过(它自己会探索 --help 找到命令)。这种断言 with/baseline 都 100% 通过,体现不出 skill 价值。
+
+能区分 skill 价值的好断言示例:
+- ✅ "输出了正确的非显然参数值"(如翻译的目标语言代码 `zh-CHS`,光靠 --help 猜不到)
+- ✅ "避免了默认值陷阱"(如 `--symbols` 默认关,skill 提醒了,baseline 可能漏)
+- ✅ "多步串联"(先 `rank` 拿 ID 再 `rank-detail`,需要 skill 教工作流)
+- ✅ "模糊意图映射"('离放假还有几天' → `moyu`,光看命令名猜不到)
+- ❌ "调用了 CLI"(太弱,baseline 靠 --help 也能过)
+- ❌ "返回了 N 条数据"(太弱,只要调通就有)
+
+### 何时不必跑第 3 层
+
+- 命令极少(<3 个)且参数都直白的简单 CLI:mock + 端到端够用
+- 纯内部工具、无 agent 调用场景:skill 质量无所谓
+
+但凡 skill 要给 AI agent 用(发布出去让别人装),发布前至少跑一轮第 3 层。

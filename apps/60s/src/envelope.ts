@@ -8,6 +8,10 @@
  *
  * 多数接口的 data 是数组(热搜榜)或对象(详情)。部分接口(60s/rss)返回 XML,
  * 由调用方单独处理,不走本解包。
+ *
+ * 错误处理:400/404/429 由 errorOnStatus 自动 throw;5xx 统一在此处理
+ * (上游 500 时 message 常含自身解析失败信息,如 "Unexpected token '<'",
+ * 需美化成对用户/agent 友好的提示)。
  */
 
 import { errs, type Meta, type TransportResponse } from "@renxqoo/agent-data-cli";
@@ -23,26 +27,69 @@ interface SixtyEnvelope {
 export const SUCCESS_CODE = 200;
 
 /**
- * 解包 60s 响应:成功返回 data,业务错误(非 200)抛 APIError。
+ * 解包 60s 响应:成功返回 data,业务错误(非 200)或 HTTP 5xx 抛 APIError。
  *
- * 60s 业务错误一般 HTTP 状态码也对应(400/404/500),已由 errorOnStatus 兜底;
- * 但个别接口可能 HTTP 200 + code≠200,这里再校验一道保证语义正确。
+ * 400/404/429 已由 errorOnStatus 在请求层 throw;5xx 不配 errorOnStatus,
+ * 统一走到这里处理(message 美化)。
  */
 export function unwrap<T = unknown>(res: TransportResponse): T {
+  // HTTP 5xx:上游服务异常(可能返回 HTML 错误页或含解析失败信息的 JSON)
+  if (res.status >= 500) {
+    throw new errs.APIError({
+      subtype: "server_error",
+      code: res.status,
+      message: friendlyServerError(res),
+      retryable: true,
+    });
+  }
+
   const env = res.data as SixtyEnvelope | undefined;
   // 非标准统一输出格式(无 code 字段):HTTP 非 2xx 由 errorOnStatus 兜底;2xx 原样返回
   if (!env || typeof env.code !== "number") {
     return (res.data as T) ?? (null as unknown as T);
   }
   if (env.code !== SUCCESS_CODE) {
-    const message = env.message ?? `60s 接口错误 code=${env.code}`;
     throw new errs.APIError({
       subtype: mapCodeToSubtype(env.code),
       code: env.code,
-      message,
+      message: friendlyMessage(env.code, env.message),
+      retryable: env.code >= 500,
     });
   }
   return env.data as T;
+}
+
+/**
+ * 美化上游 5xx 错误消息。
+ * 上游 500 时 message 常含自身数据源解析失败信息(如 "Unexpected token '<'"、
+ * "is not valid JSON"),对用户/agent 无意义,替换成友好提示。
+ */
+function friendlyServerError(res: TransportResponse): string {
+  const env = res.data as SixtyEnvelope | undefined;
+  const raw = env?.message;
+  if (raw && isUpstreamParseFailure(raw)) {
+    return "上游服务暂时不可用(数据源异常),请稍后重试";
+  }
+  return raw ?? `上游服务异常(HTTP ${res.status})`;
+}
+
+/** 美化业务错误消息(200 + code≠200 场景)。5xx 的 parse failure 统一替换。 */
+function friendlyMessage(code: number, message: string | null | undefined): string {
+  const base = message ?? `60s 接口错误 code=${code}`;
+  if (code >= 500 && isUpstreamParseFailure(base)) {
+    return "上游服务暂时不可用(数据源异常),请稍后重试";
+  }
+  return base;
+}
+
+/** 检测 message 是否是上游数据源解析失败的典型特征(JSON parse 错误)。 */
+function isUpstreamParseFailure(msg: string): boolean {
+  return (
+    msg.includes("Unexpected token") ||
+    msg.includes("is not valid JSON") ||
+    msg.includes("<!DOCTYPE") ||
+    msg.includes("<html")
+  );
 }
 
 /** 60s 业务码 → cli-sdk subtype 映射(须用 SUBTYPE_REGISTRY 已登记的 subtype)。 */

@@ -1,6 +1,5 @@
 ---
 name: rx-stock
-version: 2.0.0
 description: "A 股股票数据查询 CLI(rxstock):实时行情、K线、分时、分笔、技术指标(MA/MACD/RSI/KDJ/BOLL/ATR)、估值分位、个股综合诊断、财务指标、业绩预告、财报三表(资产负债/利润/现金流)、资金流向、板块(行业/概念/地域)、龙虎榜、北向资金、分红送配、十大股东、股东人数、融资融券、公告、股票搜索与列表。数据源腾讯/东方财富/新浪/同花顺,全免费,多源 fallback。用户提到 A股/股票/行情/报价/K线/分时/技术指标/均线/MACD/RSI/估值/基本面/财报/三表/资产负债表/利润表/现金流量表/资金流/主力资金/板块/行业/概念/龙虎榜/北向资金/沪深股通/分红/送转/股东/融资融券/公告/股票搜索 等任何 A 股数据需求时使用——即使用户没明说 rxstock。"
 ---
 
@@ -207,3 +206,43 @@ rxstock financial announcements 600519    # 个股公告
 | 9 大指数清单、northbound 参数与字段 | `references/index.md` |
 | sector kind 枚举、板块成分股字段 | `references/sector.md` |
 | financial 12 个子命令参数与字段表 | `references/financial.md` |
+
+<!-- AUTO-GEN:START commands -->
+<!-- 本区块由 `rxcli skills gen` 自动生成,不要手改 -->
+## 命令
+
+| 操作 | 命令 |
+|------|------|
+| 查询单只股票/指数实时行情 | `rxstock quote <code> [--source <string>]` |
+| 搜索股票(支持代码 / 中文名称 / 拼音首字母) | `rxstock search <keyword> [--limit <number>]` |
+| 查询单只股票/指数实时行情 | `rxstock quote get <code> [--source <string>]` |
+| 批量查询多只股票实时行情(逗号分隔,最多 100 只) | `rxstock quote batch <codes>` |
+| 查询 K 线(支持日/周/月/分钟级 + 前/后复权) | `rxstock kline get <code> [--period <string>] [--adjust <string>] [--limit <number>] [--start <string>] [--end <string>]` |
+| 当日分时走势(分钟级,含均价) | `rxstock kline minute <code>` |
+| 当日分笔成交(tick 级,数据量大) | `rxstock kline tick <code> [--limit <number>]` |
+| 技术指标计算(MA均线/MACD/RSI/KDJ/布林带/ATR,本地基于日K计算) | `rxstock kline indicator <code> [--types <string>] [--limit <number>]` |
+| 搜索股票(支持代码 / 中文名称 / 拼音首字母) | `rxstock stock search <keyword> [--limit <number>]` |
+| 查询股票列表(全市场 / 按市场过滤 / 排序 / 分页) | `rxstock stock list [--market <string>] [--page <number>] [--size <number>] [--sort <string>] [--desc]` |
+| 查询公司基本信息(总股本 / 流通股本 / 上市日期 等) | `rxstock stock info <code>` |
+| 估值分位(PE/PB 在历史区间的百分位,判断当前贵不贵) | `rxstock stock valuation <code> [--days <number>]` |
+| 个股综合诊断(一次性聚合基本面+技术面+股东+估值,深度分析用) | `rxstock stock diagnosis <code>` |
+| 常用指数清单(预置 9 个主要指数) | `rxstock index list` |
+| 查询单个指数实时行情 | `rxstock index get <code>` |
+| 查询指数 K 线 | `rxstock index kline <code> [--period <string>] [--limit <number>]` |
+| 查询北向资金(沪深股通成交额/持股市值/领涨股) | `rxstock index northbound [--type <string>] [--pageSize <number>]` |
+| 查询板块列表(行业 / 概念 / 地域) | `rxstock sector list [--kind <string>] [--page <number>] [--size <number>]` |
+| 查询板块成分股 | `rxstock sector stocks <code> [--page <number>] [--size <number>]` |
+| 查询板块实时行情 | `rxstock sector quote <code>` |
+| 查询主要财务指标(连续多期,默认 20 期) | `rxstock financial main <code> [--limit <number>]` |
+| 查询业绩预告(净利润预增/预减 区间) | `rxstock financial forecast <code> [--limit <number>]` |
+| 查询资金流向(主力 / 大单 / 中单 / 小单 净流入) | `rxstock financial fundflow <code> [--limit <number>]` |
+| 查询个股公告 | `rxstock financial announcements <code> [--page <number>] [--size <number>]` |
+| 查询分红送配历史(送股/转增/派息) | `rxstock financial dividend <code> [--limit <number>]` |
+| 查询十大股东(最新一期,持股数/比例/变动) | `rxstock financial holders <code> [--limit <number>]` |
+| 查询股东人数变化(筹码集中度趋势) | `rxstock financial holdercount <code> [--limit <number>]` |
+| 查询融资融券明细(融资余额/融券余额/买入额) | `rxstock financial margin <code> [--limit <number>]` |
+| 查询资产负债表(资产/负债/股东权益明细) | `rxstock financial balancesheet <code> [--limit <number>]` |
+| 查询利润表(营收/成本/费用/利润明细) | `rxstock financial income <code> [--limit <number>]` |
+| 查询现金流量表(经营/投资/筹资活动现金流) | `rxstock financial cashflow <code> [--limit <number>]` |
+| 查询龙虎榜(当日/历史个股上榜,买入卖出净额) | `rxstock financial lhb [--date <string>] [--code <string>] [--pageSize <number>]` |
+<!-- AUTO-GEN:END -->
