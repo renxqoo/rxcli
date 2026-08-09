@@ -155,6 +155,15 @@ rxcordys leads page --json
 | 11-30 条 | 前 10 条 + "还有 N 条,是否查看更多?" |
 | 30 条以上 | 统计摘要 + 前 10 条 + "建议增加筛选条件" |
 
+> 完整输出模板(列表/详情/写入确认/全局搜索/漏斗)+ emoji 状态规范 + 反模式 → 见 [references/output.md](references/output.md)。
+
+## 安全边界
+
+- **禁止任何删除操作**——不响应删除意图。`util raw` 虽能透传 `GET /approval-flow/delete/{id}` 等删除端点,但 agent 不应主动调用,除非用户明确点名该端点且确认后果。
+- **禁止在输出暴露密钥**——`CORDYS_ACCESS_KEY`/`CORDYS_SECRET_KEY` 的值绝不出现;API 错误含密钥信息须脱敏。
+- **写入必须经确认**——所有 `add`/`update`/`transition`/`transform`/`approvals action` 默认返回 exit 10,需 `--yes` 执行或 `--dryRun` 先校验。
+- **角色不改查询范围**——角色推断只影响展示字段;切团队/全公司数据需用户显式要求(见 references/role.md)。
+
 ## 错误处理
 
 | exit | 错误 | 处理 |
@@ -202,7 +211,8 @@ rxcordys leads page --json
 |------|------|--------|
 | [references/auth.md](references/auth.md) | 鉴权原理与故障排查 | 遇到凭证/权限/401/403 问题时 |
 | [references/modules.md](references/modules.md) | 模块端点速查(路径/方法) | 需要确认某操作对应哪个端点时 |
-| [references/pagination.md](references/pagination.md) | 分页与筛选深度(conditions 操作符) | 构造复杂筛选/排序时 |
+| [references/pagination.md](references/pagination.md) | 分页与筛选深度(操作符 + 字段类型映射) | 构造复杂筛选/排序时(操作符必须用 EQUALS/CONTAINS,非 EQ/LIKE) |
+| [references/output.md](references/output.md) | 输出格式规范(模板 + emoji + 反模式) | 需要确认列表/详情/写入/搜索怎么展示时 |
 | [references/intent.md](references/intent.md) | 模糊指令意图映射(含 L2C 全链路、Customer 360) | 用户说"今天做什么""这周怎么样"等无动词指令时 |
-| [references/role.md](references/role.md) | 角色适配规则(推断/ROLE_MAP/输出侧重) | 需要按用户身份调整展示,或切换团队/全公司数据范围时 |
-| [references/risk.md](references/risk.md) | 风险预警 + L2C 断链检测规则 | 查询结果展示后扫描异常,或执行 Customer 360/全链路追踪时 |
+| [references/role.md](references/role.md) | 角色适配 + 工作流时间表(晨会/周会/月会) | 需要按用户身份调整展示,或切换团队/全公司数据范围时 |
+| [references/risk.md](references/risk.md) | 风险预警 + KPI 阈值 + L2C 断链检测 | 查询结果展示后扫描异常,或判断严重度时 |

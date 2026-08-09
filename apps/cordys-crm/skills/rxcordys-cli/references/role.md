@@ -119,6 +119,50 @@ export ROLE_MAP="总经理|VP=executive,总监|经理=sales-manager,区域经理
 
 ---
 
+## 工作流时间表(晨会/周会/月会)
+
+各角色每天/每周/每月该看什么。用户说"今天做什么""这周怎么样""本月复盘"时,按对应角色的流程执行(命令已绑 rxcordys,字段经实测)。
+
+### 销售
+
+| 频率 | 触发语 | 执行 |
+|------|--------|------|
+| 晨会 | "今天做什么" | ① `follows plan lead` 今日未完成计划 → ② `leads page` SELF 按 `followTime` 升序(最久未跟在前,`EMPTY` 的最先) |
+| 周会 | "这周怎么样" | ① `stats home-lead --payload '{"searchType":"SELF"}'`(本周线索) → ② `stats home-opportunity --payload '{"searchType":"SELF"}'`(本周商机数+金额) → ③ 本周签约合同额 |
+| 月会 | "本月做了多少" | ① `stats stat contract --payload '{"searchType":"SELF"}'`(签约额) → ② `stats stat payment-record --payload '{"searchType":"SELF"}'`(回款额) → ③ 下月预测(进行中商机金额 × 赢单率) |
+
+### 经理
+
+| 频率 | 触发语 | 执行 |
+|------|--------|------|
+| 晨会 | "团队今天" | ① `util org` 拿部门树 → ② `util members --payload '{"departmentId":"<id>"}'` 成员数 → ③ `stats home-lead --payload '{"searchType":"DEPARTMENT","deptIds":["<id>"]}'`(部门线索) |
+| 周会 | "团队这周" | ① 本周 L2C 漏斗(`stats home-*` DEPARTMENT) → ② 成员排名(线索量/签约量/签约金额) → ③ 周环比 |
+| 月会 | "本月复盘" | ① 本月漏斗(线索→客户→商机→合同→回款) → ② 团队成员月度排名 → ③ 赢单/输单分析(商机按 stage 分组) |
+| 预测 | "下月预测" | ① `stats home-opportunity --payload '{"searchType":"DEPARTMENT","deptIds":["<id>"]}' --type underway`(进行中商机金额) → ② 按阶段分组 × 历史转化率 |
+
+> 经理流程的 `deptIds` 需用 `util org` 拿到的部门 ID;若要含子部门,需递归展开 org 树的 children。
+
+### 财务
+
+| 频率 | 触发语 | 执行 |
+|------|--------|------|
+| 日报 | "今天回款" | ① `contracts payment-record-page`(今日回款) → ② 今日到期回款计划 → ③ 逾期回款汇总 |
+| 周报 | "欠款情况" | ① `contracts payment-plan-page` 全部计划 → ② 筛未回款/部分回款 → ③ 按到期日排序,逾期优先 |
+| 周报 | "开票情况" | ① `accounts sub invoice-stat <id>` 各客户开票概览 → ② 筛已签约未开票 → ③ 汇总开票缺口 |
+| 月报 | "本月财报" | ① 本月签约额(`stats stat contract`) → ② 本月回款额 → ③ 本月开票额 → ④ 环比 |
+
+### 商务
+
+| 频率 | 触发语 | 执行 |
+|------|--------|------|
+| 日常 | "合同审批追踪" | ① `approvals todo count`(看 total) → ② `approvals todo pending --payload '{"pageSize":20}'` 列表 → ③ 标超 3 天未处理 |
+| 周报 | "今天签了什么" | ① `contracts page`(按 createTime 近期) → ② 看签约状态 |
+| 周报 | "合同到期/续约" | ① `contracts page` 筛 `endTime` 近 30 天 → ② 标未续约 |
+
+> 模糊指令的完整映射见 intent.md。本表是按角色组织的"时间表"视角,两者互补。
+
+---
+
 ## 权限边界
 
 | 角色 | 能做 | 不能做 |

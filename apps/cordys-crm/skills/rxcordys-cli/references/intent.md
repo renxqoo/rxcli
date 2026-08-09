@@ -120,19 +120,78 @@
 
 ## 角色相关模糊指令
 
-以下指令依赖角色判断(见 role.md),未确认角色时按销售(自己)视角处理:
+以下指令依赖角色判断(见 role.md),未确认角色时按销售(自己)视角处理。完整工作流时间表见 role.md §工作流时间表。
 
-| 用户说 | 适用角色 | 执行 |
-|--------|---------|------|
-| 团队今天 / 部门概览 | 经理 | `stats home-*` + `searchType:DEPARTMENT`(需先 `util org` 拿 deptId) |
-| 团队这周 / 部门周会 | 经理 | 同上 + 本周环比 |
-| 人均产出 / 人效 | 高管 | `util members` + 逐人 `stats stat` |
-| 公司情况 / 经营数据 | 高管 | `stats home-*` + `searchType:ALL` |
-| 今天回款 / 回款情况 | 财务 | `accounts sub payment-record-stat`(全公司/部门) |
-| 欠款情况 / 催款 | 财务 | `contracts payment-plan-page` 筛到期未回 |
-| 开票情况 | 财务 | `accounts sub invoice-stat` |
-| 合同审批追踪 | 商务 | `approvals todo pending` |
-| 合同到期 / 续约 | 商务 | `contracts page` 筛 `endTime` 近 30 天 |
+### 经理("团队今天""团队这周""本月复盘")
+
+```
+团队今天 / 部门概览:
+  1. rxcordys util org                     → 部门树,拿 deptId
+  2. rxcordys util members --payload '{"departmentId":"<id>"}' → 成员数
+  3. rxcordys stats home-lead --payload '{"searchType":"DEPARTMENT","deptIds":["<id>"]}'
+     → 部门线索统计(thisWeekClue 等)
+  4. rxcordys stats home-opportunity --payload '{"searchType":"DEPARTMENT","deptIds":["<id>"]}'
+     → 部门商机数 + 金额
+
+团队这周 / 部门周会:
+  同上 + 对比本周与上周(priorPeriodCompareRate 字段) + 成员排名
+
+本月复盘:
+  1. 本月漏斗(stats home-* DEPARTMENT)
+  2. rxcordys util members → 逐人 rxcordys stats stat contract --payload '{"searchType":"DEPARTMENT","deptIds":["<成员deptId>"]}'
+  3. 商机按 stage 分组(赢单/输单/进行中)
+```
+
+> `deptIds` 需用 `util org` 拿到的部门 ID。若要含子部门,递归展开 org 树的 children。
+
+### 高管("公司情况""人均产出")
+
+```
+公司情况 / 经营数据:
+  1. rxcordys stats home-lead --payload '{"searchType":"ALL"}'         → 全公司线索
+  2. rxcordys stats home-opportunity --payload '{"searchType":"ALL"}'  → 全公司商机 + 金额
+  3. rxcordys stats stat contract --payload '{"searchType":"ALL"}'     → 合同总额
+  4. rxcordys stats stat payment-record --payload '{"searchType":"ALL"}' → 回款总额
+
+人均产出 / 人效:
+  1. rxcordys util org → 一级部门列表
+  2. 逐部门:rxcordys util members --payload '{"departmentId":"<id>"}' → 成员数
+  3. 逐部门:rxcordys stats stat contract --payload '{"searchType":"DEPARTMENT","deptIds":["<id>"]}' → 签约额
+  4. 人均 = 签约额 / 成员数,部门间排序输出
+```
+
+### 财务("今天回款""欠款情况""开票情况")
+
+```
+今天回款 / 回款情况:
+  1. rxcordys contracts payment-record-page → 看今日 recordEndTime
+  2. rxcordys contracts payment-plan-page → 今日到期计划
+  3. 汇总逾期(已过 planEndTime 但无对应 record)
+
+欠款情况 / 催款:
+  1. rxcordys contracts payment-plan-page → 全部计划
+  2. 筛未回款/部分回款(planStatus),按 planEndTime 排序
+  3. 逾期优先输出,附金额和逾期天数
+
+开票情况:
+  1. 遍历有合同的客户:rxcordys accounts sub invoice-stat <id>
+  2. 汇总 uninvoicedAmount(未开票额)
+  3. 标已回款未开票的(对比 payment-record-stat.receivedAmount 与 invoicedAmount)
+```
+
+### 商务("合同审批追踪""合同到期")
+
+```
+合同审批追踪:
+  1. rxcordys approvals todo count → 看 total
+  2. rxcordys approvals todo pending --payload '{"pageSize":20}' → 待办列表
+  3. 标超 3 天未处理(对比 createTime)
+
+合同到期 / 续约:
+  1. rxcordys contracts page → 看 endTime
+  2. 筛 endTime 近 30 天的合同
+  3. 标未续约(无新关联合同)
+```
 
 > 未确认角色时:先 `rxcordys util whoami` 推断(见 role.md)。无法确定时默认销售视角,并提示用户"如需团队/全公司数据,请说明"。
 
