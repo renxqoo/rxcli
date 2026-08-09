@@ -12,11 +12,38 @@
 | ---------------------- | --------------------------------------------------------------------------------------------------------- |
 | **4 个 auth 命令**     | `login` / `status` / `logout` / `register`(通过 `provides.namespaces.auth` 自动注入到 `<bin> auth <cmd>`) |
 | **login 三分支**       | 默认阻塞轮询(人类)/ `--no-wait --json`(发起,立即返回)/ `--device-code <code>`(完成轮询)                   |
-| **register 命令**      | 用注册令牌换独立 clientId/Secret,写 `~/.rxcli/config.json`                                                |
+| **register 命令**      | 用注册令牌 + client_metadata 换独立 client(RFC 7591 snake_case 响应),写 `~/.rxcli/config.json`             |
 | **beforeCommand 钩子** | 跑 provider chain 取 token → 填 `ctx.credentials` / `ctx.state.user`                                      |
 | **beforeRequest 钩子** | 按 `authStyle` 注入 header(bearer/x-api-key/basic)                                                        |
 | **on401 续期 hook**    | `_transportConfig.on401`(singleflight refresh + 落盘 + 重跑 request hooks 后重试一次)                     |
 | **精确豁免**           | `auth login/register` 等自动跳过自身 `beforeCommand`(不会被"必须登录"拦截)                                |
+| **多 flow 支持**       | `flow` 选项:device(默认)/ authorization_code+PKCE / client_credentials                                    |
+| **动态 scope**         | `scopeFromMetadata: true` → 运行时从 `/.well-known/oauth-authorization-server` 读 scopes_supported         |
+| **sandbox 注入**       | `bearerToken` 一行注入预签发 JWT(priority 2,允许 --api-key 覆盖)                                          |
+
+### defineAuth 全部选项
+
+```ts
+const auth = await defineAuth({
+  credentialNamespace: "crm",           // 必填:凭证隔离命名空间
+  baseUrl: AUTH_BASE_URL,               // 必填:auth-proxy 地址
+  scope: "orders:read offline_access",  // 可选:OAuth scope(写死)
+  scopeFromMetadata: true,              // 可选:动态从 metadata 读 scope(覆盖 scope)
+  flow: "device",                       // 可选:device(默认)/ authorization_code / client_credentials
+  clientMetadata: {                     // 可选:RFC 7591 注册时声明
+    client_name: "crm",
+    redirect_uris: ["http://localhost:8080/callback"],  // authCode flow 需要
+  },
+  bearerToken: process.env.CRM_BEARER_TOKEN, // 可选:sandbox/CI 一行注入 JWT
+  providers: [...],                     // 可选:自定义 provider chain(不传=defaultProviders)
+  clientId: "...",                      // 可选:env/config 回退
+  clientSecret: "...",                  // 可选
+  authStyle: "bearer",                  // 可选:bearer(默认)/ x-api-key / basic
+  redirectPort: 8080,                   // 可选:authCode flow 本地回调端口
+  store: memoryStore(),                 // 可选:测试注入
+  commandNamespace: "auth",             // 可选:命令命名空间(默认 auth)
+});
+```
 
 ### 最小用法(必须 await,常见错误)
 
@@ -30,7 +57,9 @@ import { defineCli, defineAuth } from "@renxqoo/agent-data-cli";
 const auth = await defineAuth({
   credentialNamespace: "rxweather",
   baseUrl: process.env.AUTH_BASE_URL!,
-  scope: "weather:read offline_access",
+  scopeFromMetadata: true,          // 动态从 metadata 读 scope(不写死)
+  clientMetadata: { client_name: "rxweather" },
+  bearerToken: process.env.RXWEATHER_BEARER_TOKEN, // sandbox/CI 注入(可选)
 });
 
 defineCli({
@@ -51,7 +80,7 @@ defineCli({ plugins: [auth], ... })
 ### 首次使用顺序
 
 ```
-register(注册令牌 → clientId/Secret,写 ~/.rxcli/config.json)
+register(注册令牌 + client_metadata → client_id/client_secret,写 ~/.rxcli/config.json)
    ↓
 login(OAuth device flow → token,写 ~/.rxcli/credentials/<ns>.json)
    ↓
@@ -59,6 +88,8 @@ login(OAuth device flow → token,写 ~/.rxcli/credentials/<ns>.json)
 ```
 
 跳过 register 直接 login → `device_authorization failed`(401 invalid_client)。
+
+> **register 的 client_metadata**:RFC 7591 标准。`defineAuth({ clientMetadata: { client_name: "crm" } })` 声明后,register 命令会把它发给服务端。服务端返回 snake_case 响应(`client_id`/`client_secret`/`client_id_issued_at`/`client_secret_expires_at=0`)。
 
 ### clientId / Secret 的回填优先级
 
@@ -308,15 +339,18 @@ return {
 
 ```ts
 resolveWithChain(providers, pctx) 按 priority 升序逐个尝试:
-  flagProvider  (priority 1)  → --api-key <key> 全局 flag(临时覆盖)
-  envProvider   (priority 5)  → $NS_API_KEY 环境变量
-  fileProvider  (priority 10) → ~/.my-cli/credentials/<ns>.json 的 apiKey/token
-  oauthProvider (priority 20) → 同一文件里的 OAuth token(含 refresh_token)
+  flagProvider       (priority 1)  → --api-key <key> 全局 flag(临时覆盖)
+  envProvider        (priority 5)  → $NS_API_KEY 环境变量
+  envBearerProvider  (priority 6)  → $NS_BEARER_TOKEN 环境变量(sandbox/CI 注入的 JWT)
+  fileProvider       (priority 10) → ~/.rxcli/credentials/<ns>.json 的 apiKey/token
+  oauthProvider      (priority 20) → 同一文件里的 OAuth token(含 refresh_token)
 ```
 
 **命中即停**:第一个返回非 null 的 provider 用它的 token;全 null → auth Plugin 抛 `AuthenticationError`。
 
-`defaultProviders()` 默认装好这 4 个。**业务包通常不用关心**——只有自定义鉴权(HMAC/mTLS)时才自己 `providers = [...defaultProviders(), customProvider]`。
+`defaultProviders()` 默认装好这 5 个(含 envBearerProvider)。**业务包通常不用关心**——只有自定义鉴权(HMAC/mTLS)时才自己 `providers = [...defaultProviders(), customProvider]`。
+
+> **sandbox/CI 场景**:admin 通过 `POST /admin/web/issue-token` 签发 JWT → 注入环境变量 `NS_BEARER_TOKEN`(如 `CRM_BEARER_TOKEN`)→ envBearerProvider 自动命中,agent 直接用,不需要 device flow 登录。也可用 `defineAuth({ bearerToken: process.env.CRM_BEARER_TOKEN })` 一行注入(priority 2,低于 --api-key)。
 
 ---
 

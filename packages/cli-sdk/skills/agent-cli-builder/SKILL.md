@@ -188,6 +188,13 @@ defineCli({
 > `defineAuth` 是 `async` 函数,必须 `await`:`const auth = await defineAuth({...})`。
 > 缺 `await` 时 `plugins:[Promise]`,`beforeCommand` 不执行,鉴权失效,且无报错。详见 `references/auth-patterns.md`。
 
+> **defineAuth 新选项**(详见 `references/auth-patterns.md`):
+> - `scopeFromMetadata: true` — 动态从服务端 metadata 读 scope,不在代码里写死
+> - `bearerToken: process.env.XX_BEARER_TOKEN` — sandbox/CI 一行注入预签发 JWT
+> - `flow: "device" | "authorization_code" | "client_credentials"` — 多鉴权流程
+> - `clientMetadata: { client_name: "..." }` — RFC 7591 注册时声明
+> - `providers: [...]` — 自定义 provider chain
+
 ### ② `defineCommand(spec)` —— 声明单个命令
 
 ```ts
