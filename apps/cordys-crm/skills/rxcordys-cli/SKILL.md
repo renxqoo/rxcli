@@ -40,15 +40,17 @@ rxcordys auth status
 未配置时二选一(环境变量优先级更高):
 
 ```bash
-# A. 持久化(推荐):写 ~/.rxcli/credentials/cordys.json
+# A. 持久化(推荐):写 ~/.rxcli/credentials/cordys.json(权限 0600,不进 shell 历史)
 rxcordys auth login --accessKey <AccessKey> --secretKey <SecretKey>
 
-# B. 环境变量(CI / 临时)
+# B. 环境变量(仅 CI / 临时,勿在本机 profile 长期 export 密钥)
 export CORDYS_ACCESS_KEY=<AccessKey>
 export CORDYS_SECRET_KEY=<SecretKey>
-# 必填:Cordys CRM 部署地址(私有部署,无默认值)
+# 必填:Cordys CRM 部署地址(私有部署,无默认值,不敏感可放 profile)
 export CORDYS_CRM_DOMAIN=https://crm.your-company.com
 ```
+
+> **凭证安全**:密钥泄露 = 他人可读写你权限范围内的全部 CRM 数据。本机/agent 长期用选 A(`auth login` 落盘 0600),勿把明文密钥写进 `.env`/agent 配置/文档/git。详见 [references/auth.md](references/auth.md#凭证安全配置)。
 
 > 密钥对从 Cordys 管理后台「个人中心 → API Keys」获取。鉴权细节见 [references/auth.md](references/auth.md)。
 
