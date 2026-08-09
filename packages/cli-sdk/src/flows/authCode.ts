@@ -35,7 +35,7 @@ export const authCodeFlow: AuthFlow = {
     });
 
     // 3. 构建 authorize URL + 打开浏览器
-    const state = generateCodeVerifier().slice(0, 16); // 随机 state 防 CSRF
+    const state = deps.state ?? generateCodeVerifier().slice(0, 16); // 随机 state 防 CSRF
     const authUrl = buildAuthorizeUrl(deps.cfg, {
       redirectUri: handle.redirectUri,
       scope: deps.scope,
@@ -48,13 +48,24 @@ export const authCodeFlow: AuthFlow = {
     await browser.open(authUrl);
 
     // 4. 等待回调
-    const result = await handle.result;
-    handle.close();
+    let result;
+    try {
+      result = await handle.result;
+    } finally {
+      handle.close();
+    }
 
     if (result.error) {
       throw new AuthenticationError({
         subtype: "token_revoked",
         message: `Authorization denied: ${result.error}`,
+      });
+    }
+    // CSRF 校验:state 必须匹配(RFC 6749 §10.12)
+    if (result.state !== state) {
+      throw new AuthenticationError({
+        subtype: "token_revoked",
+        message: "State mismatch (possible CSRF attack)",
       });
     }
     if (!result.code) {

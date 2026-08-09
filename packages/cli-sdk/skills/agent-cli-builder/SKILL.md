@@ -1,11 +1,11 @@
 ---
 name: agent-cli-builder
-description: 用 @renxqoo/agent-data-cli 框架从零构建 agent-native CLI 的 skill——产物是供 AI agent 自服务发现并调用的命令行程序。何时触发:用户要做/新建/写一个 CLI 或命令行工具、把后端 API 或内部接口封装成命令行给 agent 用、写工具拉取或操作某接口数据、给已有 CLI 加鉴权/登录/统一输出/分页/skill 文档能力、提到 agent-data-cli 或 cli-sdk 框架。覆盖"做个拉数据的命令"、"给 agent 加个接口"、"把接口包成命令行"、"写个工具调这个 API"、"帮我写个 CLI"、"把这个 API 包一下"等说法——即使没说出 CLI / 框架名也触发。
+description: 用 @renxqoo/agent-data-cli 框架构建 agent-native CLI 的 skill——产物是供 AI agent 自服务发现并调用的命令行程序。何时触发:用户要新建/写一个 CLI 或命令行工具、把后端 API 或内部接口封装成命令行给 agent 用、把 API 包成 CLI、给已有 CLI 加鉴权/登录/统一输出/分页/skill 文档能力,或提到 agent-data-cli / cli-sdk 框架。覆盖"做个拉数据的命令""帮我写个 CLI""把这个 API 包一下"等说法——即使没说出 CLI / 框架名也触发。仅限用本框架构建 CLI;通用 skill 编写(不涉及 CLI/命令行)用 skill-creator。
 ---
 
 # agent-cli-builder
 
-`@renxqoo/agent-data-cli`(下称 **agent-data-cli**)是一个 agent-native CLI 框架。开发者声明"调哪个后端接口、字段怎么处理",框架提供请求层、统一输出格式、错误分类、参数解析、管道、skill 发现等实现。鉴权可选(公开数据 CLI 无需,见 `references/auth-patterns.md`)。
+`@renxqoo/agent-data-cli`(下称 **agent-data-cli**)是一个 agent-native CLI 框架。开发者声明"调哪个后端接口、字段怎么处理",框架提供请求层、统一输出格式、错误分类、参数解析、管道、skill 发现等实现。
 
 ---
 
@@ -111,14 +111,9 @@ node dist/index.js list --no-json   # 表格(给人看)
 
 ---
 
-## 2. 动手前:问清 6 点 + 查命名
+## 2. 动手前:问清 7 点 + 查命名
 
-用户说"做个 CLI"但信息不全时,先问清再写代码。后端字段/分页约定若靠猜测,会埋隐性 bug。
-
-要分清两类信息:
-
-- **行为决策**(要不要 auth / 要不要分页)→ 默认选**最简单方案**,做完再加。
-- **事实信息**(后端响应字段、分页约定)→ 不可猜测,须向用户确认。
+用户说"做个 CLI"但信息不全时,先问清再写代码。**行为决策**(auth / 分页)默认选最简单方案;**事实信息**(后端字段、分页约定、语言)不可猜测,须向用户确认——猜错会埋隐性 bug。
 
 需要逐条向用户确认的问题:
 
@@ -145,6 +140,10 @@ node dist/index.js list --no-json   # 表格(给人看)
 6. **后端响应/分页字段长啥样?**
    - 默认:无
    - 何时追问:给了 API 但没给响应体结构时必问,列 2-3 个候选问;不要靠猜写全兼容(见 `references/patterns.md` §1)
+
+7. **用什么语言?**(SKILL.md/错误信息/注释)
+   - 默认:和用户提问的语言保持一致
+   - 命令名/字段名/API path 始终用英文(程序接口)
 
 ### 命名检查(框架不查,你自己查)
 

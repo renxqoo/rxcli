@@ -69,6 +69,7 @@ describe("authorization_code flow", () => {
   const callbackRef = vi.hoisted(() => ({
     code: "ac_test" as string | null,
     error: null as string | null,
+    state: "test-state" as string | null,
   }));
   vi.mock("../infra/callback-server.js", () => ({
     waitForCallback: vi.fn(async () => ({
@@ -80,7 +81,9 @@ describe("authorization_code flow", () => {
         get error() {
           return callbackRef.error;
         },
-        state: null,
+        get state() {
+          return callbackRef.state;
+        },
       }),
       close: vi.fn(),
     })),
@@ -89,6 +92,7 @@ describe("authorization_code flow", () => {
   it("login:PKCE → 浏览器 → 回调 code → 换 token", async () => {
     callbackRef.code = "ac_test";
     callbackRef.error = null;
+    callbackRef.state = "test-state";
 
     const { authCodeFlow } = await import("../flows/authCode.js");
     const cfg = { baseUrl: "http://test", clientId: "cid", clientSecret: "csec" };
@@ -108,6 +112,7 @@ describe("authorization_code flow", () => {
       scope: "orders:read offline_access",
       browser,
       log: { info: vi.fn() },
+      state: "test-state",
     });
 
     expect(token.access_token).toBe("AT_pkce");

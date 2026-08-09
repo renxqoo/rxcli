@@ -48,7 +48,7 @@ metadata:
 
 通过 CLI 查询后端待办服务,支持列表查询、详情、创建、标记完成。
 
-**CRITICAL — 调用前 MUST 检查登录状态**:读 [`../rx-shared/SKILL.md`](../rx-shared/SKILL.md)(如适用)。
+**调用命令前先确认登录状态**:业务命令需要凭证,未登录会直接失败。读 [`../rx-shared/SKILL.md`](../rx-shared/SKILL.md)(如适用)。
 
 <!-- AUTO-GEN:START commands -->
 <!-- 本区块由 `my-cli skills gen` 自动生成,不要手改 -->

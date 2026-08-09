@@ -44,6 +44,7 @@ export {
   type PollResult,
   type ClientMetadata,
   type RegisteredClient,
+  fetchScopesFromMetadata,
 } from "./oauth.js";
 
 // 多流程鉴权(L3 策略层 + L2 基础设施)

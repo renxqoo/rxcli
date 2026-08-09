@@ -29,6 +29,8 @@ export interface FlowDeps {
   /** device flow split-flow:--device-code(用已有设备码恢复轮询)。 */
   resumeDeviceCode?: string;
   // authorization_code flow 专用:
+  /** OAuth state(测试注入;不传=随机生成)。 */
+  state?: string;
   /** 浏览器打开器(authCode flow 用)。 */
   browser?: BrowserOpener;
   /** 本地回调端口(authCode flow 用;不传=随机)。 */

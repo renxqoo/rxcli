@@ -29,7 +29,7 @@ type CrmState = {
 const auth = await defineAuth<CrmState>({
   credentialNamespace: "crm",
   baseUrl: AUTH_BASE_URL,
-  scope: "company.api offline_access",
+  scopeFromMetadata: true,
   clientMetadata: { client_name: "crm" },
   bearerToken: process.env.CRM_BEARER_TOKEN,
 });

@@ -162,9 +162,9 @@ export function envBearerProvider(): CredentialProvider {
   };
 }
 
-/** 默认 4 个 provider,按 priority 升序。 */
+/** 默认 provider chain,按 priority 升序。 */
 export function defaultProviders(): CredentialProvider[] {
-  return [flagProvider(), envProvider(), fileProvider(), oauthProvider()];
+  return [flagProvider(), envProvider(), envBearerProvider(), fileProvider(), oauthProvider()];
 }
 
 // ============================================================================

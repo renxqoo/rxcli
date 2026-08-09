@@ -46,6 +46,7 @@ import {
   type PollResult,
   type TokenInfo,
   type ClientMetadata,
+  fetchScopesFromMetadata,
 } from "../oauth.js";
 import { deviceFlow, SplitFlowSignal } from "../flows/device.js";
 import { authCodeFlow } from "../flows/authCode.js";
@@ -124,6 +125,13 @@ export interface DefineAuthOptions {
    * 业务 app 可自定义 token 来源(如环境变量、文件、secret manager)。
    */
   providers?: CredentialProvider[];
+
+  /**
+   * 动态 scope:从服务端 metadata 端点(.well-known/oauth-authorization-server)
+   * 读 scopes_supported,用全集请求。CLI 不写死 scope,服务端加减 scope 不用发新版。
+   * 设了 true 就忽略 scope 参数(运行时动态获取)。
+   */
+  scopeFromMetadata?: boolean;
 }
 
 // ============================================================================
@@ -162,7 +170,7 @@ export async function defineAuth<State = Record<string, never>>(
   if (opts.bearerToken) {
     providers.push({
       name: () => "injected-bearer",
-      priority: () => 0,
+      priority: () => 2, // 低于 --api-key(1),高于 env(5),允许命令行覆盖
       async resolveToken() {
         return {
           token: opts.bearerToken!,
@@ -224,6 +232,7 @@ export async function defineAuth<State = Record<string, never>>(
     clientMetadata: opts.clientMetadata,
     redirectPort: opts.redirectPort,
     poller: opts.poller,
+    scopeFromMetadata: opts.scopeFromMetadata,
   });
 
   // —— 返回 plugin:钩子(beforeCommand 注入 token / beforeRequest 注入 header)+ 命令 ——
@@ -309,6 +318,8 @@ interface AuthCommandOpts {
   redirectPort?: number;
   /** 测试用:注入轮询函数。 */
   poller?: (oauth: OAuthClientConfig, deviceCode: string) => Promise<PollResult>;
+  /** 动态 scope:从 metadata 读 scopes_supported。 */
+  scopeFromMetadata?: boolean;
 }
 
 /**
@@ -387,10 +398,19 @@ function createAuthCommands(o: AuthCommandOpts): CommandGroup {
         },
       },
       async run(args, ctx): Promise<CommandResult> {
+        // 动态 scope:从 metadata 读 scopes_supported(运行时,不写死)
+        let effectiveScope = scope;
+        if (o.scopeFromMetadata) {
+          const remoteScopes = await fetchScopesFromMetadata(oauth);
+          if (remoteScopes.length > 0) {
+            effectiveScope = remoteScopes.join(" ");
+          }
+        }
+
         // 构造 deps:所有 flow 共享基础 + device flow 专用参数
         const deps: FlowDeps = {
           cfg: oauth,
-          scope,
+          scope: effectiveScope,
           log: ctx.log,
           poller: o.poller,
           callbackPort: o.redirectPort,
@@ -442,9 +462,18 @@ function createAuthCommands(o: AuthCommandOpts): CommandGroup {
           ctx.log.info(`Not logged in. Run \`${cmdNs} login\` to log in.`);
           return { data: { loggedIn: false } };
         }
+        const expired = creds.expiresAt ? Date.now() >= creds.expiresAt : false;
+
+        // client_credentials/机器 session:无用户上下文,跳过 getUserInfo
+        if (creds.authMethod === "client_credentials") {
+          ctx.log.info(
+            `Logged in (machine): ${oauth.baseUrl}\ntoken ${expired ? "expired (will auto-refresh on next call)" : "valid"}`,
+          );
+          return { data: { loggedIn: true, expired } };
+        }
+
         try {
           const user = await getUserInfo(oauth, creds.token);
-          const expired = creds.expiresAt ? Date.now() >= creds.expiresAt : false;
           ctx.log.info(
             `Logged in: ${user.name} (${user.open_id})\nMiddleware: ${oauth.baseUrl}\ntoken ${expired ? "expired (will auto-refresh on next call)" : "valid"}`,
           );

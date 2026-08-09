@@ -191,6 +191,26 @@ function parseTokenInfo(body: unknown, endpoint: string): TokenInfo {
 }
 
 /**
+ * 从 metadata 端点动态获取 scopes_supported(RFC 8414)。
+ *
+ * CLI 不在代码里写死 scope,而是运行时从服务端读,这样服务端加减 scope 不用发 CLI 新版。
+ * 失败时返回空数组(降级,不阻断登录——服务端会用默认 scope)。
+ */
+export async function fetchScopesFromMetadata(cfg: OAuthClientConfig): Promise<string[]> {
+  try {
+    const res = await oauthFetch(`${cfg.baseUrl}/.well-known/oauth-authorization-server`);
+    const body = await safeJson(res);
+    if (!res.ok) return [];
+    const obj = responseObject(body, "metadata");
+    const scopes = obj.scopes_supported;
+    if (!Array.isArray(scopes)) return [];
+    return scopes.filter((s: unknown): s is string => typeof s === "string");
+  } catch {
+    return []; // 网络错误/解析错误:降级
+  }
+}
+
+/**
  * 申请设备码。
  * @param scope OAuth scope;空/未传 = 不带 scope(有些鉴权不需要 scope)。
  */
