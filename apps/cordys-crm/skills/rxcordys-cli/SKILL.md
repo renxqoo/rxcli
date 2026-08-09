@@ -24,27 +24,37 @@ which rxcordys && rxcordys --version
 
 不可用时按以下方式安装(任选其一):
 
-**方式 A:npm 全局安装(发布后可用)**
+**方式 A:npm 全局安装**
 
 ```bash
 npm install -g @renxqoo/rxcordys-cli
 ```
 
-**方式 B:从 monorepo 源码安装(开发期)**
-
-```bash
-cd /Users/wrr/work/rxcli-v2/apps/cordys-crm
-pnpm install && pnpm build      # 编译到 dist/
-# 之后用 node dist/index.js <命令>,或 npm link 全局注册后直接敲 rxcordys
-```
-
-**方式 C:一次性 npx(不装全局)**
+**方式 B:一次性 npx(不装全局)**
 
 ```bash
 npx @renxqoo/rxcordys-cli <命令>
 ```
 
 > 需 Node ≥ 18。安装后跑 `rxcordys --help` 确认可用。
+
+### 装 Skill(让 AI 工具发现本 skill)
+
+装好 CLI 后,把 skill 同步到 `~/.agents/skills/`(Claude Code / Cursor / Trae 等 AI 工具的通用发现路径):
+
+```bash
+rxcordys skills sync
+# → 写入 ~/.agents/skills/rxcordys-cli/(含 SKILL.md + references)
+```
+
+同步后,AI 工具即可在用户提到线索/客户/商机/合同等关键词时自动触发本 skill。验证:
+
+```bash
+rxcordys skills list          # 列出已装的 skill
+ls ~/.agents/skills/          # 确认 rxcordys-cli 目录存在
+```
+
+> 也可用 `rxcordys install` 一键完成(CLI + skills + 凭证向导)。
 
 ## 调用前先确认凭证
 
