@@ -124,6 +124,8 @@ rxcordys leads page --json
 
 > Cordys 业务错误可能是 HTTP 200 + `code≠100200`,CLI 已解包并映射为 `api/*`。
 
+> ⚠️ **`get` 不存在的 ID 返回 `data:null` + exit 0**(不是 `not_found`)。这是 Cordys API 设计——查不到时返回 200 + `{code:100200, data:null}`,不报错。agent 判断时:**`get`/`quotation-get`/`payment-plan-get` 返回 `data:null` 即"记录不存在"**,应用 `page` 重新查有效 ID。
+
 ## 命令(按模块分组)
 
 > 命令格式:`<x>` 必填位置参数、`[x]` 可选位置参数、`--x <t>` 可选 flag。所有写入命令额外支持 `--dryRun`(仅校验)、`--yes`(跳过确认)。需要某命令的参数详情时跑 `rxcordys <ns> <cmd> --help`。
