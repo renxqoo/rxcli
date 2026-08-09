@@ -34,21 +34,14 @@ import { defineCommand } from "../define.js";
 import { errs, AuthenticationError } from "../errs/index.js";
 import {
   injectAuthHeader,
-  deviceAuthorization,
-  pollDeviceToken,
-  getUserInfo,
-  revokeToken,
-  registerClient,
   createOn401Hook,
   refreshAccessToken,
   type AuthStyle,
   type OAuthClientConfig,
   type PollResult,
-  type TokenInfo,
   type ClientMetadata,
-  fetchScopesFromMetadata,
 } from "../oauth.js";
-import { deviceFlow, SplitFlowSignal } from "../flows/device.js";
+import { deviceFlow } from "../flows/device.js";
 import { authCodeFlow } from "../flows/authCode.js";
 import { clientCredentialsFlow } from "../flows/clientCredentials.js";
 import type { AuthFlow, FlowType, FlowDeps } from "../flows/types.js";
@@ -65,7 +58,7 @@ import {
   type ProviderContext,
   type IdentityHint,
 } from "../credentials/index.js";
-import type { StoredOAuthCredentials, CredentialProvider } from "../credentials/types.js";
+import type { CredentialProvider } from "../credentials/types.js";
 import { credentialArgsKey } from "../context.js";
 
 // ============================================================================
@@ -338,47 +331,6 @@ function resolveFlow(type: FlowType): AuthFlow {
     case "client_credentials":
       return clientCredentialsFlow;
   }
-}
-
-/**
- * 统一落盘:login 成功后,框架调用此函数。
- * 从 TokenInfo 构造 StoredOAuthCredentials + 查 user_info(有 token 才查)+ 写盘。
- */
-async function persistCredentials(
-  store: ConfigStore,
-  namespace: string,
-  oauth: OAuthClientConfig,
-  token: TokenInfo,
-  flowType: FlowType,
-  log?: { info(...args: unknown[]): void },
-): Promise<{ loggedIn: boolean; user?: { id: string; name: string } }> {
-  const creds: StoredOAuthCredentials = {
-    token: token.access_token,
-    refreshToken: token.refresh_token ?? "",
-    expiresAt: Date.now() + token.expires_in * 1000,
-    scopes: token.scope?.split(/\s+/).filter(Boolean) ?? [],
-    storedAt: Date.now(),
-    authMethod: flowType,
-  };
-
-  // client_credentials 没有 user;device/authCode 查 user_info
-  if (flowType !== "client_credentials") {
-    try {
-      const user = await getUserInfo(oauth, token.access_token);
-      creds.user = { userId: user.open_id, name: user.name };
-      await store.saveCredentials(namespace, creds as unknown as Record<string, unknown>);
-      log?.info(`\n✓ Login successful: ${user.name} (${user.open_id})`);
-      return { loggedIn: true, user: { id: user.open_id, name: user.name } };
-    } catch {
-      await store.saveCredentials(namespace, creds as unknown as Record<string, unknown>);
-      log?.info("\n✓ Login successful (could not fetch user info)");
-      return { loggedIn: true };
-    }
-  }
-
-  await store.saveCredentials(namespace, creds as unknown as Record<string, unknown>);
-  log?.info("\n✓ Login successful (client credentials)");
-  return { loggedIn: true };
 }
 
 function createAuthCommands(o: AuthCommandOpts): CommandGroup {
