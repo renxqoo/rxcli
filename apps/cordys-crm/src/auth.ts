@@ -67,7 +67,7 @@ async function readFromFile(): Promise<CordysCredentials | null> {
 // ============================================================================
 
 const authCommands = defineCommands({
-  /** login:保存密钥对到凭证文件(env 优先,但 login 显式传参也写盘)。 */
+  /** login:保存密钥对到凭证文件(直接用 store 落盘,不依赖 ctx.credentials——后者因路由豁免是 no-op)。 */
   login: defineCommand<{ accessKey: string; secretKey: string }>({
     name: "login",
     description: "保存 Cordys 密钥对到凭证文件(~/.rxcli/credentials/cordys.json)",
@@ -75,8 +75,8 @@ const authCommands = defineCommands({
       accessKey: { type: "string", required: true, desc: "Cordys Access Key" },
       secretKey: { type: "string", required: true, desc: "Cordys Secret Key" },
     },
-    async run(args, ctx) {
-      await ctx.credentials.save(CREDENTIAL_NAMESPACE, {
+    async run(args, _ctx) {
+      await store.saveCredentials(CREDENTIAL_NAMESPACE, {
         accessKey: args.accessKey,
         secretKey: args.secretKey,
       });
@@ -121,19 +121,19 @@ const authCommands = defineCommands({
         meta: {
           hint: configured
             ? undefined
-            : "未配置:运行 `rxcordys auth login --access-key X --secret-key Y` 或设置环境变量",
+            : "未配置:运行 `rxcordys auth login --accessKey X --secretKey Y` 或设置环境变量",
         },
       };
     },
   }),
 
-  /** logout:清除凭证文件(env 凭证无法通过本命令清除)。 */
+  /** logout:清除凭证文件(直接用 store,不依赖 ctx.credentials)。 */
   logout: defineCommand({
     name: "logout",
     description: "清除已保存的凭证文件(不影响环境变量)",
     args: {},
-    async run(_args, ctx) {
-      await ctx.credentials.clear(CREDENTIAL_NAMESPACE);
+    async run(_args, _ctx) {
+      await store.clearCredentials(CREDENTIAL_NAMESPACE);
       return { data: { namespace: CREDENTIAL_NAMESPACE, cleared: true } };
     },
   }),
@@ -174,7 +174,7 @@ export function createCordysAuth(): Plugin<RxCordysState> {
       throw new errs.AuthenticationError({
         subtype: "no_credentials",
         message: "未配置 Cordys 凭证",
-        hint: "运行 `rxcordys auth login --access-key <X> --secret-key <Y>` 保存,或设置 CORDYS_ACCESS_KEY / CORDYS_SECRET_KEY 环境变量",
+        hint: "运行 `rxcordys auth login --accessKey <X> --secretKey <Y>` 保存,或设置 CORDYS_ACCESS_KEY / CORDYS_SECRET_KEY 环境变量",
       });
     },
 

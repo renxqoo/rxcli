@@ -47,7 +47,7 @@ ls ~/.agents/skills/rxcordys-cli/   # 确认 skill 文件就位
 
 ```bash
 # 方式 A:持久化(推荐,写 ~/.rxcli/credentials/cordys.json)
-rxcordys auth login --access-key <AccessKey> --secret-key <SecretKey>
+rxcordys auth login --accessKey <AccessKey> --secretKey <SecretKey>
 
 # 方式 B:环境变量(CI / 临时)
 export CORDYS_ACCESS_KEY=<AccessKey>

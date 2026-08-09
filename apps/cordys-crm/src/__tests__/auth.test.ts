@@ -86,7 +86,7 @@ describe("auth beforeRequest:双 header 注入", () => {
   });
 });
 
-describe("auth login 命令", () => {
+describe("auth login/logout 命令(直接用 store 落盘,不依赖 ctx.credentials)", () => {
   beforeEach(() => {
     delete process.env.CORDYS_ACCESS_KEY;
     delete process.env.CORDYS_SECRET_KEY;
@@ -96,24 +96,56 @@ describe("auth login 命令", () => {
     delete process.env.CORDYS_SECRET_KEY;
   });
 
-  it("login 写入凭证文件", async () => {
+  it("login 写入凭证文件(即使 ctx.credentials 是 no-op 也能落盘)", async () => {
+    // login 被 auth plugin 豁免 beforeCommand → ctx.credentials 是框架 no-op。
+    // 此测试验证 login 直接用模块顶层 store 落盘,不靠 ctx.credentials(回归 bug 1)。
     const { auth } = makeCtxWithAuth(null);
     const loginCmd = auth.provides?.namespaces?.auth?.login;
     expect(loginCmd).toBeDefined();
+    // ctx.credentials.save 故意设成 no-op(模拟被豁免的场景)
     const ctx = {
       state: { credentials: null, credentialSource: null },
       log: { info: () => {}, warn: () => {}, error: () => {} },
       credentials: {
         get: async () => null,
-        save: async (_ns: string, d: Record<string, unknown>) => {
-          savedData = d;
+        save: async () => {
+          /* no-op:模拟框架默认,login 不应依赖它 */
         },
         clear: async () => {},
       },
     } as unknown as CommandContext<RxCordysState>;
-    let savedData: Record<string, unknown> | undefined;
     const result = await loginCmd!.run({ accessKey: "new_ak", secretKey: "new_sk" }, ctx);
-    expect(result!.data).toMatchObject({ saved: true });
-    expect(savedData).toEqual({ accessKey: "new_ak", secretKey: "new_sk" });
+    expect(result!.data).toMatchObject({ saved: true, namespace: "cordys" });
+    // 验证真实落盘:文件内容含 accessKey/secretKey
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const { homedir } = await import("node:os");
+    const credPath = path.join(homedir(), ".rxcli", "credentials", "cordys.json");
+    expect(fs.existsSync(credPath)).toBe(true);
+    const saved = JSON.parse(fs.readFileSync(credPath, "utf8"));
+    expect(saved.accessKey).toBe("new_ak");
+    expect(saved.secretKey).toBe("new_sk");
+    // 清理测试凭证
+    fs.unlinkSync(credPath);
+  });
+
+  it("logout 清除凭证文件", async () => {
+    const { auth } = makeCtxWithAuth({ accessKey: "x", secretKey: "y" });
+    const logoutCmd = auth.provides?.namespaces?.auth?.logout;
+    expect(logoutCmd).toBeDefined();
+    const ctx = {
+      state: { credentials: null, credentialSource: null },
+      log: { info: () => {}, warn: () => {}, error: () => {} },
+      credentials: { get: async () => null, save: async () => {}, clear: async () => {} },
+    } as unknown as CommandContext<RxCordysState>;
+    // 先确保文件存在(login 已在上一个测试验证落盘;这里直接写一个)
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const { homedir } = await import("node:os");
+    const credPath = path.join(homedir(), ".rxcli", "credentials", "cordys.json");
+    fs.mkdirSync(path.dirname(credPath), { recursive: true });
+    fs.writeFileSync(credPath, JSON.stringify({ accessKey: "x", secretKey: "y" }));
+    await logoutCmd!.run({}, ctx);
+    expect(fs.existsSync(credPath)).toBe(false);
   });
 });
