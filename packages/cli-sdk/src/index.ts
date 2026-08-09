@@ -32,12 +32,28 @@ export {
   revokeToken,
   registerClient,
   createOn401Hook,
+  generateCodeVerifier,
+  computeCodeChallenge,
+  buildAuthorizeUrl,
+  exchangeCodeForToken,
+  clientCredentialsToken,
   type DeviceAuthInfo,
   type TokenInfo,
   type UserInfo,
   type OAuthClientConfig,
   type PollResult,
+  type ClientMetadata,
+  type RegisteredClient,
 } from "./oauth.js";
+
+// 多流程鉴权(L3 策略层 + L2 基础设施)
+export { type AuthFlow, type FlowType, type FlowDeps } from "./flows/types.js";
+export { defaultBrowserOpener, type BrowserOpener } from "./infra/browser.js";
+export {
+  waitForCallback,
+  type CallbackResult,
+  type CallbackHandle,
+} from "./infra/callback-server.js";
 
 // 凭证基础能力(供开发者写 auth Plugin 用:provider chain + store)
 export {

@@ -93,5 +93,5 @@ export interface StoredOAuthCredentials {
   scopes: string[];
   user?: { userId: string; name: string };
   storedAt: number;
-  authMethod: "oauth";
+  authMethod: string; // "device" | "authorization_code" | "client_credentials"(开放,向后兼容 "oauth")
 }

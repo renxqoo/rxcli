@@ -40,10 +40,17 @@ import {
   revokeToken,
   registerClient,
   createOn401Hook,
+  refreshAccessToken,
   type AuthStyle,
   type OAuthClientConfig,
   type PollResult,
+  type TokenInfo,
+  type ClientMetadata,
 } from "../oauth.js";
+import { deviceFlow } from "../flows/device.js";
+import { authCodeFlow } from "../flows/authCode.js";
+import { clientCredentialsFlow } from "../flows/clientCredentials.js";
+import type { AuthFlow, FlowType, FlowDeps } from "../flows/types.js";
 import {
   fileStore,
   defaultProviders,
@@ -87,6 +94,23 @@ export interface DefineAuthOptions {
    * 让 M3 RFC 8628 轮询测试能 mock pollDeviceToken。
    */
   poller?: (oauth: OAuthClientConfig, deviceCode: string) => Promise<PollResult>;
+
+  /**
+   * 鉴权流程。默认 "device"。
+   * - "device":设备授权流程(RFC 8628,CLI/无头设备)
+   * - "authorization_code":授权码 + PKCE(RFC 6749 §4.1 + RFC 7636,Web/App)
+   * - "client_credentials":客户端凭证(RFC 6749 §4.4,机器对机器)
+   */
+  flow?: FlowType;
+
+  /**
+   * RFC 7591 client_metadata(注册时声明)。
+   * client_name 是各 app 自声明(如 "crm"、"webapp")。
+   */
+  clientMetadata?: ClientMetadata;
+
+  /** authorization_code flow:本地回调端口(不传=随机)。 */
+  redirectPort?: number;
 }
 
 // ============================================================================
@@ -121,10 +145,41 @@ export async function defineAuth<State = Record<string, never>>(
   }
   const oauth: OAuthClientConfig = { baseUrl: opts.baseUrl, clientId, clientSecret };
   const providers = defaultProviders();
-  const refreshOn401 = createOn401Hook({ cfg: oauth, store, namespace: credNs });
+  const flowType = opts.flow ?? "device";
+  const flow = resolveFlow(flowType);
+
+  // 401 续期:flow 有自定义 refresh(如 client_credentials)用它,否则用默认 refresh_token
+  const defaultRefresh = createOn401Hook({ cfg: oauth, store, namespace: credNs });
+  const flowDeps: FlowDeps = {
+    cfg: oauth,
+    scope: opts.scope,
+    poller: opts.poller,
+    callbackPort: opts.redirectPort,
+  };
   let currentToken: string | undefined;
   const on401 = async () => {
-    const refreshed = await refreshOn401();
+    let refreshed: string | null | undefined;
+    if (flow.refresh) {
+      // client_credentials 等:没有 refresh_token,重新 login
+      try {
+        const token = await flow.refresh(flowDeps);
+        refreshed = token.access_token;
+        if (refreshed) {
+          await store.saveCredentials(credNs, {
+            token: token.access_token,
+            refreshToken: token.refresh_token ?? "",
+            expiresAt: Date.now() + token.expires_in * 1000,
+            scopes: token.scope?.split(/\s+/).filter(Boolean) ?? [],
+            storedAt: Date.now(),
+            authMethod: flowType,
+          } as unknown as Record<string, unknown>);
+        }
+      } catch {
+        refreshed = null;
+      }
+    } else {
+      refreshed = await defaultRefresh();
+    }
     if (refreshed) currentToken = refreshed;
     return refreshed;
   };
@@ -137,6 +192,9 @@ export async function defineAuth<State = Record<string, never>>(
     commandNamespace: cmdNs,
     scope: opts.scope,
     baseUrl: opts.baseUrl,
+    flow,
+    clientMetadata: opts.clientMetadata,
+    redirectPort: opts.redirectPort,
     poller: opts.poller,
   });
 
@@ -215,42 +273,101 @@ interface AuthCommandOpts {
   commandNamespace: string;
   scope?: string;
   baseUrl: string;
+  /** 鉴权流程策略。 */
+  flow: AuthFlow;
+  /** RFC 7591 client_metadata(register 用)。 */
+  clientMetadata?: ClientMetadata;
+  /** authorization_code flow 回调端口。 */
+  redirectPort?: number;
   /** 测试用:注入轮询函数。 */
   poller?: (oauth: OAuthClientConfig, deviceCode: string) => Promise<PollResult>;
+}
+
+/**
+ * 根据 flow 类型选策略(参数传入,非全局 registry)。
+ */
+function resolveFlow(type: FlowType): AuthFlow {
+  switch (type) {
+    case "device":
+      return deviceFlow;
+    case "authorization_code":
+      return authCodeFlow;
+    case "client_credentials":
+      return clientCredentialsFlow;
+  }
+}
+
+/**
+ * 统一落盘:login 成功后,框架调用此函数。
+ * 从 TokenInfo 构造 StoredOAuthCredentials + 查 user_info(有 token 才查)+ 写盘。
+ */
+async function persistCredentials(
+  store: ConfigStore,
+  namespace: string,
+  oauth: OAuthClientConfig,
+  token: TokenInfo,
+  flowType: FlowType,
+  log?: { info(...args: unknown[]): void },
+): Promise<{ loggedIn: boolean; user?: { id: string; name: string } }> {
+  const creds: StoredOAuthCredentials = {
+    token: token.access_token,
+    refreshToken: token.refresh_token ?? "",
+    expiresAt: Date.now() + token.expires_in * 1000,
+    scopes: token.scope?.split(/\s+/).filter(Boolean) ?? [],
+    storedAt: Date.now(),
+    authMethod: flowType,
+  };
+
+  // client_credentials 没有 user;device/authCode 查 user_info
+  if (flowType !== "client_credentials") {
+    try {
+      const user = await getUserInfo(oauth, token.access_token);
+      creds.user = { userId: user.open_id, name: user.name };
+      await store.saveCredentials(namespace, creds as unknown as Record<string, unknown>);
+      log?.info(`\n✓ Login successful: ${user.name} (${user.open_id})`);
+      return { loggedIn: true, user: { id: user.open_id, name: user.name } };
+    } catch {
+      await store.saveCredentials(namespace, creds as unknown as Record<string, unknown>);
+      log?.info("\n✓ Login successful (could not fetch user info)");
+      return { loggedIn: true };
+    }
+  }
+
+  await store.saveCredentials(namespace, creds as unknown as Record<string, unknown>);
+  log?.info("\n✓ Login successful (client credentials)");
+  return { loggedIn: true };
 }
 
 function createAuthCommands(o: AuthCommandOpts): CommandGroup {
   const { oauth, store, scope, baseUrl } = o;
   const credNs = o.credentialNamespace;
   const cmdNs = o.commandNamespace;
+  const flow = o.flow;
 
   return {
-    // —— 登录(device flow 三分支)——
+    // —— 登录(委托给 flow 策略)——
     login: defineCommand<any, unknown>({
       name: "login",
-      description: "Log in via the middleware (OAuth device flow)",
+      description: `Log in via the middleware (OAuth ${flow.type.replace("_", " ")} flow)`,
       // 不标 internal:靠 plugin 精确豁免(_ownedRoutes 自动跳自身 beforeCommand)
       args: {
         wait: { type: "boolean", desc: "Block and poll (default; --no-wait returns immediately)" },
         json: { type: "boolean", desc: "Output JSON (with --no-wait, for agent split-flow)" },
         "device-code": {
           type: "string",
-          desc: "Complete login with an existing device_code (split-flow step 2)",
+          desc: "Complete login with an existing device_code (device flow split-flow step 2)",
         },
       },
       async run(args, ctx): Promise<CommandResult> {
-        // 分支二:split-flow 第二步 —— 用已有 device_code 轮询
+        // device flow split-flow:用已有 device_code 轮询(向后兼容)
         const deviceCode = args["device-code"] as string | undefined;
-        if (deviceCode) {
+        if (deviceCode && flow.type === "device") {
           return pollAndPersist(ctx, oauth, store, credNs, deviceCode, 15 * 60, 5000, o.poller);
         }
 
-        // 申请设备码(scope 业务自定,空=不带)
-        const info = await deviceAuthorization(oauth, scope);
-
-        // 分支一:--no-wait → 立即返回 device_code + URL,不轮询
-        const noWait = args.wait === false;
-        if (noWait) {
+        // device flow split-flow:--no-wait → 立即返回 device_code + URL,不轮询
+        if (flow.type === "device" && args.wait === false) {
+          const info = await deviceAuthorization(oauth, scope);
           const verificationUrl = info.verification_uri_complete ?? info.verification_uri;
           if (args.json) {
             return {
@@ -271,22 +388,17 @@ function createAuthCommands(o: AuthCommandOpts): CommandGroup {
           return { data: { device_code: info.device_code, verification_url: verificationUrl } };
         }
 
-        // 默认分支:阻塞轮询(人类用)
-        const verificationUrl = info.verification_uri_complete ?? info.verification_uri;
-        ctx.log.info(
-          `\nPlease complete login in your browser:\n  ${verificationUrl}\n  user code: ${info.user_code}\n\nWaiting for login to complete...`,
-        );
-        // 用服务端返回的 interval 作为轮询间隔(RFC 8628)
-        return pollAndPersist(
-          ctx,
-          oauth,
-          store,
-          credNs,
-          info.device_code,
-          info.expires_in,
-          info.interval * 1000,
-          o.poller,
-        );
+        // 委托 flow.login() → 统一落盘
+        const deps: FlowDeps = {
+          cfg: oauth,
+          scope,
+          log: ctx.log,
+          poller: o.poller,
+          callbackPort: o.redirectPort,
+        };
+        const token = await flow.login(deps);
+        const result = await persistCredentials(store, credNs, oauth, token, flow.type, ctx.log);
+        return { data: result };
       },
     }),
 
@@ -376,7 +488,7 @@ function createAuthCommands(o: AuthCommandOpts): CommandGroup {
           });
         }
 
-        const { clientId, clientSecret } = await registerClient(baseUrl, token);
+        const { clientId, clientSecret } = await registerClient(baseUrl, token, o.clientMetadata);
         const config = (await store.loadConfig()) as Record<string, unknown>;
         config.clientId = clientId;
         config.clientSecret = clientSecret;

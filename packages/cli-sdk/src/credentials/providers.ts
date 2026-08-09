@@ -76,8 +76,15 @@ export function fileProvider(): CredentialProvider {
       }
       // 也支持直接 token 字段(bearer 场景但非 OAuth 流程)
       const token = creds.token;
-      // OAuth 凭证交给 oauthProvider，避免在这里提前命中后丢失 refresh/expires 元数据。
-      if (creds.authMethod !== "oauth" && typeof token === "string" && token) {
+      // OAuth 凭证(有 refreshToken 或 authMethod 是 OAuth 流程)交给 oauthProvider，
+      // 避免在这里提前命中后丢失 refresh/expires 元数据。
+      const isOAuthFlow =
+        !creds.authMethod ||
+        creds.authMethod === "oauth" ||
+        creds.authMethod === "device" ||
+        creds.authMethod === "authorization_code" ||
+        creds.authMethod === "client_credentials";
+      if (!isOAuthFlow && typeof token === "string" && token) {
         return {
           token,
           type: "bearer",

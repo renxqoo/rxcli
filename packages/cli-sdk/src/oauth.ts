@@ -346,15 +346,43 @@ export async function revokeToken(cfg: OAuthClientConfig, accessToken: string): 
   }
 }
 
-/** 动态注册:用注册令牌换独立 clientId/clientSecret。 */
+/**
+ * RFC 7591 client_metadata(注册时声明,authorization_code / scope 校验用)。
+ * 传给服务端;服务端回显 + 持久化。
+ */
+export interface ClientMetadata {
+  client_name?: string;
+  redirect_uris?: string[];
+  grant_types?: string[];
+  response_types?: string[];
+  scope?: string;
+  token_endpoint_auth_method?: string;
+}
+
+/**
+ * 注册返回(RFC 7591 §3.2,snake_case)。
+ */
+export interface RegisteredClient {
+  clientId: string;
+  clientSecret: string;
+  clientIdIssuedAt: number;
+  clientSecretExpiresAt: number; // 0 = 永不过期
+  clientMetadata: ClientMetadata;
+}
+
+/**
+ * 动态注册(RFC 7591):用注册令牌 + client_metadata 换独立 client 凭据。
+ * 响应是 snake_case(client_id / client_secret / client_id_issued_at / ...)。
+ */
 export async function registerClient(
   baseUrl: string,
   registrationToken: string,
-): Promise<{ clientId: string; clientSecret: string }> {
+  clientMetadata?: ClientMetadata,
+): Promise<RegisteredClient> {
   const res = await oauthFetch(`${baseUrl}/register`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ registrationToken }),
+    body: JSON.stringify({ registrationToken, ...clientMetadata }),
   });
   const body = await safeJson(res);
   if (!res.ok) {
@@ -366,10 +394,142 @@ export async function registerClient(
     });
   }
   const obj = responseObject(body, "register");
-  return {
-    clientId: requiredString(obj, "clientId", "register"),
-    clientSecret: requiredString(obj, "clientSecret", "register"),
+  // RFC 7591 §3.2:snake_case 字段
+  const clientId = requiredString(obj, "client_id", "register");
+  const clientSecret = requiredString(obj, "client_secret", "register");
+  const clientIdIssuedAt =
+    typeof obj.client_id_issued_at === "number"
+      ? obj.client_id_issued_at
+      : Math.floor(Date.now() / 1000);
+  const clientSecretExpiresAt =
+    typeof obj.client_secret_expires_at === "number" ? obj.client_secret_expires_at : 0;
+  // 回显的 metadata(服务端返回的)
+  const echoed: ClientMetadata = {
+    ...(typeof obj.client_name === "string" ? { client_name: obj.client_name } : {}),
+    ...(Array.isArray(obj.redirect_uris) ? { redirect_uris: obj.redirect_uris } : {}),
+    ...(Array.isArray(obj.grant_types) ? { grant_types: obj.grant_types } : {}),
+    ...(Array.isArray(obj.response_types) ? { response_types: obj.response_types } : {}),
+    ...(typeof obj.scope === "string" ? { scope: obj.scope } : {}),
+    ...(typeof obj.token_endpoint_auth_method === "string"
+      ? { token_endpoint_auth_method: obj.token_endpoint_auth_method }
+      : {}),
   };
+  return {
+    clientId,
+    clientSecret,
+    clientIdIssuedAt,
+    clientSecretExpiresAt,
+    clientMetadata: echoed,
+  };
+}
+
+// ============================================================================
+// PKCE(RFC 7636)+ authorization_code(RFC 6749 §4.1)+ client_credentials(§4.4)
+// ============================================================================
+
+import { randomBytes, createHash } from "node:crypto";
+
+/**
+ * 生成 PKCE code_verifier(RFC 7636 §4.1)。
+ * 32 字节随机 → base64url(43 字符,满足 43-128 范围)。
+ */
+export function generateCodeVerifier(): string {
+  return randomBytes(32).toString("base64url");
+}
+
+/**
+ * 计算 PKCE code_challenge(RFC 7636 §4.2,S256 方法)。
+ * base64url(SHA256(code_verifier))。
+ */
+export function computeCodeChallenge(verifier: string): string {
+  return createHash("sha256").update(verifier).digest("base64url");
+}
+
+/**
+ * 构建 /authorize 端点 URL(RFC 6749 §4.1.1 + PKCE)。
+ * 纯 URL 拼接,不发请求。OAuth 2.1 强制 code_challenge_method=S256。
+ */
+export function buildAuthorizeUrl(
+  cfg: OAuthClientConfig,
+  params: {
+    redirectUri: string;
+    scope?: string;
+    codeChallenge: string;
+    state?: string;
+  },
+): string {
+  const u = new URL(`${cfg.baseUrl}/authorize`);
+  u.searchParams.set("response_type", "code");
+  u.searchParams.set("client_id", cfg.clientId);
+  u.searchParams.set("redirect_uri", params.redirectUri);
+  u.searchParams.set("code_challenge", params.codeChallenge);
+  u.searchParams.set("code_challenge_method", "S256");
+  if (params.scope) u.searchParams.set("scope", params.scope);
+  if (params.state) u.searchParams.set("state", params.state);
+  return u.toString();
+}
+
+/**
+ * 用 authorization_code + PKCE code_verifier 换 token(RFC 6749 §4.1.3)。
+ * 公开 client 用 PKCE 替代 client_secret 做认证。
+ */
+export async function exchangeCodeForToken(
+  cfg: OAuthClientConfig,
+  params: { code: string; codeVerifier: string; redirectUri: string },
+): Promise<TokenInfo> {
+  const res = await oauthFetch(`${cfg.baseUrl}/token`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code: params.code,
+      code_verifier: params.codeVerifier,
+      redirect_uri: params.redirectUri,
+      client_id: cfg.clientId,
+      ...(cfg.clientSecret ? { client_secret: cfg.clientSecret } : {}),
+    }).toString(),
+  });
+  const body = await safeJson(res);
+  if (!res.ok) {
+    throw new APIError({
+      subtype: "server_error",
+      code: res.status,
+      message: "authorization_code exchange failed",
+      cause: body,
+    });
+  }
+  return parseTokenInfo(body, "authorization_code token");
+}
+
+/**
+ * 用 client_credentials 换 token(RFC 6749 §4.4)。
+ * 机器对机器:无用户参与,用 client_id + client_secret 认证。
+ * 通常不发 refresh_token(到期重新换)。
+ */
+export async function clientCredentialsToken(
+  cfg: OAuthClientConfig,
+  scope?: string,
+): Promise<TokenInfo> {
+  const form = new URLSearchParams({ grant_type: "client_credentials" });
+  if (scope) form.set("scope", scope);
+  const res = await oauthFetch(`${cfg.baseUrl}/token`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      authorization: basicAuth(cfg),
+    },
+    body: form.toString(),
+  });
+  const body = await safeJson(res);
+  if (!res.ok) {
+    throw new APIError({
+      subtype: "server_error",
+      code: res.status,
+      message: "client_credentials token failed",
+      cause: body,
+    });
+  }
+  return parseTokenInfo(body, "client_credentials token");
 }
 
 // ============================================================================
