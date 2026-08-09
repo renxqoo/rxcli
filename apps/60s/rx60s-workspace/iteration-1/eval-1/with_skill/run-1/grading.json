@@ -1,0 +1,25 @@
+{
+  "expectations": [
+    {
+      "text": "调用了 rx60s CLI(60s 或 news today 命令)",
+      "passed": true,
+      "evidence": "cli_raw source=rx60s, ok=True"
+    },
+    {
+      "text": "输出包含至少 3 条新闻标题",
+      "passed": true,
+      "evidence": "news 数组有 15 条"
+    },
+    {
+      "text": "新闻内容是真实的当日新闻(非占位符)",
+      "passed": true,
+      "evidence": "示例: 台风 “白海豚” 预计 9 日晚至 10 日早晨在浙闽沿海登陆，未来三天浙江、上"
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 0,
+    "total": 3,
+    "pass_rate": 1.0
+  }
+}

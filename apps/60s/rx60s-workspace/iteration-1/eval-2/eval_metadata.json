@@ -1,0 +1,10 @@
+{
+  "eval_id": 2,
+  "eval_name": "weibo-hotsearch",
+  "prompt": "现在微博上什么最火?给我看看热搜前几条。",
+  "assertions": [
+    "调用了 rx60s hot weibo(或顶层 weibo 命令)",
+    "输出包含多条热搜标题(至少 5 条)",
+    "输出包含热度值(hot_value)"
+  ]
+}

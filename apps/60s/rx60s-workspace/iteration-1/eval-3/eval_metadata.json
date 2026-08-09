@@ -1,0 +1,10 @@
+{
+  "eval_id": 3,
+  "eval_name": "weather-query",
+  "prompt": "查一下上海现在的天气情况,温度多少,空气怎么样。",
+  "assertions": [
+    "调用了 rx60s life weather(位置参数为上海或类似)",
+    "输出包含温度数值(temperature 字段)",
+    "输出包含天气状况描述(如 多云/晴)"
+  ]
+}

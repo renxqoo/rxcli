@@ -1,0 +1,25 @@
+{
+  "expectations": [
+    {
+      "text": "调用了 rx60s hot weibo(或顶层 weibo 命令)",
+      "passed": true,
+      "evidence": "cli_raw source=rx60s"
+    },
+    {
+      "text": "输出包含多条热搜标题(至少 5 条)",
+      "passed": true,
+      "evidence": "热搜数组有 50 条"
+    },
+    {
+      "text": "输出包含热度值(hot_value)",
+      "passed": true,
+      "evidence": "首条 hot_value=2807281"
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 0,
+    "total": 3,
+    "pass_rate": 1.0
+  }
+}

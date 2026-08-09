@@ -1,0 +1,58 @@
+{
+  "name": "@renxqoo/rx60s-cli",
+  "version": "1.0.0",
+  "description": "rx60s — 每天 60 秒读懂世界 · 开放 API 命令行工具,基于 @renxqoo/agent-data-cli 框架,封装 vikiboss/60s 开源项目的全部公开接口(新闻/热搜/天气/油价/老黄历/翻译/二维码等 60+ 接口)",
+  "keywords": [
+    "60s",
+    "agent",
+    "agentdatacli",
+    "cli",
+    "daily-news",
+    "hot-search",
+    "news",
+    "rxcli",
+    "translate",
+    "weather"
+  ],
+  "homepage": "https://github.com/renxqoo/rxcli#readme",
+  "bugs": {
+    "url": "https://github.com/renxqoo/rxcli/issues"
+  },
+  "license": "MIT",
+  "author": "renxqoo <wangrenren611@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/renxqoo/rxcli.git",
+    "directory": "apps/60s"
+  },
+  "bin": {
+    "rx60s": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "skills"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@renxqoo/agent-data-cli": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "typescript": "^5.9.2",
+    "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "rxcli": {
+    "plugin": true
+  }
+}

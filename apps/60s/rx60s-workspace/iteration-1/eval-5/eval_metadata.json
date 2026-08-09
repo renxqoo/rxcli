@@ -1,0 +1,10 @@
+{
+  "eval_id": 5,
+  "eval_name": "password-gen",
+  "prompt": "我需要一个 20 位的强随机密码,要包含特殊符号,顺便告诉我它有多安全。",
+  "assertions": [
+    "调用了 rx60s tool password(length=20 且 symbols=true)",
+    "输出了一个 20 位密码字符串",
+    "输出包含强度评估或破解时间信息"
+  ]
+}

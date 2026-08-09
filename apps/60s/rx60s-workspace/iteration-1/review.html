@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eval Review</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Lora:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" integrity="sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg: #faf9f5;
+      --surface: #ffffff;
+      --border: #e8e6dc;
+      --text: #141413;
+      --text-muted: #b0aea5;
+      --accent: #d97757;
+      --accent-hover: #c4613f;
+      --green: #788c5d;
+      --green-bg: #eef2e8;
+      --red: #c44;
+      --red-bg: #fceaea;
+      --header-bg: #141413;
+      --header-text: #faf9f5;
+      --radius: 6px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Lora', Georgia, serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ---- Header ---- */
+    .header {
+      background: var(--header-bg);
+      color: var(--header-text);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .header h1 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+    .header .instructions {
+      font-size: 0.8rem;
+      opacity: 0.7;
+      margin-top: 0.25rem;
+    }
+    .header .progress {
+      font-size: 0.875rem;
+      opacity: 0.8;
+      text-align: right;
+    }
+
+    /* ---- Main content ---- */
+    .main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.5rem 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    /* ---- Sections ---- */
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      flex-shrink: 0;
+    }
+    .section-header {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.75rem 1rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .section-body {
+      padding: 1rem;
+    }
+
+    /* ---- Config badge ---- */
+    .config-badge {
+      display: inline-block;
+      padding: 0.2rem 0.625rem;
+      border-radius: 9999px;
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-left: 0.75rem;
+      vertical-align: middle;
+    }
+    .config-badge.config-primary {
+      background: rgba(33, 150, 243, 0.12);
+      color: #1976d2;
+    }
+    .config-badge.config-baseline {
+      background: rgba(255, 193, 7, 0.15);
+      color: #f57f17;
+    }
+
+    /* ---- Prompt ---- */
+    .prompt-text {
+      white-space: pre-wrap;
+      font-size: 0.9375rem;
+      line-height: 1.6;
+    }
+
+    /* ---- Outputs ---- */
+    .output-file {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .output-file + .output-file {
+      margin-top: 1rem;
+    }
+    .output-file-header {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .output-file-header .dl-btn {
+      font-size: 0.7rem;
+      color: var(--accent);
+      text-decoration: none;
+      cursor: pointer;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-weight: 500;
+      opacity: 0.8;
+    }
+    .output-file-header .dl-btn:hover {
+      opacity: 1;
+      text-decoration: underline;
+    }
+    .output-file-content {
+      padding: 0.75rem;
+      overflow-x: auto;
+    }
+    .output-file-content pre {
+      font-size: 0.8125rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+    }
+    .output-file-content img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 4px;
+    }
+    .output-file-content iframe {
+      width: 100%;
+      height: 600px;
+      border: none;
+    }
+    .output-file-content table {
+      border-collapse: collapse;
+      font-size: 0.8125rem;
+      width: 100%;
+    }
+    .output-file-content table td,
+    .output-file-content table th {
+      border: 1px solid var(--border);
+      padding: 0.375rem 0.5rem;
+      text-align: left;
+    }
+    .output-file-content table th {
+      background: var(--bg);
+      font-weight: 600;
+    }
+    .output-file-content .download-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.875rem;
+      cursor: pointer;
+    }
+    .output-file-content .download-link:hover {
+      background: var(--border);
+    }
+    .empty-state {
+      color: var(--text-muted);
+      font-style: italic;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    /* ---- Feedback ---- */
+    .prev-feedback {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.625rem 0.75rem;
+      margin-top: 0.75rem;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .prev-feedback-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.25rem;
+      color: var(--text-muted);
+    }
+    .feedback-textarea {
+      width: 100%;
+      min-height: 100px;
+      padding: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 0.9375rem;
+      line-height: 1.5;
+      resize: vertical;
+      color: var(--text);
+    }
+    .feedback-textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+    .feedback-status {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+      min-height: 1.1em;
+    }
+
+    /* ---- Grades (collapsible) ---- */
+    .grades-toggle {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    .grades-toggle:hover {
+      color: var(--accent);
+    }
+    .grades-toggle .arrow {
+      margin-right: 0.5rem;
+      transition: transform 0.15s;
+      font-size: 0.75rem;
+    }
+    .grades-toggle .arrow.open {
+      transform: rotate(90deg);
+    }
+    .grades-content {
+      display: none;
+      margin-top: 0.75rem;
+    }
+    .grades-content.open {
+      display: block;
+    }
+    .grades-summary {
+      font-size: 0.875rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .grade-badge {
+      display: inline-block;
+      padding: 0.125rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .grade-pass { background: var(--green-bg); color: var(--green); }
+    .grade-fail { background: var(--red-bg); color: var(--red); }
+    .assertion-list {
+      list-style: none;
+    }
+    .assertion-item {
+      padding: 0.625rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8125rem;
+    }
+    .assertion-item:last-child { border-bottom: none; }
+    .assertion-status {
+      font-weight: 600;
+      margin-right: 0.5rem;
+    }
+    .assertion-status.pass { color: var(--green); }
+    .assertion-status.fail { color: var(--red); }
+    .assertion-evidence {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      margin-top: 0.25rem;
+      padding-left: 1.5rem;
+    }
+
+    /* ---- View tabs ---- */
+    .view-tabs {
+      display: flex;
+      gap: 0;
+      padding: 0 2rem;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .view-tab {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.625rem 1.25rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      background: none;
+      color: var(--text-muted);
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .view-tab:hover { color: var(--text); }
+    .view-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    .view-panel { display: none; }
+    .view-panel.active { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+    /* ---- Benchmark view ---- */
+    .benchmark-view {
+      padding: 1.5rem 2rem;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .benchmark-table {
+      border-collapse: collapse;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.8125rem;
+      width: 100%;
+      margin-bottom: 1.5rem;
+    }
+    .benchmark-table th, .benchmark-table td {
+      padding: 0.625rem 0.75rem;
+      text-align: left;
+      border: 1px solid var(--border);
+    }
+    .benchmark-table th {
+      font-family: 'Poppins', sans-serif;
+      background: var(--header-bg);
+      color: var(--header-text);
+      font-weight: 500;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .benchmark-table tr:hover { background: var(--bg); }
+    .benchmark-table tr.benchmark-row-with { background: rgba(33, 150, 243, 0.06); }
+    .benchmark-table tr.benchmark-row-without { background: rgba(255, 193, 7, 0.06); }
+    .benchmark-table tr.benchmark-row-with:hover { background: rgba(33, 150, 243, 0.12); }
+    .benchmark-table tr.benchmark-row-without:hover { background: rgba(255, 193, 7, 0.12); }
+    .benchmark-table tr.benchmark-row-avg { font-weight: 600; border-top: 2px solid var(--border); }
+    .benchmark-table tr.benchmark-row-avg.benchmark-row-with { background: rgba(33, 150, 243, 0.12); }
+    .benchmark-table tr.benchmark-row-avg.benchmark-row-without { background: rgba(255, 193, 7, 0.12); }
+    .benchmark-delta-positive { color: var(--green); font-weight: 600; }
+    .benchmark-delta-negative { color: var(--red); font-weight: 600; }
+    .benchmark-notes {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+    }
+    .benchmark-notes h3 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.875rem;
+      margin-bottom: 0.75rem;
+    }
+    .benchmark-notes ul {
+      list-style: disc;
+      padding-left: 1.25rem;
+    }
+    .benchmark-notes li {
+      font-size: 0.8125rem;
+      line-height: 1.6;
+      margin-bottom: 0.375rem;
+    }
+    .benchmark-empty {
+      color: var(--text-muted);
+      font-style: italic;
+      text-align: center;
+      padding: 3rem;
+    }
+
+    /* ---- Navigation ---- */
+    .nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 2rem;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+    .nav-btn {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.5rem 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text);
+      transition: all 0.15s;
+    }
+    .nav-btn:hover:not(:disabled) {
+      background: var(--bg);
+      border-color: var(--text-muted);
+    }
+    .nav-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .done-btn {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.5rem 1.5rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+    .done-btn:hover {
+      background: var(--bg);
+      border-color: var(--text-muted);
+    }
+    .done-btn.ready {
+      border: none;
+      background: var(--accent);
+      color: white;
+      font-weight: 600;
+    }
+    .done-btn.ready:hover {
+      background: var(--accent-hover);
+    }
+    /* ---- Done overlay ---- */
+    .done-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+    .done-overlay.visible {
+      display: flex;
+    }
+    .done-card {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 2rem 3rem;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 500px;
+    }
+    .done-card h2 {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .done-card p {
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
+    }
+    .done-card .btn-row {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+    }
+    .done-card button {
+      padding: 0.5rem 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 0.875rem;
+    }
+    .done-card button:hover {
+      background: var(--bg);
+    }
+    /* ---- Toast ---- */
+    .toast {
+      position: fixed;
+      bottom: 5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--header-bg);
+      color: var(--header-text);
+      padding: 0.625rem 1.25rem;
+      border-radius: var(--radius);
+      font-size: 0.875rem;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      z-index: 200;
+    }
+    .toast.visible {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" style="height:100vh; display:flex; flex-direction:column;">
+    <div class="header">
+      <div>
+        <h1>Eval Review: <span id="skill-name"></span></h1>
+        <div class="instructions">Review each output and leave feedback below. Navigate with arrow keys or buttons. When done, copy feedback and paste into Claude Code.</div>
+      </div>
+      <div class="progress" id="progress"></div>
+    </div>
+
+    <!-- View tabs (only shown when benchmark data exists) -->
+    <div class="view-tabs" id="view-tabs" style="display:none;">
+      <button class="view-tab active" onclick="switchView('outputs')">Outputs</button>
+      <button class="view-tab" onclick="switchView('benchmark')">Benchmark</button>
+    </div>
+
+    <!-- Outputs panel (qualitative review) -->
+    <div class="view-panel active" id="panel-outputs">
+    <div class="main">
+      <!-- Prompt -->
+      <div class="section">
+        <div class="section-header">Prompt <span class="config-badge" id="config-badge" style="display:none;"></span></div>
+        <div class="section-body">
+          <div class="prompt-text" id="prompt-text"></div>
+        </div>
+      </div>
+
+      <!-- Outputs -->
+      <div class="section">
+        <div class="section-header">Output</div>
+        <div class="section-body" id="outputs-body">
+          <div class="empty-state">No output files found</div>
+        </div>
+      </div>
+
+      <!-- Previous Output (collapsible) -->
+      <div class="section" id="prev-outputs-section" style="display:none;">
+        <div class="section-header">
+          <div class="grades-toggle" onclick="togglePrevOutputs()">
+            <span class="arrow" id="prev-outputs-arrow">&#9654;</span>
+            Previous Output
+          </div>
+        </div>
+        <div class="grades-content" id="prev-outputs-content"></div>
+      </div>
+
+      <!-- Grades (collapsible) -->
+      <div class="section" id="grades-section" style="display:none;">
+        <div class="section-header">
+          <div class="grades-toggle" onclick="toggleGrades()">
+            <span class="arrow" id="grades-arrow">&#9654;</span>
+            Formal Grades
+          </div>
+        </div>
+        <div class="grades-content" id="grades-content"></div>
+      </div>
+
+      <!-- Feedback -->
+      <div class="section">
+        <div class="section-header">Your Feedback</div>
+        <div class="section-body">
+          <textarea
+            class="feedback-textarea"
+            id="feedback"
+            placeholder="What do you think of this output? Any issues, suggestions, or things that look great?"
+          ></textarea>
+          <div class="feedback-status" id="feedback-status"></div>
+          <div class="prev-feedback" id="prev-feedback" style="display:none;">
+            <div class="prev-feedback-label">Previous feedback</div>
+            <div id="prev-feedback-text"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav" id="outputs-nav">
+      <button class="nav-btn" id="prev-btn" onclick="navigate(-1)">&#8592; Previous</button>
+      <button class="done-btn" id="done-btn" onclick="showDoneDialog()">Submit All Reviews</button>
+      <button class="nav-btn" id="next-btn" onclick="navigate(1)">Next &#8594;</button>
+    </div>
+    </div><!-- end panel-outputs -->
+
+    <!-- Benchmark panel (quantitative stats) -->
+    <div class="view-panel" id="panel-benchmark">
+      <div class="benchmark-view" id="benchmark-content">
+        <div class="benchmark-empty">No benchmark data available. Run a benchmark to see quantitative results here.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Done overlay -->
+  <div class="done-overlay" id="done-overlay">
+    <div class="done-card">
+      <h2>Review Complete</h2>
+      <p>Your feedback has been saved. Go back to your Claude Code session and tell Claude you're done reviewing.</p>
+      <div class="btn-row">
+        <button onclick="closeDoneDialog()">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ---- Embedded data (injected by generate_review.py) ----
+    const EMBEDDED_DATA = {"skill_name": "rx60s", "runs": [{"id": "eval-1-with_skill-run-1", "prompt": "(No prompt found)", "eval_id": null, "outputs": [{"name": "cli_raw.json", "type": "text", "content": "{\"ok\":true,\"source\":\"rx60s\",\"data\":{\"date\":\"2026-08-09\",\"news\":[\"\u53f0\u98ce \u201c\u767d\u6d77\u8c5a\u201d \u9884\u8ba1 9 \u65e5\u665a\u81f3 10 \u65e5\u65e9\u6668\u5728\u6d59\u95fd\u6cbf\u6d77\u767b\u9646\uff0c\u672a\u6765\u4e09\u5929\u6d59\u6c5f\u3001\u4e0a\u6d77\u3001\u798f\u5efa\u5317\u90e8\u3001\u6c5f\u82cf\u5927\u90e8\u7b49\u5730\u6709\u5f3a\u964d\u96e8\",\"\u65b0\u7586\u8c03\u6574 4A \u53ca\u4ee5\u4e0a\u666f\u533a\u81ea\u9a7e\u670d\u52a1\u8d39\uff0c\u7edf\u4e00\u6309 \u201c\u8f66\u201d \u6536\u8d39\",\"2026 \u5e74\u672c\u79d1\u672a\u5f55\u6ee1\u4e13\u4e1a TOP50 \u516c\u5e03\uff1a\u4f1a\u8ba1\u5b66 410 \u6b21\u5c45\u9996\uff0c\u8d22\u52a1\u7ba1\u7406 398 \u6b21\u3001\u82f1\u8bed 379 \u6b21\u7d27\u968f\u5176\u540e\",\"\u5317\u4eac\u5e02\u6559\u59d4\uff1a\u6270\u4e71\u8bfe\u5802\u79e9\u5e8f\u3001\u5438\u70df\u996e\u9152\u7b49\u4e03\u7c7b\u60c5\u5f62\uff0c\u53ef\u5b9e\u65bd\u6559\u80b2\u60e9\u6212\",\"28 \u6b3e\u70ed\u9500\u776b\u6bdb\u80f6\u4e2d\u8d85\u516b\u6210\u6837\u54c1\u68c0\u51fa\u81f4\u764c\u7269\uff0c\u90e8\u5206\u6210\u5206\u63a5\u8fd1 502 \u80f6\",\"\u9655\u897f\u5546\u6d1b\u66b4\u96e8\u4e00\u68fa\u6750\u5382\u88ab\u51b2\u6bc1\uff0c\u8001\u677f\u79f0 14 \u526f\u6210\u54c1\u68fa\u6750\u51b2\u8d70\uff0c\u635f\u5931\u8d85 40 \u4e07\u5143\",\"\u9999\u6e2f\u6b63\u5f0f\u7acb\u6cd5\u5141\u8bb8 \u201c\u62d2\u7edd\u62a2\u6551\u201d\uff1a\u75c5\u4eba\u53ef\u901a\u8fc7\u9884\u5148\u8ba2\u7acb\u6307\u793a\uff0c\u62d2\u7edd\u5fc3\u80ba\u590d\u82cf\u3001\u4eba\u5de5\u547c\u5438\u5668\u7b49\u4fb5\u5165\u6027\u7ef4\u6301\u751f\u547d\u6cbb\u7597\",\"\u9ec4\u91d1\u521b\u4eca\u5e74\u6765\u6700\u5927\u5355\u5468\u6da8\u5e45\uff0c\u56fd\u5185\u91d1\u9970\u514b\u4ef7\u4e00\u591c\u6da8\u56de 1300 \u5143\",\"\u591a\u5bb6 A \u80a1\u516c\u53f8\u516c\u544a\uff1a\u6536\u5230\u7f8e\u56fd\u5173\u7a0e\u9000\u7a0e\uff0c\u6700\u9ad8\u8fd1\u4ebf\u5143\",\"\u6211\u56fd\u79d1\u5b66\u5bb6\u91cd\u5927\u53d1\u73b0\uff1a\u94f6\u6cb3\u7cfb\u4e0d\u662f\u6241\u5e73\u5706\u76d8\uff0c\u5176\u5916\u76d8\u5b58\u5728\u6574\u4f53\u7fd8\u66f2\u5e76\u53e0\u52a0\u5927\u8303\u56f4\u6ce2\u7eb9\u72b6\u8936\u76b1\u7ed3\u6784\",\"\u7f8e\u56fd\u9632\u90e8\u7b2c\u4e94\u6279 UFO \u6863\u6848\uff1a\u5149\u7403\u98de\u63a0\u4e2d\u4e1c\u5c45\u6c11\u533a\uff0c\u963f\u5bcc\u6c57 152 \u7c73\u4e09\u89d2\u5f62\u906e\u853d\u661f\u5149\",\"\u82f9\u679c\u52a0\u7801\u5370\u5ea6\u5236\u9020\uff1a\u4eca\u5e74\u9884\u8ba1\u751f\u4ea7\u5168\u7403 26% \u7684 iPhone\uff0c\u800c\u56db\u5e74\u524d\u8fd9\u4e00\u6bd4\u4f8b\u4ec5\u4e3a 6%\",\"\u65e5\u672c\u53d1\u5e03\u6392\u540d\uff1a\u4e2d\u56fd\u7814\u53d1\u603b\u6295\u5165\u8d85\u8fc7\u7f8e\u56fd\u4f4d\u5c45\u4e16\u754c\u7b2c\u4e00\uff0c\u7f8e\u65e5\u5fb7\u97e9\u82f1\u6cd5\u5c45\u540e\",\"\u9a6c\u65af\u514b\u8c6a\u63b7 168 \u4ebf\u7f8e\u5143\u6253\u9020 \u201c\u5730\u7403\u6700\u5927\u82af\u7247\u5de5\u5382\u201d\uff0c\u89c4\u6a21\u76f8\u5f53\u4e8e 50 \u4e2a\u4e94\u89d2\u5927\u697c\",\"\u7279\u6717\u666e\u5ba3\u5e03\u5c06\u5411\u5173\u952e\u77ff\u4ea7\u6295\u8d44 30 \u4ebf\u7f8e\u5143\uff0c\u91cd\u5851\u7f8e\u56fd\u4f5c\u4e3a\u4e16\u754c\u77ff\u4ea7\u8d85\u7ea7\u5927\u56fd\u7684\u5e94\u6709\u5730\u4f4d\"],\"cover\":\"https://mmbiz.qpic.cn/sz_mmbiz_jpg/LMNfgJMd0U8HnDgSvz0Okiac3jBSVfnFBiaxSDX71m4wYAsD2ZN24XULGNJc5aVLErFF2qF42XzQGfA5Etibr3z2734dhUWu38QKdvnk9BeV0o/640?wx_fmt=jpeg&from=appmsg\",\"tip\":\"\u4f60\u4e0d\u9700\u8981\u88ab\u6240\u6709\u4eba\u7406\u89e3\uff0c\u4e5f\u4e0d\u9700\u8981\u5411\u6240\u6709\u4eba\u89e3\u91ca\u3002\u8d70\u81ea\u5df1\u7684\u8def\uff0c\u98ce\u4f1a\u66ff\u4f60\u8bf4\u8bdd\u3002\",\"image\":\"https://cdn.jsdmirror.com/gh/vikiboss/60s-static-host@main/static/images/2026-08-09.png\",\"link\":\"https://mp.weixin.qq.com/s/OHLy-IHVk5QewFhu_NscOQ\",\"created\":\"2026/08/09 07:30\",\"created_at\":1786231804104,\"updated\":\"2026/08/09 07:30\",\"updated_at\":1786231804104,\"day_of_week\":\"\u661f\u671f\u65e5\",\"lunar_date\":\"\u4e19\u5348\u5e74\u516d\u6708\u5eff\u4e03\",\"api_updated\":\"2026/08/09 20:36:34\",\"api_updated_at\":1786278994377}}\n"}, {"name": "result.md", "type": "text", "content": "# \u6bcf\u5929 60 \u79d2\u8bfb\u61c2\u4e16\u754c\n\n**\u65e5\u671f**\uff1a2026-08-09\uff08\u661f\u671f\u65e5\uff09\u00b7 \u519c\u5386\u4e19\u5348\u5e74\u516d\u6708\u5eff\u4e03\n\n\u4eca\u5929\u662f 8 \u6708 9 \u65e5\uff0c\u4ee5\u4e0b\u662f\u4eca\u5929\u7684 15 \u6761\u65b0\u95fb\u901f\u89c8\uff1a\n\n1. \u53f0\u98ce\"\u767d\u6d77\u8c5a\"\u9884\u8ba1 9 \u65e5\u665a\u81f3 10 \u65e5\u65e9\u6668\u5728\u6d59\u95fd\u6cbf\u6d77\u767b\u9646\uff0c\u672a\u6765\u4e09\u5929\u6d59\u6c5f\u3001\u4e0a\u6d77\u3001\u798f\u5efa\u5317\u90e8\u3001\u6c5f\u82cf\u5927\u90e8\u7b49\u5730\u6709\u5f3a\u964d\u96e8\u3002\n2. \u65b0\u7586\u8c03\u6574 4A \u53ca\u4ee5\u4e0a\u666f\u533a\u81ea\u9a7e\u670d\u52a1\u8d39\uff0c\u7edf\u4e00\u6309\"\u8f66\"\u6536\u8d39\u3002\n3. 2026 \u5e74\u672c\u79d1\u672a\u5f55\u6ee1\u4e13\u4e1a TOP50 \u516c\u5e03\uff1a\u4f1a\u8ba1\u5b66 410 \u6b21\u5c45\u9996\uff0c\u8d22\u52a1\u7ba1\u7406 398 \u6b21\u3001\u82f1\u8bed 379 \u6b21\u7d27\u968f\u5176\u540e\u3002\n4. \u5317\u4eac\u5e02\u6559\u59d4\uff1a\u6270\u4e71\u8bfe\u5802\u79e9\u5e8f\u3001\u5438\u70df\u996e\u9152\u7b49\u4e03\u7c7b\u60c5\u5f62\uff0c\u53ef\u5b9e\u65bd\u6559\u80b2\u60e9\u6212\u3002\n5. 28 \u6b3e\u70ed\u9500\u776b\u6bdb\u80f6\u4e2d\u8d85\u516b\u6210\u6837\u54c1\u68c0\u51fa\u81f4\u764c\u7269\uff0c\u90e8\u5206\u6210\u5206\u63a5\u8fd1 502 \u80f6\u3002\n6. \u9655\u897f\u5546\u6d1b\u66b4\u96e8\u4e00\u68fa\u6750\u5382\u88ab\u51b2\u6bc1\uff0c\u8001\u677f\u79f0 14 \u526f\u6210\u54c1\u68fa\u6750\u51b2\u8d70\uff0c\u635f\u5931\u8d85 40 \u4e07\u5143\u3002\n7. \u9999\u6e2f\u6b63\u5f0f\u7acb\u6cd5\u5141\u8bb8\"\u62d2\u7edd\u62a2\u6551\"\uff1a\u75c5\u4eba\u53ef\u901a\u8fc7\u9884\u5148\u8ba2\u7acb\u6307\u793a\uff0c\u62d2\u7edd\u5fc3\u80ba\u590d\u82cf\u3001\u4eba\u5de5\u547c\u5438\u5668\u7b49\u4fb5\u5165\u6027\u7ef4\u6301\u751f\u547d\u6cbb\u7597\u3002\n8. \u9ec4\u91d1\u521b\u4eca\u5e74\u6765\u6700\u5927\u5355\u5468\u6da8\u5e45\uff0c\u56fd\u5185\u91d1\u9970\u514b\u4ef7\u4e00\u591c\u6da8\u56de 1300 \u5143\u3002\n9. \u591a\u5bb6 A \u80a1\u516c\u53f8\u516c\u544a\uff1a\u6536\u5230\u7f8e\u56fd\u5173\u7a0e\u9000\u7a0e\uff0c\u6700\u9ad8\u8fd1\u4ebf\u5143\u3002\n10. \u6211\u56fd\u79d1\u5b66\u5bb6\u91cd\u5927\u53d1\u73b0\uff1a\u94f6\u6cb3\u7cfb\u4e0d\u662f\u6241\u5e73\u5706\u76d8\uff0c\u5176\u5916\u76d8\u5b58\u5728\u6574\u4f53\u7fd8\u66f2\u5e76\u53e0\u52a0\u5927\u8303\u56f4\u6ce2\u7eb9\u72b6\u8936\u76b1\u7ed3\u6784\u3002\n11. \u7f8e\u56fd\u9632\u90e8\u7b2c\u4e94\u6279 UFO \u6863\u6848\uff1a\u5149\u7403\u98de\u63a0\u4e2d\u4e1c\u5c45\u6c11\u533a\uff0c\u963f\u5bcc\u6c57 152 \u7c73\u4e09\u89d2\u5f62\u906e\u853d\u661f\u5149\u3002\n12. \u82f9\u679c\u52a0\u7801\u5370\u5ea6\u5236\u9020\uff1a\u4eca\u5e74\u9884\u8ba1\u751f\u4ea7\u5168\u7403 26% \u7684 iPhone\uff0c\u800c\u56db\u5e74\u524d\u8fd9\u4e00\u6bd4\u4f8b\u4ec5\u4e3a 6%\u3002\n13. \u65e5\u672c\u53d1\u5e03\u6392\u540d\uff1a\u4e2d\u56fd\u7814\u53d1\u603b\u6295\u5165\u8d85\u8fc7\u7f8e\u56fd\u4f4d\u5c45\u4e16\u754c\u7b2c\u4e00\uff0c\u7f8e\u65e5\u5fb7\u97e9\u82f1\u6cd5\u5c45\u540e\u3002\n14. \u9a6c\u65af\u514b\u8c6a\u63b7 168 \u4ebf\u7f8e\u5143\u6253\u9020\"\u5730\u7403\u6700\u5927\u82af\u7247\u5de5\u5382\"\uff0c\u89c4\u6a21\u76f8\u5f53\u4e8e 50 \u4e2a\u4e94\u89d2\u5927\u697c\u3002\n15. \u7279\u6717\u666e\u5ba3\u5e03\u5c06\u5411\u5173\u952e\u77ff\u4ea7\u6295\u8d44 30 \u4ebf\u7f8e\u5143\uff0c\u91cd\u5851\u7f8e\u56fd\u4f5c\u4e3a\u4e16\u754c\u77ff\u4ea7\u8d85\u7ea7\u5927\u56fd\u7684\u5e94\u6709\u5730\u4f4d\u3002\n\n> \u5fae\u8bed\uff1a\u4f60\u4e0d\u9700\u8981\u88ab\u6240\u6709\u4eba\u7406\u89e3\uff0c\u4e5f\u4e0d\u9700\u8981\u5411\u6240\u6709\u4eba\u89e3\u91ca\u3002\u8d70\u81ea\u5df1\u7684\u8def\uff0c\u98ce\u4f1a\u66ff\u4f60\u8bf4\u8bdd\u3002\n\n---\n*\u6570\u636e\u6765\u6e90\uff1a[vikiboss/60s](https://github.com/vikiboss/60s) \u5f00\u653e API\uff0c\u7ecf rx60s CLI \u83b7\u53d6\u3002*\n*\u6bcf\u65e5\u65b0\u95fb\u56fe\u6587\uff1ahttps://mp.weixin.qq.com/s/OHLy-IHVk5QewFhu_NscOQ*\n"}], "grading": {"expectations": [{"text": "\u8c03\u7528\u4e86 rx60s CLI(60s \u6216 news today \u547d\u4ee4)", "passed": true, "evidence": "cli_raw source=rx60s, ok=True"}, {"text": "\u8f93\u51fa\u5305\u542b\u81f3\u5c11 3 \u6761\u65b0\u95fb\u6807\u9898", "passed": true, "evidence": "news \u6570\u7ec4\u6709 15 \u6761"}, {"text": "\u65b0\u95fb\u5185\u5bb9\u662f\u771f\u5b9e\u7684\u5f53\u65e5\u65b0\u95fb(\u975e\u5360\u4f4d\u7b26)", "passed": true, "evidence": "\u793a\u4f8b: \u53f0\u98ce \u201c\u767d\u6d77\u8c5a\u201d \u9884\u8ba1 9 \u65e5\u665a\u81f3 10 \u65e5\u65e9\u6668\u5728\u6d59\u95fd\u6cbf\u6d77\u767b\u9646\uff0c\u672a\u6765\u4e09\u5929\u6d59\u6c5f\u3001\u4e0a"}], "summary": {"passed": 3, "failed": 0, "total": 3, "pass_rate": 1.0}}}, {"id": "eval-1-without_skill-run-1", "prompt": "(No prompt found)", "eval_id": null, "outputs": [{"name": "cli_raw.json", "type": "text", "content": "{\"ok\":true,\"source\":\"rx60s\",\"data\":{\"date\":\"2026-08-09\",\"news\":[\"\u53f0\u98ce \u201c\u767d\u6d77\u8c5a\u201d \u9884\u8ba1 9 \u65e5\u665a\u81f3 10 \u65e5\u65e9\u6668\u5728\u6d59\u95fd\u6cbf\u6d77\u767b\u9646\uff0c\u672a\u6765\u4e09\u5929\u6d59\u6c5f\u3001\u4e0a\u6d77\u3001\u798f\u5efa\u5317\u90e8\u3001\u6c5f\u82cf\u5927\u90e8\u7b49\u5730\u6709\u5f3a\u964d\u96e8\",\"\u65b0\u7586\u8c03\u6574 4A \u53ca\u4ee5\u4e0a\u666f\u533a\u81ea\u9a7e\u670d\u52a1\u8d39\uff0c\u7edf\u4e00\u6309 \u201c\u8f66\u201d \u6536\u8d39\",\"2026 \u5e74\u672c\u79d1\u672a\u5f55\u6ee1\u4e13\u4e1a TOP50 \u516c\u5e03\uff1a\u4f1a\u8ba1\u5b66 410 \u6b21\u5c45\u9996\uff0c\u8d22\u52a1\u7ba1\u7406 398 \u6b21\u3001\u82f1\u8bed 379 \u6b21\u7d27\u968f\u5176\u540e\",\"\u5317\u4eac\u5e02\u6559\u59d4\uff1a\u6270\u4e71\u8bfe\u5802\u79e9\u5e8f\u3001\u5438\u70df\u996e\u9152\u7b49\u4e03\u7c7b\u60c5\u5f62\uff0c\u53ef\u5b9e\u65bd\u6559\u80b2\u60e9\u6212\",\"28 \u6b3e\u70ed\u9500\u776b\u6bdb\u80f6\u4e2d\u8d85\u516b\u6210\u6837\u54c1\u68c0\u51fa\u81f4\u764c\u7269\uff0c\u90e8\u5206\u6210\u5206\u63a5\u8fd1 502 \u80f6\",\"\u9655\u897f\u5546\u6d1b\u66b4\u96e8\u4e00\u68fa\u6750\u5382\u88ab\u51b2\u6bc1\uff0c\u8001\u677f\u79f0 14 \u526f\u6210\u54c1\u68fa\u6750\u51b2\u8d70\uff0c\u635f\u5931\u8d85 40 \u4e07\u5143\",\"\u9999\u6e2f\u6b63\u5f0f\u7acb\u6cd5\u5141\u8bb8 \u201c\u62d2\u7edd\u62a2\u6551\u201d\uff1a\u75c5\u4eba\u53ef\u901a\u8fc7\u9884\u5148\u8ba2\u7acb\u6307\u793a\uff0c\u62d2\u7edd\u5fc3\u80ba\u590d\u82cf\u3001\u4eba\u5de5\u547c\u5438\u5668\u7b49\u4fb5\u5165\u6027\u7ef4\u6301\u751f\u547d\u6cbb\u7597\",\"\u9ec4\u91d1\u521b\u4eca\u5e74\u6765\u6700\u5927\u5355\u5468\u6da8\u5e45\uff0c\u56fd\u5185\u91d1\u9970\u514b\u4ef7\u4e00\u591c\u6da8\u56de 1300 \u5143\",\"\u591a\u5bb6 A \u80a1\u516c\u53f8\u516c\u544a\uff1a\u6536\u5230\u7f8e\u56fd\u5173\u7a0e\u9000\u7a0e\uff0c\u6700\u9ad8\u8fd1\u4ebf\u5143\",\"\u6211\u56fd\u79d1\u5b66\u5bb6\u91cd\u5927\u53d1\u73b0\uff1a\u94f6\u6cb3\u7cfb\u4e0d\u662f\u6241\u5e73\u5706\u76d8\uff0c\u5176\u5916\u76d8\u5b58\u5728\u6574\u4f53\u7fd8\u66f2\u5e76\u53e0\u52a0\u5927\u8303\u56f4\u6ce2\u7eb9\u72b6\u8936\u76b1\u7ed3\u6784\",\"\u7f8e\u56fd\u9632\u90e8\u7b2c\u4e94\u6279 UFO \u6863\u6848\uff1a\u5149\u7403\u98de\u63a0\u4e2d\u4e1c\u5c45\u6c11\u533a\uff0c\u963f\u5bcc\u6c57 152 \u7c73\u4e09\u89d2\u5f62\u906e\u853d\u661f\u5149\",\"\u82f9\u679c\u52a0\u7801\u5370\u5ea6\u5236\u9020\uff1a\u4eca\u5e74\u9884\u8ba1\u751f\u4ea7\u5168\u7403 26% \u7684 iPhone\uff0c\u800c\u56db\u5e74\u524d\u8fd9\u4e00\u6bd4\u4f8b\u4ec5\u4e3a 6%\",\"\u65e5\u672c\u53d1\u5e03\u6392\u540d\uff1a\u4e2d\u56fd\u7814\u53d1\u603b\u6295\u5165\u8d85\u8fc7\u7f8e\u56fd\u4f4d\u5c45\u4e16\u754c\u7b2c\u4e00\uff0c\u7f8e\u65e5\u5fb7\u97e9\u82f1\u6cd5\u5c45\u540e\",\"\u9a6c\u65af\u514b\u8c6a\u63b7 168 \u4ebf\u7f8e\u5143\u6253\u9020 \u201c\u5730\u7403\u6700\u5927\u82af\u7247\u5de5\u5382\u201d\uff0c\u89c4\u6a21\u76f8\u5f53\u4e8e 50 \u4e2a\u4e94\u89d2\u5927\u697c\",\"\u7279\u6717\u666e\u5ba3\u5e03\u5c06\u5411\u5173\u952e\u77ff\u4ea7\u6295\u8d44 30 \u4ebf\u7f8e\u5143\uff0c\u91cd\u5851\u7f8e\u56fd\u4f5c\u4e3a\u4e16\u754c\u77ff\u4ea7\u8d85\u7ea7\u5927\u56fd\u7684\u5e94\u6709\u5730\u4f4d\"],\"cover\":\"https://mmbiz.qpic.cn/sz_mmbiz_jpg/LMNfgJMd0U8HnDgSvz0Okiac3jBSVfnFBiaxSDX71m4wYAsD2ZN24XULGNJc5aVLErFF2qF42XzQGfA5Etibr3z2734dhUWu38QKdvnk9BeV0o/640?wx_fmt=jpeg&from=appmsg\",\"tip\":\"\u4f60\u4e0d\u9700\u8981\u88ab\u6240\u6709\u4eba\u7406\u89e3\uff0c\u4e5f\u4e0d\u9700\u8981\u5411\u6240\u6709\u4eba\u89e3\u91ca\u3002\u8d70\u81ea\u5df1\u7684\u8def\uff0c\u98ce\u4f1a\u66ff\u4f60\u8bf4\u8bdd\u3002\",\"image\":\"https://cdn.jsdmirror.com/gh/vikiboss/60s-static-host@main/static/images/2026-08-09.png\",\"link\":\"https://mp.weixin.qq.com/s/OHLy-IHVk5QewFhu_NscOQ\",\"created\":\"2026/08/09 07:30\",\"created_at\":1786231804104,\"updated\":\"2026/08/09 07:30\",\"updated_at\":1786231804104,\"day_of_week\":\"\u661f\u671f\u65e5\",\"lunar_date\":\"\u4e19\u5348\u5e74\u516d\u6708\u5eff\u4e03\",\"api_updated\":\"2026/08/09 20:21:07\",\"api_updated_at\":1786278067384}}\n"}, {"name": "result.md", "type": "text", "content": "# \u4eca\u5929\u6709\u4ec0\u4e48\u65b0\u95fb \u00b7 \u6bcf\u5929 60 \u79d2\u8bfb\u61c2\u4e16\u754c\n\n**\u65e5\u671f**\uff1a2026-08-09\uff08\u661f\u671f\u65e5\uff09\u00b7 \u519c\u5386\u4e19\u5348\u5e74\u516d\u6708\u5eff\u4e03\n\n\u4eca\u5929\u7684 15 \u6761\u65b0\u95fb\u6807\u9898\u5982\u4e0b\uff1a\n\n1. \u53f0\u98ce\"\u767d\u6d77\u8c5a\"\u9884\u8ba1 9 \u65e5\u665a\u81f3 10 \u65e5\u65e9\u6668\u5728\u6d59\u95fd\u6cbf\u6d77\u767b\u9646\uff0c\u672a\u6765\u4e09\u5929\u6d59\u6c5f\u3001\u4e0a\u6d77\u3001\u798f\u5efa\u5317\u90e8\u3001\u6c5f\u82cf\u5927\u90e8\u7b49\u5730\u6709\u5f3a\u964d\u96e8\n2. \u65b0\u7586\u8c03\u6574 4A \u53ca\u4ee5\u4e0a\u666f\u533a\u81ea\u9a7e\u670d\u52a1\u8d39\uff0c\u7edf\u4e00\u6309\"\u8f66\"\u6536\u8d39\n3. 2026 \u5e74\u672c\u79d1\u672a\u5f55\u6ee1\u4e13\u4e1a TOP50 \u516c\u5e03\uff1a\u4f1a\u8ba1\u5b66 410 \u6b21\u5c45\u9996\uff0c\u8d22\u52a1\u7ba1\u7406 398 \u6b21\u3001\u82f1\u8bed 379 \u6b21\u7d27\u968f\u5176\u540e\n4. \u5317\u4eac\u5e02\u6559\u59d4\uff1a\u6270\u4e71\u8bfe\u5802\u79e9\u5e8f\u3001\u5438\u70df\u996e\u9152\u7b49\u4e03\u7c7b\u60c5\u5f62\uff0c\u53ef\u5b9e\u65bd\u6559\u80b2\u60e9\u6212\n5. 28 \u6b3e\u70ed\u9500\u776b\u6bdb\u80f6\u4e2d\u8d85\u516b\u6210\u6837\u54c1\u68c0\u51fa\u81f4\u764c\u7269\uff0c\u90e8\u5206\u6210\u5206\u63a5\u8fd1 502 \u80f6\n6. \u9655\u897f\u5546\u6d1b\u66b4\u96e8\u4e00\u68fa\u6750\u5382\u88ab\u51b2\u6bc1\uff0c\u8001\u677f\u79f0 14 \u526f\u6210\u54c1\u68fa\u6750\u51b2\u8d70\uff0c\u635f\u5931\u8d85 40 \u4e07\u5143\n7. \u9999\u6e2f\u6b63\u5f0f\u7acb\u6cd5\u5141\u8bb8\"\u62d2\u7edd\u62a2\u6551\"\uff1a\u75c5\u4eba\u53ef\u901a\u8fc7\u9884\u5148\u8ba2\u7acb\u6307\u793a\uff0c\u62d2\u7edd\u5fc3\u80ba\u590d\u82cf\u3001\u4eba\u5de5\u547c\u5438\u5668\u7b49\u4fb5\u5165\u6027\u7ef4\u6301\u751f\u547d\u6cbb\u7597\n8. \u9ec4\u91d1\u521b\u4eca\u5e74\u6765\u6700\u5927\u5355\u5468\u6da8\u5e45\uff0c\u56fd\u5185\u91d1\u9970\u514b\u4ef7\u4e00\u591c\u6da8\u56de 1300 \u5143\n9. \u591a\u5bb6 A \u80a1\u516c\u53f8\u516c\u544a\uff1a\u6536\u5230\u7f8e\u56fd\u5173\u7a0e\u9000\u7a0e\uff0c\u6700\u9ad8\u8fd1\u4ebf\u5143\n10. \u6211\u56fd\u79d1\u5b66\u5bb6\u91cd\u5927\u53d1\u73b0\uff1a\u94f6\u6cb3\u7cfb\u4e0d\u662f\u6241\u5e73\u5706\u76d8\uff0c\u5176\u5916\u76d8\u5b58\u5728\u6574\u4f53\u7fd8\u66f2\u5e76\u53e0\u52a0\u5927\u8303\u56f4\u6ce2\u7eb9\u72b6\u8936\u76b1\u7ed3\u6784\n11. \u7f8e\u56fd\u9632\u90e8\u7b2c\u4e94\u6279 UFO \u6863\u6848\uff1a\u5149\u7403\u98de\u63a0\u4e2d\u4e1c\u5c45\u6c11\u533a\uff0c\u963f\u5bcc\u6c57 152 \u7c73\u4e09\u89d2\u5f62\u906e\u853d\u661f\u5149\n12. \u82f9\u679c\u52a0\u7801\u5370\u5ea6\u5236\u9020\uff1a\u4eca\u5e74\u9884\u8ba1\u751f\u4ea7\u5168\u7403 26% \u7684 iPhone\uff0c\u800c\u56db\u5e74\u524d\u8fd9\u4e00\u6bd4\u4f8b\u4ec5\u4e3a 6%\n13. \u65e5\u672c\u53d1\u5e03\u6392\u540d\uff1a\u4e2d\u56fd\u7814\u53d1\u603b\u6295\u5165\u8d85\u8fc7\u7f8e\u56fd\u4f4d\u5c45\u4e16\u754c\u7b2c\u4e00\uff0c\u7f8e\u65e5\u5fb7\u97e9\u82f1\u6cd5\u5c45\u540e\n14. \u9a6c\u65af\u514b\u8c6a\u63b7 168 \u4ebf\u7f8e\u5143\u6253\u9020\"\u5730\u7403\u6700\u5927\u82af\u7247\u5de5\u5382\"\uff0c\u89c4\u6a21\u76f8\u5f53\u4e8e 50 \u4e2a\u4e94\u89d2\u5927\u697c\n15. \u7279\u6717\u666e\u5ba3\u5e03\u5c06\u5411\u5173\u952e\u77ff\u4ea7\u6295\u8d44 30 \u4ebf\u7f8e\u5143\uff0c\u91cd\u5851\u7f8e\u56fd\u4f5c\u4e3a\u4e16\u754c\u77ff\u4ea7\u8d85\u7ea7\u5927\u56fd\u7684\u5e94\u6709\u5730\u4f4d\n\n---\n*\u6570\u636e\u6765\u6e90\uff1avikiboss/60s \u5f00\u653e API\uff0c\u7ecf rx60s CLI \u8c03\u7528\u83b7\u53d6\u3002*\n"}], "grading": {"expectations": [{"text": "\u8c03\u7528\u4e86 rx60s CLI(60s \u6216 news today \u547d\u4ee4)", "passed": true, "evidence": "cli_raw source=rx60s, ok=True"}, {"text": "\u8f93\u51fa\u5305\u542b\u81f3\u5c11 3 \u6761\u65b0\u95fb\u6807\u9898", "passed": true, "evidence": "news \u6570\u7ec4\u6709 15 \u6761"}, {"text": "\u65b0\u95fb\u5185\u5bb9\u662f\u771f\u5b9e\u7684\u5f53\u65e5\u65b0\u95fb(\u975e\u5360\u4f4d\u7b26)", "passed": true, "evidence": "\u793a\u4f8b: \u53f0\u98ce \u201c\u767d\u6d77\u8c5a\u201d \u9884\u8ba1 9 \u65e5\u665a\u81f3 10 \u65e5\u65e9\u6668\u5728\u6d59\u95fd\u6cbf\u6d77\u767b\u9646\uff0c\u672a\u6765\u4e09\u5929\u6d59\u6c5f\u3001\u4e0a"}], "summary": {"passed": 3, "failed": 0, "total": 3, "pass_rate": 1.0}}}, {"id": "eval-2-with_skill-run-1", "prompt": "(No prompt found)", "eval_id": null, "outputs": [{"name": "cli_raw.json", "type": "text", "content": "{\"ok\":true,\"source\":\"rx60s\",\"data\":[{\"title\":\"\u5f20\u672c\u5144\u59b9\u540c\u65f6\u593a\u51a0\",\"hot_value\":2807281,\"link\":\"https://s.weibo.com/weibo?q=%E5%BC%A0%E6%9C%AC%E5%85%84%E5%A6%B9%E5%90%8C%E6%97%B6%E5%A4%BA%E5%86%A0\"},{\"title\":\"\u9f99\u9910\u9986 \u5965\u65af\u5361\",\"hot_value\":1067358,\"link\":\"https://s.weibo.com/weibo?q=%E9%BE%99%E9%A4%90%E9%A6%86%20%E5%A5%A5%E6%96%AF%E5%8D%A1\"},{\"title\":\"\u4e2d\u56fd\u5236\u9020\u786c\u6838\u77ac\u95f4\",\"hot_value\":800380,\"link\":\"https://s.weibo.com/weibo?q=%E4%B8%AD%E5%9B%BD%E5%88%B6%E9%80%A0%E7%A1%AC%E6%A0%B8%E7%9E%AC%E9%97%B4\"},{\"title\":\"\u6c88\u817e \u5f71\u5e1d\",\"hot_value\":760434,\"link\":\"https://s.weibo.com/weibo?q=%E6%B2%88%E8%85%BE%20%E5%BD%B1%E5%B8%9D\"},{\"title\":\"\u767d\u6d77\u8c5a\u63d0\u524d\u767b\u9646\",\"hot_value\":417374,\"link\":\"https://s.weibo.com/weibo?q=%E7%99%BD%E6%B5%B7%E8%B1%9A%E6%8F%90%E5%89%8D%E7%99%BB%E9%99%86\"},{\"title\":\"\u6731\u4e00\u9f99\u9f3b\u5b50\u600e\u4e48\u4e86\",\"hot_value\":411889,\"link\":\"https://s.weibo.com/weibo?q=%E6%9C%B1%E4%B8%80%E9%BE%99%E9%BC%BB%E5%AD%90%E6%80%8E%E4%B9%88%E4%BA%86\"},{\"title\":\"\u767e\u82b1\u5956\",\"hot_value\":396730,\"link\":\"https://s.weibo.com/weibo?q=%E7%99%BE%E8%8A%B1%E5%A5%96\"},{\"title\":\"\u5f20\u672c\u7f8e\u548c \u56fd\u4e52\u6700\u5927\u5a01\u80c1\",\"hot_value\":395593,\"link\":\"https://s.weibo.com/weibo?q=%E5%BC%A0%E6%9C%AC%E7%BE%8E%E5%92%8C%20%E5%9B%BD%E4%B9%92%E6%9C%80%E5%A4%A7%E5%A8%81%E8%83%81\"},{\"title\":\"\u81ea\u95ed\u75c7\u54e5\u54e5\u7684\u8bdd\u5520\u59b9\u59b9\u582a\u6bd4\u5fc3\u7406\u533b\u751f\",\"hot_value\":394393,\"link\":\"https://s.weibo.com/weibo?q=%E8%87%AA%E9%97%AD%E7%97%87%E5%93%A5%E5%93%A5%E7%9A%84%E8%AF%9D%E5%94%A0%E5%A6%B9%E5%A6%B9%E5%A0%AA%E6%AF%94%E5%BF%83%E7%90%86%E5%8C%BB%E7%94%9F\"},{\"title\":\"\u533b\u7597\u5783\u573e \u624b\u673a\u58f3\",\"hot_value\":391449,\"link\":\"https://s.weibo.com/weibo?q=%E5%8C%BB%E7%96%97%E5%9E%83%E5%9C%BE%20%E6%89%8B%E6%9C%BA%E5%A3%B3\"},{\"title\":\"\u4f4e\u4f30\u4e86\u767d\u6d77\u8c5a\",\"hot_value\":390046,\"link\":\"https://s.weibo.com/weibo?q=%E4%BD%8E%E4%BC%B0%E4%BA%86%E7%99%BD%E6%B5%B7%E8%B1%9A\"},{\"title\":\"\u56fd\u4e52\u518d\u6b21\u65e0\u7f18\u51a0\u519b\u8d5b\u51a0\u519b\",\"hot_value\":387967,\"link\":\"https://s.weibo.com/weibo?q=%E5%9B%BD%E4%B9%92%E5%86%8D%E6%AC%A1%E6%97%A0%E7%BC%98%E5%86%A0%E5%86%9B%E8%B5%9B%E5%86%A0%E5%86%9B\"},{\"title\":\"\u7530\u66e6\u8587\u6ca1\u5218\u6d77\u5dee\u70b9\u8ba4\u4e0d\u51fa\u6765\",\"hot_value\":386876,\"link\":\"https://s.weibo.com/weibo?q=%E7%94%B0%E6%9B%A6%E8%96%87%E6%B2%A1%E5%88%98%E6%B5%B7%E5%B7%AE%E7%82%B9%E8%AE%A4%E4%B8%8D%E5%87%BA%E6%9D%A5\"},{\"title\":\"\u8fea\u4e3d\u70ed\u5df4\u7ed9\u8def\u4eba\u6253\u7801\",\"hot_value\":384570,\"link\":\"https://s.weibo.com/weibo?q=%E8%BF%AA%E4%B8%BD%E7%83%AD%E5%B7%B4%E7%BB%99%E8%B7%AF%E4%BA%BA%E6%89%93%E7%A0%81\"},{\"title\":\"\u8033\u673a\u5de6\u53f3\u8033\u7535\u91cf\u672a\u89e3\u4e4b\u8c1c\",\"hot_value\":382941,\"link\":\"https://s.weibo.com/weibo?q=%E8%80%B3%E6%9C%BA%E5%B7%A6%E5%8F%B3%E8%80%B3%E7%94%B5%E9%87%8F%E6%9C%AA%E8%A7%A3%E4%B9%8B%E8%B0%9C\"},{\"title\":\"\u66ddiPhone18Pro\u9ed1\u8272\u88ab\u53d6\u6d88\",\"hot_value\":380863,\"link\":\"https://s.weibo.com/weibo?q=%E6%9B%9DiPhone18Pro%E9%BB%91%E8%89%B2%E8%A2%AB%E5%8F%96%E6%B6%88\"},{\"title\":\"\u4f0a\u6717\u6700\u9ad8\u9886\u8896\u4e0e\u603b\u7edf\u4f1a\u8c08\",\"hot_value\":379930,\"link\":\"https://s.weibo.com/weibo?q=%E4%BC%8A%E6%9C%97%E6%9C%80%E9%AB%98%E9%A2%86%E8%A2%96%E4%B8%8E%E6%80%BB%E7%BB%9F%E4%BC%9A%E8%B0%88\"},{\"title\":\"\u513f\u5b50\u53bb\u4e16\u5b59\u5b50\u4e0d\u6367\u9aa8\u7070\u76d2\u88ab\u67e5\u51fa\u975e\u4eb2\u751f\",\"hot_value\":378160,\"link\":\"https://s.weibo.com/weibo?q=%E5%84%BF%E5%AD%90%E5%8E%BB%E4%B8%96%E5%AD%99%E5%AD%90%E4%B8%8D%E6%8D%A7%E9%AA%A8%E7%81%B0%E7%9B%92%E8%A2%AB%E6%9F%A5%E5%87%BA%E9%9D%9E%E4%BA%B2%E7%94%9F\"},{\"title\":\"\u7a0b\u6653\u73a5\u8c08\u79bb\u5a5a\",\"hot_value\":375451,\"link\":\"https://s.weibo.com/weibo?q=%E7%A8%8B%E6%99%93%E7%8E%A5%E8%B0%88%E7%A6%BB%E5%A9%9A\"},{\"title\":\"\u767d\u6d77\u8c5a \u6ca1\u56e4\u4e1c\u897f\u5c31\u6765\u4e86\",\"hot_value\":374796,\"link\":\"https://s.weibo.com/weibo?q=%E7%99%BD%E6%B5%B7%E8%B1%9A%20%E6%B2%A1%E5%9B%A4%E4%B8%9C%E8%A5%BF%E5%B0%B1%E6%9D%A5%E4%BA%86\"},{\"title\":\"\u59da\u741b\u7a0b\u6f47 \u6807\u51c6\u7684\u7537\u4eba\u5973\u4eba\",\"hot_value\":372090,\"link\":\"https://s.weibo.com/weibo?q=%E5%A7%9A%E7%90%9B%E7%A8%8B%E6%BD%87%20%E6%A0%87%E5%87%86%E7%9A%84%E7%94%B7%E4%BA%BA%E5%A5%B3%E4%BA%BA\"},{\"title\":\"\u767d\u6d77\u8c5a\u6211\u627f\u8ba4\u4f60\u6709\u70b9\u5389\u5bb3\u4e86\",\"hot_value\":370630,\"link\":\"https://s.weibo.com/weibo?q=%E7%99%BD%E6%B5%B7%E8%B1%9A%E6%88%91%E6%89%BF%E8%AE%A4%E4%BD%A0%E6%9C%89%E7%82%B9%E5%8E%89%E5%AE%B3%E4%BA%86\"},{\"title\":\"\u7537\u5b691\u5e74\u66b4\u957f20\u5398\u7c73\u5168\u8eab\u957f\u6ee1\u7eb9\",\"hot_value\":369247,\"link\":\"https://s.weibo.com/weibo?q=%E7%94%B7%E5%AD%A91%E5%B9%B4%E6%9A%B4%E9%95%BF20%E5%8E%98%E7%B1%B3%E5%85%A8%E8%BA%AB%E9%95%BF%E6%BB%A1%E7%BA%B9\"},{\"title\":\"\u67f3\u5468cp\",\"hot_value\":366437,\"link\":\"https://s.weibo.com/weibo?q=%E6%9F%B3%E5%91%A8cp\"},{\"title\":\"\u4eba\u9c7c\",\"hot_value\":364594,\"link\":\"https://s.weibo.com/weibo?q=%E4%BA%BA%E9%B1%BC\"},{\"title\":\"\u8001\u575b\u9178\u83dc \u811a\u8e29\",\"hot_value\":363293,\"link\":\"https://s.weibo.com/weibo?q=%E8%80%81%E5%9D%9B%E9%85%B8%E8%8F%9C%20%E8%84%9A%E8%B8%A9\"},{\"title\":\"\u8fea\u4e3d\u70ed\u5df4\u7d20\u989c\u9999\u6e2fplog\",\"hot_value\":361091,\"link\":\"https://s.weibo.com/weibo?q=%E8%BF%AA%E4%B8%BD%E7%83%AD%E5%B7%B4%E7%B4%A0%E9%A2%9C%E9%A6%99%E6%B8%AFplog\"},{\"title\":\"\u5f20\u51cc\u8d6b\u76f4\u64ad\",\"hot_value\":359795,\"link\":\"https://s.weibo.com/weibo?q=%E5%BC%A0%E5%87%8C%E8%B5%AB%E7%9B%B4%E6%92%AD\"},{\"title\":\"\u5370\u5ea6\u5973\u5b50\u51fa\u8f68\u88ab\u649e\u7834\u5728\u9662\u5b50\u5185\u906d\u6bd2\u6253\",\"hot_value\":358912,\"link\":\"https://s.weibo.com/weibo?q=%E5%8D%B0%E5%BA%A6%E5%A5%B3%E5%AD%90%E5%87%BA%E8%BD%A8%E8%A2%AB%E6%92%9E%E7%A0%B4%E5%9C%A8%E9%99%A2%E5%AD%90%E5%86%85%E9%81%AD%E6%AF%92%E6%89%93\"},{\"title\":\"\u90d1\u96c5\u8d24\u4e3a\u4e2d\u6587\u56de\u590d\u9053\u6b49\",\"hot_value\":356486,\"link\":\"https://s.weibo.com/weibo?q=%E9%83%91%E9%9B%85%E8%B4%A4%E4%B8%BA%E4%B8%AD%E6%96%87%E5%9B%9E%E5%A4%8D%E9%81%93%E6%AD%89\"},{\"title\":\"\u6c88\u6708 \u5e0c\u814a\u795e\u5973\",\"hot_value\":354531,\"link\":\"https://s.weibo.com/weibo?q=%E6%B2%88%E6%9C%88%20%E5%B8%8C%E8%85%8A%E7%A5%9E%E5%A5%B3\"},{\"title\":\"\u6708\u7ecf\u524d\u76849\u4e2a\u8eab\u4f53\u4fe1\u53f7\",\"hot_value\":351941,\"link\":\"https://s.weibo.com/weibo?q=%E6%9C%88%E7%BB%8F%E5%89%8D%E7%9A%849%E4%B8%AA%E8%BA%AB%E4%BD%93%E4%BF%A1%E5%8F%B7\"},{\"title\":\"\u5f20\u51cc\u8d6b\u9501\u9aa8\",\"hot_value\":351802,\"link\":\"https://s.weibo.com/weibo?q=%E5%BC%A0%E5%87%8C%E8%B5%AB%E9%94%81%E9%AA%A8\"},{\"title\":\"\u5a1c\u624e\u79f0\u773c\u775b\u6062\u590d\u60c5\u51b5\u4e0d\u592a\u5999\",\"hot_value\":349962,\"link\":\"https://s.weibo.com/weibo?q=%E5%A8%9C%E6%89%8E%E7%A7%B0%E7%9C%BC%E7%9D%9B%E6%81%A2%E5%A4%8D%E6%83%85%E5%86%B5%E4%B8%8D%E5%A4%AA%E5%A6%99\"},{\"title\":\"\u5a74\u513f\u88ab\u5b50\u8499\u5934\u5feb\u7a92\u606f\u65f6\u5c0f\u732b\u6252\u9192\u5b9d\u5988\",\"hot_value\":346722,\"link\":\"https://s.weibo.com/weibo?q=%E5%A9%B4%E5%84%BF%E8%A2%AB%E5%AD%90%E8%92%99%E5%A4%B4%E5%BF%AB%E7%AA%92%E6%81%AF%E6%97%B6%E5%B0%8F%E7%8C%AB%E6%89%92%E9%86%92%E5%AE%9D%E5%A6%88\"},{\"title\":\"\u7a46\u7949\u4e1e\u76f4\u64ad\",\"hot_value\":345743,\"link\":\"https://s.weibo.com/weibo?q=%E7%A9%86%E7%A5%89%E4%B8%9E%E7%9B%B4%E6%92%AD\"},{\"title\":\"\u542c\u6cc9\u9274\u5b9d\u7092\u80a1\u4e8f\u5230\u5403\u6ce1\u9762\",\"hot_value\":343394,\"link\":\"https://s.weibo.com/weibo?q=%E5%90%AC%E6%B3%89%E9%89%B4%E5%AE%9D%E7%82%92%E8%82%A1%E4%BA%8F%E5%88%B0%E5%90%83%E6%B3%A1%E9%9D%A2\"},{\"title\":\"\u53f0\u98ce\u7435\u9e6d\u6765\u4e86\",\"hot_value\":342584,\"link\":\"https://s.weibo.com/weibo?q=%E5%8F%B0%E9%A3%8E%E7%90%B5%E9%B9%AD%E6%9D%A5%E4%BA%86\"},{\"title\":\"\u9f99\u9910\u9986 \u6bd4\u6211\u4e0d\u662f\u836f\u795e\u597d\u5341\u4e2a\u6293\u5a03\u5a03\",\"hot_value\":339607,\"link\":\"https://s.weibo.com/weibo?q=%E9%BE%99%E9%A4%90%E9%A6%86%20%E6%AF%94%E6%88%91%E4%B8%8D%E6%98%AF%E8%8D%AF%E7%A5%9E%E5%A5%BD%E5%8D%81%E4%B8%AA%E6%8A%93%E5%A8%83%E5%A8%83\"},{\"title\":\"\u738b\u5b89\u5b87\u95ee\u5230\u674e\u5149\u6d01\u75db\u5904\u4e86\",\"hot_value\":337934,\"link\":\"https://s.weibo.com/weibo?q=%E7%8E%8B%E5%AE%89%E5%AE%87%E9%97%AE%E5%88%B0%E6%9D%8E%E5%85%89%E6%B4%81%E7%97%9B%E5%A4%84%E4%BA%86\"},{\"title\":\"\u8bb0\u8005\u53d1\u73b0\u767d\u6d77\u8c5a\u98ce\u773c\u5c31\u5728\u8eab\u540e\",\"hot_value\":336284,\"link\":\"https://s.weibo.com/weibo?q=%E8%AE%B0%E8%80%85%E5%8F%91%E7%8E%B0%E7%99%BD%E6%B5%B7%E8%B1%9A%E9%A3%8E%E7%9C%BC%E5%B0%B1%E5%9C%A8%E8%BA%AB%E5%90%8E\"},{\"title\":\"\u6613\u70ca\u5343\u73ba\u6ee1\u5934\u5f69\u5e26\u9000\u573a\",\"hot_value\":334586,\"link\":\"https://s.weibo.com/weibo?q=%E6%98%93%E7%83%8A%E5%8D%83%E7%8E%BA%E6%BB%A1%E5%A4%B4%E5%BD%A9%E5%B8%A6%E9%80%80%E5%9C%BA\"},{\"title\":\"\u91d1\u51ac\u5929\u7530\u67fe\u56fd\u70b9\u8d5e\u540c\u4e00\u6761\u5e16\u5b50\",\"hot_value\":333608,\"link\":\"https://s.weibo.com/weibo?q=%E9%87%91%E5%86%AC%E5%A4%A9%E7%94%B0%E6%9F%BE%E5%9B%BD%E7%82%B9%E8%B5%9E%E5%90%8C%E4%B8%80%E6%9D%A1%E5%B8%96%E5%AD%90\"},{\"title\":\"\u5f20\u672c\u7f8e\u548c\u56de\u5e94\u593a\u51a0\",\"hot_value\":331221,\"link\":\"https://s.weibo.com/weibo?q=%E5%BC%A0%E6%9C%AC%E7%BE%8E%E5%92%8C%E5%9B%9E%E5%BA%94%E5%A4%BA%E5%86%A0\"},{\"title\":\"SBS\u5973\u56e2\u5408\u4f5c\u821e\u53f0\",\"hot_value\":328997,\"link\":\"https://s.weibo.com/weibo?q=SBS%E5%A5%B3%E5%9B%A2%E5%90%88%E4%BD%9C%E8%88%9E%E5%8F%B0\"},{\"title\":\"\u5b59\u6021\u597d\u957f\u7684\u817f\",\"hot_value\":327587,\"link\":\"https://s.weibo.com/weibo?q=%E5%AD%99%E6%80%A1%E5%A5%BD%E9%95%BF%E7%9A%84%E8%85%BF\"},{\"title\":\"A\u80a1\u4eba\u5f62\u673a\u5668\u4eba\u7b2c\u4e00\u80a1\u6b63\u5f0f\u767b\u573a\",\"hot_value\":325476,\"link\":\"https://s.weibo.com/weibo?q=A%E8%82%A1%E4%BA%BA%E5%BD%A2%E6%9C%BA%E5%99%A8%E4%BA%BA%E7%AC%AC%E4%B8%80%E8%82%A1%E6%AD%A3%E5%BC%8F%E7%99%BB%E5%9C%BA\"},{\"title\":\"\u8521\u6587\u9759\u8fa3\u5230\u6211\u4e86\",\"hot_value\":323447,\"link\":\"https://s.weibo.com/weibo?q=%E8%94%A1%E6%96%87%E9%9D%99%E8%BE%A3%E5%88%B0%E6%88%91%E4%BA%86\"},{\"title\":\"\u5f20\u672c\u667a\u548c\u6a2a\u6ee8\u8d5b\u51a0\u519b\",\"hot_value\":321819,\"link\":\"https://s.weibo.com/weibo?q=%E5%BC%A0%E6%9C%AC%E6%99%BA%E5%92%8C%E6%A8%AA%E6%BB%A8%E8%B5%9B%E5%86%A0%E5%86%9B\"},{\"title\":\"\u5f20\u672c\u7f8e\u548c\u8bf4\u4eca\u5929\u662f\u6253\u5f97\u6700\u597d\u7684\u4e00\u5929\",\"hot_value\":320318,\"link\":\"https://s.weibo.com/weibo?q=%E5%BC%A0%E6%9C%AC%E7%BE%8E%E5%92%8C%E8%AF%B4%E4%BB%8A%E5%A4%A9%E6%98%AF%E6%89%93%E5%BE%97%E6%9C%80%E5%A5%BD%E7%9A%84%E4%B8%80%E5%A4%A9\"}],\"meta\":{\"count\":50,\"pagination\":{\"complete\":true,\"pages\":1,\"items\":50}}}"}, {"name": "result.md", "type": "text", "content": "# \u5fae\u535a\u5b9e\u65f6\u70ed\u641c\u699c Top 15\n\n> \u6570\u636e\u6765\u6e90:rx60s CLI(`rx60s hot weibo`)\u00b7 \u6570\u636e\u6e90 vikiboss/60s \u516c\u5f00 API\n> \u67e5\u8be2\u65f6\u95f4:2026-08-09\n\n| \u6392\u540d | \u70ed\u641c\u8bdd\u9898 | \u70ed\u5ea6 |\n|:---:|---|---:|\n| \ud83d\udd25 1 | \u5f20\u672c\u5144\u59b9\u540c\u65f6\u593a\u51a0 | 2,807,281 |\n| 2 | \u9f99\u9910\u9986 \u5965\u65af\u5361 | 1,067,358 |\n| 3 | \u4e2d\u56fd\u5236\u9020\u786c\u6838\u77ac\u95f4 | 800,380 |\n| 4 | \u6c88\u817e \u5f71\u5e1d | 760,434 |\n| 5 | \u767d\u6d77\u8c5a\u63d0\u524d\u767b\u9646 | 417,374 |\n| 6 | \u6731\u4e00\u9f99\u9f3b\u5b50\u600e\u4e48\u4e86 | 411,889 |\n| 7 | \u767e\u82b1\u5956 | 396,730 |\n| 8 | \u5f20\u672c\u7f8e\u548c \u56fd\u4e52\u6700\u5927\u5a01\u80c1 | 395,593 |\n| 9 | \u81ea\u95ed\u75c7\u54e5\u54e5\u7684\u8bdd\u5520\u59b9\u59b9\u582a\u6bd4\u5fc3\u7406\u533b\u751f | 394,393 |\n| 10 | \u533b\u7597\u5783\u573e \u624b\u673a\u58f3 | 391,449 |\n| 11 | \u4f4e\u4f30\u4e86\u767d\u6d77\u8c5a | 390,046 |\n| 12 | \u56fd\u4e52\u518d\u6b21\u65e0\u7f18\u51a0\u519b\u8d5b\u51a0\u519b | 387,967 |\n| 13 | \u7530\u66e6\u8587\u6ca1\u5218\u6d77\u5dee\u70b9\u8ba4\u4e0d\u51fa\u6765 | 386,876 |\n| 14 | \u8fea\u4e3d\u70ed\u5df4\u7ed9\u8def\u4eba\u6253\u7801 | 384,570 |\n| 15 | \u8033\u673a\u5de6\u53f3\u8033\u7535\u91cf\u672a\u89e3\u4e4b\u8c1c | 382,941 |\n\n---\n\n## \u4eca\u65e5\u5fae\u535a\u70ed\u70b9\u901f\u89c8\n\n**\u6700\u706b\u8bdd\u9898**(\u70ed\u5ea6\u7834\u767e\u4e07,\u65ad\u5c42\u7b2c\u4e00):\n- **\u5f20\u672c\u5144\u59b9\u540c\u65f6\u593a\u51a0**(\u70ed\u5ea6 280 \u4e07)\u2014\u2014 \u4f53\u80b2\u7c7b\u5927\u70ed\u70b9,\u5f20\u672c\u667a\u548c\u4e0e\u5f20\u672c\u7f8e\u548c\u540c\u65f6\u62ff\u4e0b\u8d5b\u4e8b\u51a0\u519b\u3002\n- **\u9f99\u9910\u9986 \u5965\u65af\u5361**(\u70ed\u5ea6 106 \u4e07)\u2014\u2014 \u5f71\u89c6\u6587\u5a31\u8bdd\u9898,\u7535\u5f71\u300a\u9f99\u9910\u9986\u300b\u5f15\u53d1\"\u5965\u65af\u5361\"\u76f8\u5173\u8ba8\u8bba\u3002\n- **\u4e2d\u56fd\u5236\u9020\u786c\u6838\u77ac\u95f4**(\u70ed\u5ea6 80 \u4e07)\u3002\n- **\u6c88\u817e \u5f71\u5e1d**(\u70ed\u5ea6 76 \u4e07)\u2014\u2014 \u767e\u82b1\u5956\u76f8\u5173,\u6c88\u817e\u5f71\u5e1d\u8bdd\u9898\u6301\u7eed\u53d1\u9175\u3002\n\n**\u4eca\u65e5\u4e3b\u65cb\u5f8b**:\u4f53\u80b2\u8d5b\u4e8b(\u5f20\u672c\u5144\u59b9\u593a\u51a0\u3001\u56fd\u4e52)\u3001\u5f71\u89c6\u9881\u5956\u5b63(\u767e\u82b1\u5956\u3001\u6c88\u817e\u3001\u9f99\u9910\u9986)\u3001\u53f0\u98ce\"\u767d\u6d77\u8c5a\"\u52a8\u6001(\u591a\u4e2a\u76f8\u5173\u8bcd\u6761\u9738\u699c)\u3001\u5a31\u4e50\u5708\u516b\u5366\u3002\n\n**\u5b8c\u6574\u699c\u5355**:\u672c\u6b21\u5171\u8fd4\u56de 50 \u6761\u70ed\u641c,\u4ee5\u4e0a\u4e3a\u70ed\u5ea6\u524d 15 \u6761\u3002\u5982\u9700\u67e5\u770b\u5b8c\u6574 50 \u6761\u6216\u67d0\u4e2a\u8bdd\u9898\u7684\u5fae\u535a\u539f\u6587\u94fe\u63a5,\u53ef\u7ee7\u7eed\u544a\u8bc9\u6211\u3002\n"}], "grading": {"expectations": [{"text": "\u8c03\u7528\u4e86 rx60s hot weibo(\u6216\u9876\u5c42 weibo \u547d\u4ee4)", "passed": true, "evidence": "cli_raw source=rx60s"}, {"text": "\u8f93\u51fa\u5305\u542b\u591a\u6761\u70ed\u641c\u6807\u9898(\u81f3\u5c11 5 \u6761)", "passed": true, "evidence": "\u70ed\u641c\u6570\u7ec4\u6709 50 \u6761"}, {"text": "\u8f93\u51fa\u5305\u542b\u70ed\u5ea6\u503c(hot_value)", "passed": true, "evidence": "\u9996\u6761 hot_value=2807281"}], "summary": {"passed": 3, "failed": 0, "total": 3, "pass_rate": 1.0}}}, {"id": "eval-2-without_skill-run-1", "prompt": "(No prompt found)", "eval_id": null, "outputs": [{"name": "cli_raw.json", "type": "text", "content": "{\"ok\":true,\"source\":\"rx60s\",\"data\":[{\"title\":\"\u5f20\u672c\u5144\u59b9\u540c\u65f6\u593a\u51a0\",\"hot_value\":2733747,\"link\":\"https://s.weibo.com/weibo?q=%E5%BC%A0%E6%9C%AC%E5%85%84%E5%A6%B9%E5%90%8C%E6%97%B6%E5%A4%BA%E5%86%A0\"},{\"title\":\"\u9f99\u9910\u9986 \u5965\u65af\u5361\",\"hot_value\":1054521,\"link\":\"https://s.weibo.com/weibo?q=%E9%BE%99%E9%A4%90%E9%A6%86%20%E5%A5%A5%E6%96%AF%E5%8D%A1\"},{\"title\":\"\u4e2d\u56fd\u5236\u9020\u786c\u6838\u77ac\u95f4\",\"hot_value\":847580,\"link\":\"https://s.weibo.com/weibo?q=%E4%B8%AD%E5%9B%BD%E5%88%B6%E9%80%A0%E7%A1%AC%E6%A0%B8%E7%9E%AC%E9%97%B4\"},{\"title\":\"\u6c88\u817e \u5f71\u5e1d\",\"hot_value\":784580,\"link\":\"https://s.weibo.com/weibo?q=%E6%B2%88%E8%85%BE%20%E5%BD%B1%E5%B8%9D\"},{\"title\":\"\u767d\u6d77\u8c5a\u63d0\u524d\u767b\u9646\",\"hot_value\":408809,\"link\":\"https://s.weibo.com/weibo?q=%E7%99%BD%E6%B5%B7%E8%B1%9A%E6%8F%90%E5%89%8D%E7%99%BB%E9%99%86\"},{\"title\":\"\u6731\u4e00\u9f99\u9f3b\u5b50\u600e\u4e48\u4e86\",\"hot_value\":398139,\"link\":\"https://s.weibo.com/weibo?q=%E6%9C%B1%E4%B8%80%E9%BE%99%E9%BC%BB%E5%AD%90%E6%80%8E%E4%B9%88%E4%BA%86\"},{\"title\":\"\u767e\u82b1\u5956\",\"hot_value\":385700,\"link\":\"https://s.weibo.com/weibo?q=%E7%99%BE%E8%8A%B1%E5%A5%96\"},{\"title\":\"\u5f20\u672c\u7f8e\u548c \u56fd\u4e52\u6700\u5927\u5a01\u80c1\",\"hot_value\":384244,\"link\":\"https://s.weibo.com/weibo?q=%E5%BC%A0%E6%9C%AC%E7%BE%8E%E5%92%8C%20%E5%9B%BD%E4%B9%92%E6%9C%80%E5%A4%A7%E5%A8%81%E8%83%81\"},{\"title\":\"\u81ea\u95ed\u75c7\u54e5\u54e5\u7684\u8bdd\u5520\u59b9\u59b9\u582a\u6bd4\u5fc3\u7406\u533b\u751f\",\"hot_value\":383283,\"link\":\"https://s.weibo.com/weibo?q=%E8%87%AA%E9%97%AD%E7%97%87%E5%93%A5%E5%93%A5%E7%9A%84%E8%AF%9D%E5%94%A0%E5%A6%B9%E5%A6%B9%E5%A0%AA%E6%AF%94%E5%BF%83%E7%90%86%E5%8C%BB%E7%94%9F\"},{\"title\":\"\u533b\u7597\u5783\u573e \u624b\u673a\u58f3\",\"hot_value\":381979,\"link\":\"https://s.weibo.com/weibo?q=%E5%8C%BB%E7%96%97%E5%9E%83%E5%9C%BE%20%E6%89%8B%E6%9C%BA%E5%A3%B3\"},{\"title\":\"\u4f4e\u4f30\u4e86\u767d\u6d77\u8c5a\",\"hot_value\":378846,\"link\":\"https://s.weibo.com/weibo?q=%E4%BD%8E%E4%BC%B0%E4%BA%86%E7%99%BD%E6%B5%B7%E8%B1%9A\"},{\"title\":\"\u56fd\u4e52\u518d\u6b21\u65e0\u7f18\u51a0\u519b\u8d5b\u51a0\u519b\",\"hot_value\":378445,\"link\":\"https://s.weibo.com/weibo?q=%E5%9B%BD%E4%B9%92%E5%86%8D%E6%AC%A1%E6%97%A0%E7%BC%98%E5%86%A0%E5%86%9B%E8%B5%9B%E5%86%A0%E5%86%9B\"},{\"title\":\"\u7530\u66e6\u8587\u6ca1\u5218\u6d77\u5dee\u70b9\u8ba4\u4e0d\u51fa\u6765\",\"hot_value\":376294,\"link\":\"https://s.weibo.com/weibo?q=%E7%94%B0%E6%9B%A6%E8%96%87%E6%B2%A1%E5%88%98%E6%B5%B7%E5%B7%AE%E7%82%B9%E8%AE%A4%E4%B8%8D%E5%87%BA%E6%9D%A5\"},{\"title\":\"\u8fea\u4e3d\u70ed\u5df4\u7ed9\u8def\u4eba\u6253\u7801\",\"hot_value\":374997,\"link\":\"https://s.weibo.com/weibo?q=%E8%BF%AA%E4%B8%BD%E7%83%AD%E5%B7%B4%E7%BB%99%E8%B7%AF%E4%BA%BA%E6%89%93%E7%A0%81\"},{\"title\":\"\u8033\u673a\u5de6\u53f3\u8033\u7535\u91cf\u672a\u89e3\u4e4b\u8c1c\",\"hot_value\":372401,\"link\":\"https://s.weibo.com/weibo?q=%E8%80%B3%E6%9C%BA%E5%B7%A6%E5%8F%B3%E8%80%B3%E7%94%B5%E9%87%8F%E6%9C%AA%E8%A7%A3%E4%B9%8B%E8%B0%9C\"},{\"title\":\"\u66ddiPhone18Pro\u9ed1\u8272\u88ab\u53d6\u6d88\",\"hot_value\":370555,\"link\":\"https://s.weibo.com/weibo?q=%E6%9B%9DiPhone18Pro%E9%BB%91%E8%89%B2%E8%A2%AB%E5%8F%96%E6%B6%88\"},{\"title\":\"\u4f0a\u6717\u6700\u9ad8\u9886\u8896\u4e0e\u603b\u7edf\u4f1a\u8c08\",\"hot_value\":369094,\"link\":\"https://s.weibo.com/weibo?q=%E4%BC%8A%E6%9C%97%E6%9C%80%E9%AB%98%E9%A2%86%E8%A2%96%E4%B8%8E%E6%80%BB%E7%BB%9F%E4%BC%9A%E8%B0%88\"},{\"title\":\"\u513f\u5b50\u53bb\u4e16\u5b59\u5b50\u4e0d\u6367\u9aa8\u7070\u76d2\u88ab\u67e5\u51fa\u975e\u4eb2\u751f\",\"hot_value\":367979,\"link\":\"https://s.weibo.com/weibo?q=%E5%84%BF%E5%AD%90%E5%8E%BB%E4%B8%96%E5%AD%99%E5%AD%90%E4%B8%8D%E6%8D%A7%E9%AA%A8%E7%81%B0%E7%9B%92%E8%A2%AB%E6%9F%A5%E5%87%BA%E9%9D%9E%E4%BA%B2%E7%94%9F\"},{\"title\":\"\u7a0b\u6653\u73a5\u8c08\u79bb\u5a5a\",\"hot_value\":365973,\"link\":\"https://s.weibo.com/weibo?q=%E7%A8%8B%E6%99%93%E7%8E%A5%E8%B0%88%E7%A6%BB%E5%A9%9A\"},{\"title\":\"\u767d\u6d77\u8c5a \u6ca1\u56e4\u4e1c\u897f\u5c31\u6765\u4e86\",\"hot_value\":364786,\"link\":\"https://s.weibo.com/weibo?q=%E7%99%BD%E6%B5%B7%E8%B1%9A%20%E6%B2%A1%E5%9B%A4%E4%B8%9C%E8%A5%BF%E5%B0%B1%E6%9D%A5%E4%BA%86\"},{\"title\":\"\u767d\u6d77\u8c5a\u6211\u627f\u8ba4\u4f60\u6709\u70b9\u5389\u5bb3\u4e86\",\"hot_value\":361649,\"link\":\"https://s.weibo.com/weibo?q=%E7%99%BD%E6%B5%B7%E8%B1%9A%E6%88%91%E6%89%BF%E8%AE%A4%E4%BD%A0%E6%9C%89%E7%82%B9%E5%8E%89%E5%AE%B3%E4%BA%86\"},{\"title\":\"\u59da\u741b\u7a0b\u6f47 \u6807\u51c6\u7684\u7537\u4eba\u5973\u4eba\",\"hot_value\":360441,\"link\":\"https://s.weibo.com/weibo?q=%E5%A7%9A%E7%90%9B%E7%A8%8B%E6%BD%87%20%E6%A0%87%E5%87%86%E7%9A%84%E7%94%B7%E4%BA%BA%E5%A5%B3%E4%BA%BA\"},{\"title\":\"\u7537\u5b691\u5e74\u66b4\u957f20\u5398\u7c73\u5168\u8eab\u957f\u6ee1\u7eb9\",\"hot_value\":359176,\"link\":\"https://s.weibo.com/weibo?q=%E7%94%B7%E5%AD%A91%E5%B9%B4%E6%9A%B4%E9%95%BF20%E5%8E%98%E7%B1%B3%E5%85%A8%E8%BA%AB%E9%95%BF%E6%BB%A1%E7%BA%B9\"},{\"title\":\"\u4eba\u9c7c\",\"hot_value\":356526,\"link\":\"https://s.weibo.com/weibo?q=%E4%BA%BA%E9%B1%BC\"},{\"title\":\"\u8fea\u4e3d\u70ed\u5df4\u7d20\u989c\u9999\u6e2fplog\",\"hot_value\":354791,\"link\":\"https://s.weibo.com/weibo?q=%E8%BF%AA%E4%B8%BD%E7%83%AD%E5%B7%B4%E7%B4%A0%E9%A2%9C%E9%A6%99%E6%B8%AFplog\"},{\"title\":\"\u8001\u575b\u9178\u83dc \u811a\u8e29\",\"hot_value\":354332,\"link\":\"https://s.weibo.com/weibo?q=%E8%80%81%E5%9D%9B%E9%85%B8%E8%8F%9C%20%E8%84%9A%E8%B8%A9\"},{\"title\":\"\u5f20\u51cc\u8d6b\u76f4\u64ad\",\"hot_value\":352066,\"link\":\"https://s.weibo.com/weibo?q=%E5%BC%A0%E5%87%8C%E8%B5%AB%E7%9B%B4%E6%92%AD\"},{\"title\":\"\u90d1\u96c5\u8d24\u4e3a\u4e2d\u6587\u56de\u590d\u9053\u6b49\",\"hot_value\":350524,\"link\":\"https://s.weibo.com/weibo?q=%E9%83%91%E9%9B%85%E8%B4%A4%E4%B8%BA%E4%B8%AD%E6%96%87%E5%9B%9E%E5%A4%8D%E9%81%93%E6%AD%89\"},{\"title\":\"\u67f3\u5468cp\",\"hot_value\":348960,\"link\":\"https://s.weibo.com/weibo?q=%E6%9F%B3%E5%91%A8cp\"},{\"title\":\"\u5370\u5ea6\u5973\u5b50\u51fa\u8f68\u88ab\u649e\u7834\u5728\u9662\u5b50\u5185\u906d\u6bd2\u6253\",\"hot_value\":345914,\"link\":\"https://s.weibo.com/weibo?q=%E5%8D%B0%E5%BA%A6%E5%A5%B3%E5%AD%90%E5%87%BA%E8%BD%A8%E8%A2%AB%E6%92%9E%E7%A0%B4%E5%9C%A8%E9%99%A2%E5%AD%90%E5%86%85%E9%81%AD%E6%AF%92%E6%89%93\"},{\"title\":\"\u6c88\u6708 \u5e0c\u814a\u795e\u5973\",\"hot_value\":344649,\"link\":\"https://s.weibo.com/weibo?q=%E6%B2%88%E6%9C%88%20%E5%B8%8C%E8%85%8A%E7%A5%9E%E5%A5%B3\"},{\"title\":\"\u5f20\u51cc\u8d6b\u9501\u9aa8\",\"hot_value\":342261,\"link\":\"https://s.weibo.com/weibo?q=%E5%BC%A0%E5%87%8C%E8%B5%AB%E9%94%81%E9%AA%A8\"},{\"title\":\"\u6708\u7ecf\u524d\u76849\u4e2a\u8eab\u4f53\u4fe1\u53f7\",\"hot_value\":341084,\"link\":\"https://s.weibo.com/weibo?q=%E6%9C%88%E7%BB%8F%E5%89%8D%E7%9A%849%E4%B8%AA%E8%BA%AB%E4%BD%93%E4%BF%A1%E5%8F%B7\"},{\"title\":\"\u5a1c\u624e\u79f0\u773c\u775b\u6062\u590d\u60c5\u51b5\u4e0d\u592a\u5999\",\"hot_value\":340184,\"link\":\"https://s.weibo.com/weibo?q=%E5%A8%9C%E6%89%8E%E7%A7%B0%E7%9C%BC%E7%9D%9B%E6%81%A2%E5%A4%8D%E6%83%85%E5%86%B5%E4%B8%8D%E5%A4%AA%E5%A6%99\"},{\"title\":\"\u53f0\u98ce\u7435\u9e6d\u6765\u4e86\",\"hot_value\":337333,\"link\":\"https://s.weibo.com/weibo?q=%E5%8F%B0%E9%A3%8E%E7%90%B5%E9%B9%AD%E6%9D%A5%E4%BA%86\"},{\"title\":\"\u542c\u6cc9\u9274\u5b9d\u7092\u80a1\u4e8f\u5230\u5403\u6ce1\u9762\",\"hot_value\":336396,\"link\":\"https://s.weibo.com/weibo?q=%E5%90%AC%E6%B3%89%E9%89%B4%E5%AE%9D%E7%82%92%E8%82%A1%E4%BA%8F%E5%88%B0%E5%90%83%E6%B3%A1%E9%9D%A2\"},{\"title\":\"\u7a46\u7949\u4e1e\u76f4\u64ad\",\"hot_value\":334691,\"link\":\"https://s.weibo.com/weibo?q=%E7%A9%86%E7%A5%89%E4%B8%9E%E7%9B%B4%E6%92%AD\"},{\"title\":\"\u5a74\u513f\u88ab\u5b50\u8499\u5934\u5feb\u7a92\u606f\u65f6\u5c0f\u732b\u6252\u9192\u5b9d\u5988\",\"hot_value\":332249,\"link\":\"https://s.weibo.com/weibo?q=%E5%A9%B4%E5%84%BF%E8%A2%AB%E5%AD%90%E8%92%99%E5%A4%B4%E5%BF%AB%E7%AA%92%E6%81%AF%E6%97%B6%E5%B0%8F%E7%8C%AB%E6%89%92%E9%86%92%E5%AE%9D%E5%A6%88\"},{\"title\":\"\u9f99\u9910\u9986 \u6bd4\u6211\u4e0d\u662f\u836f\u795e\u597d\u5341\u4e2a\u6293\u5a03\u5a03\",\"hot_value\":330349,\"link\":\"https://s.weibo.com/weibo?q=%E9%BE%99%E9%A4%90%E9%A6%86%20%E6%AF%94%E6%88%91%E4%B8%8D%E6%98%AF%E8%8D%AF%E7%A5%9E%E5%A5%BD%E5%8D%81%E4%B8%AA%E6%8A%93%E5%A8%83%E5%A8%83\"},{\"title\":\"\u8bb0\u8005\u53d1\u73b0\u767d\u6d77\u8c5a\u98ce\u773c\u5c31\u5728\u8eab\u540e\",\"hot_value\":328503,\"link\":\"https://s.weibo.com/weibo?q=%E8%AE%B0%E8%80%85%E5%8F%91%E7%8E%B0%E7%99%BD%E6%B5%B7%E8%B1%9A%E9%A3%8E%E7%9C%BC%E5%B0%B1%E5%9C%A8%E8%BA%AB%E5%90%8E\"},{\"title\":\"\u738b\u5b89\u5b87\u95ee\u5230\u674e\u5149\u6d01\u75db\u5904\u4e86\",\"hot_value\":327675,\"link\":\"https://s.weibo.com/weibo?q=%E7%8E%8B%E5%AE%89%E5%AE%87%E9%97%AE%E5%88%B0%E6%9D%8E%E5%85%89%E6%B4%81%E7%97%9B%E5%A4%84%E4%BA%86\"},{\"title\":\"\u6613\u70ca\u5343\u73ba\u6ee1\u5934\u5f69\u5e26\u9000\u573a\",\"hot_value\":325207,\"link\":\"https://s.weibo.com/weibo?q=%E6%98%93%E7%83%8A%E5%8D%83%E7%8E%BA%E6%BB%A1%E5%A4%B4%E5%BD%A9%E5%B8%A6%E9%80%80%E5%9C%BA\"},{\"title\":\"\u5f20\u672c\u667a\u548c\u6a2a\u6ee8\u8d5b\u51a0\u519b\",\"hot_value\":323382,\"link\":\"https://s.weibo.com/weibo?q=%E5%BC%A0%E6%9C%AC%E6%99%BA%E5%92%8C%E6%A8%AA%E6%BB%A8%E8%B5%9B%E5%86%A0%E5%86%9B\"},{\"title\":\"\u91d1\u51ac\u5929\u7530\u67fe\u56fd\u70b9\u8d5e\u540c\u4e00\u6761\u5e16\u5b50\",\"hot_value\":322129,\"link\":\"https://s.weibo.com/weibo?q=%E9%87%91%E5%86%AC%E5%A4%A9%E7%94%B0%E6%9F%BE%E5%9B%BD%E7%82%B9%E8%B5%9E%E5%90%8C%E4%B8%80%E6%9D%A1%E5%B8%96%E5%AD%90\"},{\"title\":\"SBS\u5973\u56e2\u5408\u4f5c\u821e\u53f0\",\"hot_value\":320227,\"link\":\"https://s.weibo.com/weibo?q=SBS%E5%A5%B3%E5%9B%A2%E5%90%88%E4%BD%9C%E8%88%9E%E5%8F%B0\"},{\"title\":\"A\u80a1\u4eba\u5f62\u673a\u5668\u4eba\u7b2c\u4e00\u80a1\u6b63\u5f0f\u767b\u573a\",\"hot_value\":318518,\"link\":\"https://s.weibo.com/weibo?q=A%E8%82%A1%E4%BA%BA%E5%BD%A2%E6%9C%BA%E5%99%A8%E4%BA%BA%E7%AC%AC%E4%B8%80%E8%82%A1%E6%AD%A3%E5%BC%8F%E7%99%BB%E5%9C%BA\"},{\"title\":\"\u5b59\u6021\u597d\u957f\u7684\u817f\",\"hot_value\":317513,\"link\":\"https://s.weibo.com/weibo?q=%E5%AD%99%E6%80%A1%E5%A5%BD%E9%95%BF%E7%9A%84%E8%85%BF\"},{\"title\":\"\u9648\u6d5a\u94ed\u9648\u5955\u6052\u91cd\u56de\u4e00\u73ed\",\"hot_value\":315997,\"link\":\"https://s.weibo.com/weibo?q=%E9%99%88%E6%B5%9A%E9%93%AD%E9%99%88%E5%A5%95%E6%81%92%E9%87%8D%E5%9B%9E%E4%B8%80%E7%8F%AD\"},{\"title\":\"\u5f20\u672c\u7f8e\u548c\u56de\u5e94\u593a\u51a0\",\"hot_value\":314017,\"link\":\"https://s.weibo.com/weibo?q=%E5%BC%A0%E6%9C%AC%E7%BE%8E%E5%92%8C%E5%9B%9E%E5%BA%94%E5%A4%BA%E5%86%A0\"},{\"title\":\"\u5f20\u672c\u7f8e\u548c\u8bf4\u4eca\u5929\u662f\u6253\u5f97\u6700\u597d\u7684\u4e00\u5929\",\"hot_value\":312457,\"link\":\"https://s.weibo.com/weibo?q=%E5%BC%A0%E6%9C%AC%E7%BE%8E%E5%92%8C%E8%AF%B4%E4%BB%8A%E5%A4%A9%E6%98%AF%E6%89%93%E5%BE%97%E6%9C%80%E5%A5%BD%E7%9A%84%E4%B8%80%E5%A4%A9\"}],\"meta\":{\"count\":50,\"pagination\":{\"complete\":true,\"pages\":1,\"items\":50}}}"}, {"name": "result.md", "type": "text", "content": "# \u5fae\u535a\u5b9e\u65f6\u70ed\u641c\u699c Top 15\n\n> \u6570\u636e\u6765\u6e90:rx60s CLI(`rx60s weibo --json`)\u00b7 \u6570\u636e\u6e90 vikiboss/60s \u516c\u5f00 API\n> \u67e5\u8be2\u65f6\u95f4:2026-08-09\n\n| \u6392\u540d | \u70ed\u641c\u8bdd\u9898 | \u70ed\u5ea6 |\n|:---:|---|---:|\n| \ud83d\udd25 1 | \u5f20\u672c\u5144\u59b9\u540c\u65f6\u593a\u51a0 | 2,733,747 |\n| 2 | \u9f99\u9910\u9986 \u5965\u65af\u5361 | 1,054,521 |\n| 3 | \u4e2d\u56fd\u5236\u9020\u786c\u6838\u77ac\u95f4 | 847,580 |\n| 4 | \u6c88\u817e \u5f71\u5e1d | 784,580 |\n| 5 | \u767d\u6d77\u8c5a\u63d0\u524d\u767b\u9646 | 408,809 |\n| 6 | \u6731\u4e00\u9f99\u9f3b\u5b50\u600e\u4e48\u4e86 | 398,139 |\n| 7 | \u767e\u82b1\u5956 | 385,700 |\n| 8 | \u5f20\u672c\u7f8e\u548c \u56fd\u4e52\u6700\u5927\u5a01\u80c1 | 384,244 |\n| 9 | \u81ea\u95ed\u75c7\u54e5\u54e5\u7684\u8bdd\u5520\u59b9\u59b9\u582a\u6bd4\u5fc3\u7406\u533b\u751f | 383,283 |\n| 10 | \u533b\u7597\u5783\u573e \u624b\u673a\u58f3 | 381,979 |\n| 11 | \u4f4e\u4f30\u4e86\u767d\u6d77\u8c5a | 378,846 |\n| 12 | \u56fd\u4e52\u518d\u6b21\u65e0\u7f18\u51a0\u519b\u8d5b\u51a0\u519b | 378,445 |\n| 13 | \u7530\u66e6\u8587\u6ca1\u5218\u6d77\u5dee\u70b9\u8ba4\u4e0d\u51fa\u6765 | 376,294 |\n| 14 | \u8fea\u4e3d\u70ed\u5df4\u7ed9\u8def\u4eba\u6253\u7801 | 374,997 |\n| 15 | \u8033\u673a\u5de6\u53f3\u8033\u7535\u91cf\u672a\u89e3\u4e4b\u8c1c | 372,401 |\n\n---\n\n## \u4eca\u65e5\u5fae\u535a\u70ed\u70b9\u901f\u89c8\n\n**\u6700\u706b\u8bdd\u9898**(\u70ed\u5ea6\u7834\u767e\u4e07,\u65ad\u5c42\u9886\u5148):\n- **\u5f20\u672c\u5144\u59b9\u540c\u65f6\u593a\u51a0**(\u70ed\u5ea6\u7ea6 273 \u4e07)\u2014\u2014 \u5f20\u672c\u667a\u548c\u4e0e\u5f20\u672c\u7f8e\u548c\u540c\u65f6\u62ff\u4e0b\u8d5b\u4e8b\u51a0\u519b,\u9738\u5360\u5fae\u535a\u70ed\u641c\u699c\u9996\u3002\n- **\u9f99\u9910\u9986 \u5965\u65af\u5361**(\u70ed\u5ea6\u7ea6 105 \u4e07)\u2014\u2014 \u7535\u5f71\u300a\u9f99\u9910\u9986\u300b\u4e0e\"\u5965\u65af\u5361\"\u76f8\u5173\u8ba8\u8bba\u3002\n- **\u4e2d\u56fd\u5236\u9020\u786c\u6838\u77ac\u95f4**(\u70ed\u5ea6\u7ea6 85 \u4e07)\u3002\n- **\u6c88\u817e \u5f71\u5e1d**(\u70ed\u5ea6\u7ea6 78 \u4e07)\u2014\u2014 \u767e\u82b1\u5956\u9881\u5956\u5b63\u8bdd\u9898\u3002\n\n**\u4eca\u65e5\u770b\u70b9**:\u4f53\u80b2(\u5f20\u672c\u5144\u59b9\u593a\u51a0\u3001\u56fd\u4e52)\u3001\u5f71\u89c6(\u767e\u82b1\u5956\u3001\u6c88\u817e\u3001\u9f99\u9910\u9986)\u3001\u53f0\u98ce\"\u767d\u6d77\u8c5a\"\u52a8\u6001(\u591a\u6761\u76f8\u5173\u8bcd\u6761)\u3001\u5a31\u4e50\u5708\u516b\u5366\u3002\n\n\u5b8c\u6574\u699c\u5355\u5171\u8fd4\u56de 50 \u6761\u70ed\u641c,\u4ee5\u4e0a\u4e3a\u70ed\u5ea6\u524d 15\u3002\u9700\u8981\u770b\u5b8c\u6574\u699c\u5355\u6216\u67d0\u4e2a\u8bdd\u9898\u7684\u5fae\u535a\u539f\u6587\u94fe\u63a5\u53ef\u7ee7\u7eed\u544a\u8bc9\u6211\u3002\n"}], "grading": {"expectations": [{"text": "\u8c03\u7528\u4e86 rx60s hot weibo(\u6216\u9876\u5c42 weibo \u547d\u4ee4)", "passed": true, "evidence": "cli_raw source=rx60s"}, {"text": "\u8f93\u51fa\u5305\u542b\u591a\u6761\u70ed\u641c\u6807\u9898(\u81f3\u5c11 5 \u6761)", "passed": true, "evidence": "\u70ed\u641c\u6570\u7ec4\u6709 50 \u6761"}, {"text": "\u8f93\u51fa\u5305\u542b\u70ed\u5ea6\u503c(hot_value)", "passed": true, "evidence": "\u9996\u6761 hot_value=2733747"}], "summary": {"passed": 3, "failed": 0, "total": 3, "pass_rate": 1.0}}}, {"id": "eval-3-with_skill-run-1", "prompt": "(No prompt found)", "eval_id": null, "outputs": [{"name": "cli_raw.json", "type": "text", "content": "{\"ok\":true,\"source\":\"rx60s\",\"data\":{\"location\":{\"name\":\"\u4e0a\u6d77\u4e0a\u6d77\",\"province\":\"\u4e0a\u6d77\u7701\",\"city\":\"\u4e0a\u6d77\u5e02\",\"county\":\"\"},\"weather\":{\"condition\":\"\u9634\",\"condition_code\":\"02\",\"temperature\":27,\"humidity\":90,\"pressure\":997,\"precipitation\":0.1,\"wind_direction\":\"\u5317\u98ce\",\"wind_power\":\"3-4\",\"weather_icon\":\"https://mat1.gtimg.com/qqcdn/xw/tianqi/bigIcon/heiye/02.png\",\"weather_colors\":[\"#546481\",\"#8993AF\",\"#DBC2A9\"],\"updated\":\"2026-08-09 21:25:00\",\"updated_at\":1786310700000},\"air_quality\":{\"aqi\":25,\"level\":1,\"quality\":\"\u4f18\",\"pm25\":11,\"pm10\":25,\"co\":0.4,\"no2\":3,\"o3\":37,\"so2\":5,\"rank\":103,\"total_cities\":375,\"updated\":\"2026-08-09 21:00:00\",\"updated_at\":1786309200000},\"sunrise\":{\"sunrise\":\"2026-08-09 05:15:00\",\"sunrise_at\":1786252500000,\"sunrise_desc\":\"05:15\",\"sunset\":\"2026-08-09 18:43:00\",\"sunset_at\":1786300980000,\"sunset_desc\":\"18:43\"},\"life_indices\":[{\"key\":\"airconditioner\",\"name\":\"\u7a7a\u8c03\u5f00\u542f\",\"level\":\"\u8f83\u5c11\u5f00\u542f\",\"description\":\"\u60a8\u5c06\u611f\u5230\u5f88\u8212\u9002\uff0c\u4e00\u822c\u4e0d\u9700\u8981\u5f00\u542f\u7a7a\u8c03\u3002\"},{\"key\":\"allergy\",\"name\":\"\u8fc7\u654f\",\"level\":\"\u4e0d\u6613\u53d1\",\"description\":\"\u5929\u6c14\u6761\u4ef6\u4e0d\u6613\u8bf1\u53d1\u8fc7\u654f\uff0c\u6709\u8f83\u5f3a\u964d\u6c34\uff0c\u98ce\u529b\u8f83\u5927\uff0c\u8981\u6ce8\u610f\u9632\u98ce\u4fdd\u6696\uff0c\u9884\u9632\u611f\u5192\u53ef\u80fd\u5f15\u53d1\u7684\u8fc7\u654f\u3002\"},{\"key\":\"carwash\",\"name\":\"\u6d17\u8f66\",\"level\":\"\u4e0d\u9002\u5b9c\",\"description\":\"\u5c06\u6709\u964d\u6c34\uff0c\u4e0d\u5b9c\u6d17\u8f66\uff0c\u5efa\u8bae\u81f3\u5c111\u5929\u540e\u518d\u6d17\u8f66\u3002\"},{\"key\":\"chill\",\"name\":\"\u98ce\u5bd2\",\"level\":\"\u65e0\",\"description\":\"\u6e29\u5ea6\u672a\u8fbe\u5230\u98ce\u5bd2\u6240\u9700\u7684\u4f4e\u6e29\uff0c\u7a0d\u4f5c\u9632\u5bd2\u51c6\u5907\u5373\u53ef\u3002\"},{\"key\":\"clothes\",\"name\":\"\u7a7f\u8863\",\"level\":\"\u70ed\",\"description\":\"\u5929\u6c14\u70ed\uff0c\u5efa\u8bae\u7740\u77ed\u88d9\u3001\u77ed\u88e4\u3001\u77ed\u8584\u5916\u5957\u3001T\u6064\u7b49\u590f\u5b63\u670d\u88c5\u3002\"},{\"key\":\"cold\",\"name\":\"\u611f\u5192\",\"level\":\"\u8f83\u6613\u53d1\",\"description\":\"\u98ce\u8f83\u5927\uff0c\u9634\u51b7\u6f6e\u6e7f\uff0c\u8f83\u6613\u53d1\u751f\u611f\u5192\uff0c\u4f53\u8d28\u8f83\u5f31\u7684\u670b\u53cb\u8bf7\u6ce8\u610f\u9002\u5f53\u9632\u62a4\u3002\"},{\"key\":\"comfort\",\"name\":\"\u8212\u9002\u5ea6\",\"level\":\"\u8212\u9002\",\"description\":\"\u767d\u5929\u6e29\u5ea6\u9002\u5b9c\uff0c\u98ce\u529b\u4e0d\u5927\uff0c\u76f8\u4fe1\u60a8\u5728\u8fd9\u6837\u7684\u5929\u6c14\u6761\u4ef6\u4e0b\uff0c\u5e94\u4f1a\u611f\u5230\u6bd4\u8f83\u6e05\u723d\u548c\u8212\u9002\u3002\"},{\"key\":\"diffusion\",\"name\":\"\u7a7a\u6c14\u6c61\u67d3\u6269\u6563\u6761\u4ef6\",\"level\":\"\u4f18\",\"description\":\"\u6c14\u8c61\u6761\u4ef6\u975e\u5e38\u6709\u5229\u4e8e\u7a7a\u6c14\u6c61\u67d3\u7269\u7a00\u91ca\u3001\u6269\u6563\u548c\u6e05\u9664\u3002\"},{\"key\":\"dry\",\"name\":\"\u8def\u51b5\",\"level\":\"\u6e7f\u6ed1\",\"description\":\"\u6709\u96e8\uff0c\u4e14\u8fc7\u53bb12\u5c0f\u65f6\u4e5f\u66fe\u964d\u96e8\uff0c\u8def\u9762\u6e7f\u6ed1\uff0c\u8f66\u8f86\u6613\u6253\u6ed1\uff0c\u8bf7\u4fdd\u6301\u8f66\u8ddd\uff0c\u51cf\u6162\u8f66\u901f\uff0c\u5c0f\u5fc3\u9a7e\u9a76\u3002\"},{\"key\":\"drying\",\"name\":\"\u667e\u6652\",\"level\":\"\u4e0d\u5b9c\",\"description\":\"\u6709\u8f83\u5f3a\u964d\u6c34\uff0c\u4e0d\u9002\u5b9c\u667e\u6652\u3002\u82e5\u9700\u8981\u667e\u6652\uff0c\u8bf7\u5728\u5ba4\u5185\u51c6\u5907\u51fa\u5145\u8db3\u7684\u7a7a\u95f4\u3002\"},{\"key\":\"fish\",\"name\":\"\u9493\u9c7c\",\"level\":\"\u4e0d\u5b9c\",\"description\":\"\u98ce\u529b\u592a\u5927\uff0c\u4e0d\u9002\u5408\u5782\u9493\u3002\"},{\"key\":\"heatstroke\",\"name\":\"\u4e2d\u6691\",\"level\":\"\u65e0\u4e2d\u6691\u98ce\u9669\",\"description\":\"\u5929\u6c14\u8212\u9002\uff0c\u4ee4\u4eba\u795e\u6e05\u6c14\u723d\u7684\u4e00\u5929\uff0c\u4e0d\u7528\u62c5\u5fc3\u4e2d\u6691\u7684\u56f0\u6270\u3002\"},{\"key\":\"makeup\",\"name\":\"\u5316\u5986\",\"level\":\"\u53bb\u6cb9\",\"description\":\"\u5929\u6c14\u8f83\u70ed\uff0c\u5efa\u8bae\u7528\u9732\u8d28\u9762\u971c\u6253\u5e95\uff0c\u6c34\u8d28\u65e0\u6cb9\u7c89\u5e95\u971c\uff0c\u900f\u660e\u7c89\u997c\uff0c\u7c89\u8d28\u80ed\u8102\u3002\"},{\"key\":\"mood\",\"name\":\"\u5fc3\u60c5\",\"level\":\"\u5dee\",\"description\":\"\u6709\u8f83\u5f3a\u964d\u6c34\uff0c\u4f1a\u8ba9\u4eba\u5fc3\u60c5\u4e0d\u4f73\uff0c\u6ce8\u610f\u81ea\u6211\u8c03\u8282\u3002\"},{\"key\":\"morning\",\"name\":\"\u6668\u7ec3\",\"level\":\"\u4e0d\u5b9c\",\"description\":\"\u6709\u8f83\u5f3a\u964d\u6c34\uff0c\u98ce\u529b\u8f83\u5927\uff0c\u8bf7\u907f\u514d\u6237\u5916\u6668\u7ec3\uff0c\u5efa\u8bae\u5728\u5ba4\u5185\u505a\u9002\u5f53\u953b\u70bc\uff0c\u4fdd\u6301\u8eab\u4f53\u5065\u5eb7\u3002\"},{\"key\":\"sports\",\"name\":\"\u8fd0\u52a8\",\"level\":\"\u8f83\u4e0d\u5b9c\",\"description\":\"\u6709\u964d\u6c34\uff0c\u4e14\u98ce\u529b\u5f88\u5f3a\uff0c\u53ef\u9002\u5f53\u5728\u5ba4\u5185\u8fdb\u884c\u4f4e\u5f3a\u5ea6\u8fd0\u52a8\uff1b\u82e5\u575a\u6301\u6237\u5916\u8fd0\u52a8\uff0c\u8bf7\u6ce8\u610f\u9009\u62e9\u907f\u98ce\u9632\u96e8\u7684\u5730\u70b9\u3002\"},{\"key\":\"sunglasses\",\"name\":\"\u592a\u9633\u955c\",\"level\":\"\u4e0d\u9700\u8981\",\"description\":\"\u767d\u5929\u6709\u964d\u6c34\u5929\u6c14\uff0c\u89c6\u7ebf\u8f83\u5dee\uff0c\u4e0d\u9700\u8981\u4f69\u6234\u592a\u9633\u955c\"},{\"key\":\"sunscreen\",\"name\":\"\u9632\u6652\",\"level\":\"\u5f31\",\"description\":\"\u5c5e\u5f31\u7d2b\u5916\u8f90\u5c04\u5929\u6c14\uff0c\u957f\u671f\u5728\u6237\u5916\uff0c\u5efa\u8bae\u6d82\u64e6SPF\u57288-12\u4e4b\u95f4\u7684\u9632\u6652\u62a4\u80a4\u54c1\u3002\"},{\"key\":\"tourism\",\"name\":\"\u65c5\u6e38\",\"level\":\"\u8f83\u4e0d\u5b9c\",\"description\":\"\u6e29\u5ea6\u9002\u5b9c\uff0c\u98ce\u5927\uff0c\u9884\u8ba1\u5c06\u6709\u5f3a\u964d\u6c34\u51fa\u73b0\uff0c\u5efa\u8bae\u60a8\u6700\u597d\u9009\u62e9\u5ba4\u5185\u6d3b\u52a8\u3002\"},{\"key\":\"traffic\",\"name\":\"\u4ea4\u901a\",\"level\":\"\u8f83\u5dee\",\"description\":\"\u6709\u8f83\u5f3a\u964d\u6c34\uff0c\u8def\u9762\u6bd4\u8f83\u6e7f\u6ed1\uff0c\u80fd\u89c1\u5ea6\u4e00\u822c\uff0c\u4ea4\u901a\u6c14\u8c61\u6761\u4ef6\u8f83\u5dee\uff0c\u4e8b\u6545\u9ad8\u53d1\u671f\uff0c\u8f66\u8f86\u5e94\u4f4e\u901f\u884c\u9a76\u3002\"},{\"key\":\"ultraviolet\",\"name\":\"\u7d2b\u5916\u7ebf\u5f3a\u5ea6\",\"level\":\"\u6700\u5f31\",\"description\":\"\u5c5e\u5f31\u7d2b\u5916\u7ebf\u8f90\u5c04\u5929\u6c14\uff0c\u65e0\u9700\u7279\u522b\u9632\u62a4\u3002\u82e5\u957f\u671f\u5728\u6237\u5916\uff0c\u5efa\u8bae\u6d82\u64e6SPF\u57288-12\u4e4b\u95f4\u7684\u9632\u6652\u62a4\u80a4\u54c1\u3002\"},{\"key\":\"umbrella\",\"name\":\"\u96e8\u4f1e\",\"level\":\"\u5e26\u4f1e\",\"description\":\"\u6709\u8f83\u5f3a\u964d\u6c34\uff0c\u60a8\u5728\u5916\u51fa\u7684\u65f6\u5019\u4e00\u5b9a\u8981\u5e26\u96e8\u4f1e\uff0c\u4ee5\u514d\u88ab\u96e8\u6c34\u6dcb\u6e7f\u3002\"}],\"alerts\":[]}}"}, {"name": "result.md", "type": "text", "content": "# \u4e0a\u6d77\u5b9e\u65f6\u5929\u6c14\n\n> \u6570\u636e\u6765\u6e90\uff1arx60s(`life weather \u4e0a\u6d77`)\uff0c\u66f4\u65b0\u4e8e **2026-08-09 21:25**\n\n## \u4e00\u53e5\u8bdd\u603b\u7ed3\n\u4e0a\u6d77\u73b0\u5728**\u9634\u5929**\uff0c\u6c14\u6e29 **27\u2103**\uff0c\u6e7f\u5ea6\u8f83\u9ad8\uff0890%\uff09\uff0c\u6b63\u5728\u4e0b\u5c0f\u96e8\uff1b\u7a7a\u6c14\u8d28\u91cf**\u4f18**\uff08AQI 25\uff09\uff0c\u975e\u5e38\u6e05\u65b0\u3002\n\n## \u5929\u6c14\u8be6\u60c5\n\n| \u9879\u76ee | \u6570\u503c |\n|------|------|\n| \u5929\u6c14\u72b6\u51b5 | \u9634 |\n| \u5f53\u524d\u6c14\u6e29 | **27 \u2103** |\n| \u6e7f\u5ea6 | **90%** |\n| \u6c14\u538b | 997 hPa |\n| \u964d\u6c34\u91cf | 0.1 mm\uff08\u5c0f\u96e8\uff09 |\n| \u98ce\u5411\u98ce\u529b | \u5317\u98ce 3-4 \u7ea7 |\n| \u65e5\u51fa / \u65e5\u843d | 05:15 / 18:43 |\n\n## \u7a7a\u6c14\u8d28\u91cf\n\n| \u6307\u6807 | \u6570\u503c |\n|------|------|\n| AQI\uff08\u7a7a\u6c14\u8d28\u91cf\u6307\u6570\uff09 | **25 \u2014 \u4f18\uff08\u4e00\u7ea7\uff09** |\n| PM2.5 | 11 \u03bcg/m\u00b3 |\n| PM10 | 25 \u03bcg/m\u00b3 |\n| CO | 0.4 mg/m\u00b3 |\n| NO\u2082 | 3 \u03bcg/m\u00b3 |\n| O\u2083 | 37 \u03bcg/m\u00b3 |\n| SO\u2082 | 5 \u03bcg/m\u00b3 |\n| \u5168\u56fd\u6392\u540d | \u7b2c 103 \u540d / \u5171 375 \u4e2a\u57ce\u5e02 |\n\n> \u7a7a\u6c14\u8d28\u91cf\u7b49\u7ea7\u4e3a\u300c\u4f18\u300d\uff0c\u975e\u5e38\u9002\u5408\u547c\u5438\uff0c\u6c61\u67d3\u7269\u6269\u6563\u6761\u4ef6\u4e5f\u4e3a\u300c\u4f18\u300d\u3002\n\n## \u751f\u6d3b\u6307\u6570\uff08\u7cbe\u9009\uff09\n\n- **\u96e8\u4f1e**\uff1a\u5e26\u4f1e \u2014\u2014 \u6709\u8f83\u5f3a\u964d\u6c34\uff0c\u5916\u51fa\u52a1\u5fc5\u5e26\u4f1e\u3002\n- **\u7a7f\u8863**\uff1a\u70ed \u2014\u2014 \u5efa\u8bae\u77ed\u88d9\u3001\u77ed\u88e4\u3001T\u6064\u7b49\u590f\u88c5\u3002\n- **\u611f\u5192**\uff1a\u8f83\u6613\u53d1 \u2014\u2014 \u9634\u51b7\u6f6e\u6e7f\u3001\u98ce\u8f83\u5927\uff0c\u4f53\u8d28\u5f31\u8005\u6ce8\u610f\u9632\u62a4\u3002\n- **\u8def\u51b5**\uff1a\u6e7f\u6ed1 \u2014\u2014 \u6709\u96e8\uff0c\u8def\u9762\u6e7f\u6ed1\uff0c\u8bf7\u4fdd\u6301\u8f66\u8ddd\u3001\u51cf\u901f\u6162\u884c\u3002\n- **\u6668\u7ec3 / \u8fd0\u52a8**\uff1a\u4e0d\u5b9c / \u8f83\u4e0d\u5b9c \u2014\u2014 \u5efa\u8bae\u6539\u4e3a\u5ba4\u5185\u6d3b\u52a8\u3002\n- **\u7d2b\u5916\u7ebf**\uff1a\u6700\u5f31\uff0c\u65e0\u9700\u7279\u522b\u9632\u6652\u3002\n\n## \u6e29\u99a8\u63d0\u793a\n\u4eca\u665a\u4e0a\u6d77\u6709\u8f83\u5f3a\u964d\u6c34\u3001\u5317\u98ce\u8f83\u5927\uff0c\u51fa\u95e8\u8bb0\u5f97**\u5e26\u4f1e**\uff0c\u6ce8\u610f**\u9632\u98ce\u4fdd\u6696**\uff1b\u7a7a\u6c14\u8d28\u91cf\u5f88\u597d\uff0c\u53ef\u4ee5\u653e\u5fc3\u5f00\u7a97\u6362\u6c14\u3002\n"}], "grading": {"expectations": [{"text": "\u8c03\u7528\u4e86 rx60s life weather(\u4f4d\u7f6e\u53c2\u6570\u4e3a\u4e0a\u6d77\u6216\u7c7b\u4f3c)", "passed": true, "evidence": "cli_raw source=rx60s"}, {"text": "\u8f93\u51fa\u5305\u542b\u6e29\u5ea6\u6570\u503c(temperature \u5b57\u6bb5)", "passed": true, "evidence": "temperature=27"}, {"text": "\u8f93\u51fa\u5305\u542b\u5929\u6c14\u72b6\u51b5\u63cf\u8ff0(\u5982 \u591a\u4e91/\u6674)", "passed": true, "evidence": "condition=\u9634"}], "summary": {"passed": 3, "failed": 0, "total": 3, "pass_rate": 1.0}}}, {"id": "eval-3-without_skill-run-1", "prompt": "(No prompt found)", "eval_id": null, "outputs": [{"name": "cli_raw.json", "type": "text", "content": "{\"ok\":true,\"source\":\"rx60s\",\"data\":{\"location\":{\"name\":\"\u4e0a\u6d77\u4e0a\u6d77\",\"province\":\"\u4e0a\u6d77\u7701\",\"city\":\"\u4e0a\u6d77\u5e02\",\"county\":\"\"},\"weather\":{\"condition\":\"\u9634\",\"condition_code\":\"02\",\"temperature\":27,\"humidity\":90,\"pressure\":997,\"precipitation\":0.1,\"wind_direction\":\"\u4e1c\u5317\u98ce\",\"wind_power\":\"3-4\",\"weather_icon\":\"https://mat1.gtimg.com/qqcdn/xw/tianqi/bigIcon/heiye/02.png\",\"weather_colors\":[\"#546481\",\"#8993AF\",\"#DBC2A9\"],\"updated\":\"2026-08-09 21:30:00\",\"updated_at\":1786311000000},\"air_quality\":{\"aqi\":25,\"level\":1,\"quality\":\"\u4f18\",\"pm25\":11,\"pm10\":25,\"co\":0.4,\"no2\":3,\"o3\":37,\"so2\":5,\"rank\":103,\"total_cities\":375,\"updated\":\"2026-08-09 21:00:00\",\"updated_at\":1786309200000},\"sunrise\":{\"sunrise\":\"2026-08-09 05:15:00\",\"sunrise_at\":1786252500000,\"sunrise_desc\":\"05:15\",\"sunset\":\"2026-08-09 18:43:00\",\"sunset_at\":1786300980000,\"sunset_desc\":\"18:43\"},\"life_indices\":[{\"key\":\"airconditioner\",\"name\":\"\u7a7a\u8c03\u5f00\u542f\",\"level\":\"\u8f83\u5c11\u5f00\u542f\",\"description\":\"\u60a8\u5c06\u611f\u5230\u5f88\u8212\u9002\uff0c\u4e00\u822c\u4e0d\u9700\u8981\u5f00\u542f\u7a7a\u8c03\u3002\"},{\"key\":\"allergy\",\"name\":\"\u8fc7\u654f\",\"level\":\"\u4e0d\u6613\u53d1\",\"description\":\"\u5929\u6c14\u6761\u4ef6\u4e0d\u6613\u8bf1\u53d1\u8fc7\u654f\uff0c\u6709\u8f83\u5f3a\u964d\u6c34\uff0c\u98ce\u529b\u8f83\u5927\uff0c\u8981\u6ce8\u610f\u9632\u98ce\u4fdd\u6696\uff0c\u9884\u9632\u611f\u5192\u53ef\u80fd\u5f15\u53d1\u7684\u8fc7\u654f\u3002\"},{\"key\":\"carwash\",\"name\":\"\u6d17\u8f66\",\"level\":\"\u4e0d\u9002\u5b9c\",\"description\":\"\u5c06\u6709\u964d\u6c34\uff0c\u4e0d\u5b9c\u6d17\u8f66\uff0c\u5efa\u8bae\u81f3\u5c111\u5929\u540e\u518d\u6d17\u8f66\u3002\"},{\"key\":\"chill\",\"name\":\"\u98ce\u5bd2\",\"level\":\"\u65e0\",\"description\":\"\u6e29\u5ea6\u672a\u8fbe\u5230\u98ce\u5bd2\u6240\u9700\u7684\u4f4e\u6e29\uff0c\u7a0d\u4f5c\u9632\u5bd2\u51c6\u5907\u5373\u53ef\u3002\"},{\"key\":\"clothes\",\"name\":\"\u7a7f\u8863\",\"level\":\"\u70ed\",\"description\":\"\u5929\u6c14\u70ed\uff0c\u5efa\u8bae\u7740\u77ed\u88d9\u3001\u77ed\u88e4\u3001\u77ed\u8584\u5916\u5957\u3001T\u6064\u7b49\u590f\u5b63\u670d\u88c5\u3002\"},{\"key\":\"cold\",\"name\":\"\u611f\u5192\",\"level\":\"\u8f83\u6613\u53d1\",\"description\":\"\u98ce\u8f83\u5927\uff0c\u9634\u51b7\u6f6e\u6e7f\uff0c\u8f83\u6613\u53d1\u751f\u611f\u5192\uff0c\u4f53\u8d28\u8f83\u5f31\u7684\u670b\u53cb\u8bf7\u6ce8\u610f\u9002\u5f53\u9632\u62a4\u3002\"},{\"key\":\"comfort\",\"name\":\"\u8212\u9002\u5ea6\",\"level\":\"\u8212\u9002\",\"description\":\"\u767d\u5929\u6e29\u5ea6\u9002\u5b9c\uff0c\u98ce\u529b\u4e0d\u5927\uff0c\u76f8\u4fe1\u60a8\u5728\u8fd9\u6837\u7684\u5929\u6c14\u6761\u4ef6\u4e0b\uff0c\u5e94\u4f1a\u611f\u5230\u6bd4\u8f83\u6e05\u723d\u548c\u8212\u9002\u3002\"},{\"key\":\"diffusion\",\"name\":\"\u7a7a\u6c14\u6c61\u67d3\u6269\u6563\u6761\u4ef6\",\"level\":\"\u4f18\",\"description\":\"\u6c14\u8c61\u6761\u4ef6\u975e\u5e38\u6709\u5229\u4e8e\u7a7a\u6c14\u6c61\u67d3\u7269\u7a00\u91ca\u3001\u6269\u6563\u548c\u6e05\u9664\u3002\"},{\"key\":\"dry\",\"name\":\"\u8def\u51b5\",\"level\":\"\u6e7f\u6ed1\",\"description\":\"\u6709\u96e8\uff0c\u4e14\u8fc7\u53bb12\u5c0f\u65f6\u4e5f\u66fe\u964d\u96e8\uff0c\u8def\u9762\u6e7f\u6ed1\uff0c\u8f66\u8f86\u6613\u6253\u6ed1\uff0c\u8bf7\u4fdd\u6301\u8f66\u8ddd\uff0c\u51cf\u6162\u8f66\u901f\uff0c\u5c0f\u5fc3\u9a7e\u9a76\u3002\"},{\"key\":\"drying\",\"name\":\"\u667e\u6652\",\"level\":\"\u4e0d\u5b9c\",\"description\":\"\u6709\u8f83\u5f3a\u964d\u6c34\uff0c\u4e0d\u9002\u5b9c\u667e\u6652\u3002\u82e5\u9700\u8981\u667e\u6652\uff0c\u8bf7\u5728\u5ba4\u5185\u51c6\u5907\u51fa\u5145\u8db3\u7684\u7a7a\u95f4\u3002\"},{\"key\":\"fish\",\"name\":\"\u9493\u9c7c\",\"level\":\"\u4e0d\u5b9c\",\"description\":\"\u98ce\u529b\u592a\u5927\uff0c\u4e0d\u9002\u5408\u5782\u9493\u3002\"},{\"key\":\"heatstroke\",\"name\":\"\u4e2d\u6691\",\"level\":\"\u65e0\u4e2d\u6691\u98ce\u9669\",\"description\":\"\u5929\u6c14\u8212\u9002\uff0c\u4ee4\u4eba\u795e\u6e05\u6c14\u723d\u7684\u4e00\u5929\uff0c\u4e0d\u7528\u62c5\u5fc3\u4e2d\u6691\u7684\u56f0\u6270\u3002\"},{\"key\":\"makeup\",\"name\":\"\u5316\u5986\",\"level\":\"\u53bb\u6cb9\",\"description\":\"\u5929\u6c14\u8f83\u70ed\uff0c\u5efa\u8bae\u7528\u9732\u8d28\u9762\u971c\u6253\u5e95\uff0c\u6c34\u8d28\u65e0\u6cb9\u7c89\u5e95\u971c\uff0c\u900f\u660e\u7c89\u997c\uff0c\u7c89\u8d28\u80ed\u8102\u3002\"},{\"key\":\"mood\",\"name\":\"\u5fc3\u60c5\",\"level\":\"\u5dee\",\"description\":\"\u6709\u8f83\u5f3a\u964d\u6c34\uff0c\u4f1a\u8ba9\u4eba\u5fc3\u60c5\u4e0d\u4f73\uff0c\u6ce8\u610f\u81ea\u6211\u8c03\u8282\u3002\"},{\"key\":\"morning\",\"name\":\"\u6668\u7ec3\",\"level\":\"\u4e0d\u5b9c\",\"description\":\"\u6709\u8f83\u5f3a\u964d\u6c34\uff0c\u98ce\u529b\u8f83\u5927\uff0c\u8bf7\u907f\u514d\u6237\u5916\u6668\u7ec3\uff0c\u5efa\u8bae\u5728\u5ba4\u5185\u505a\u9002\u5f53\u953b\u70bc\uff0c\u4fdd\u6301\u8eab\u4f53\u5065\u5eb7\u3002\"},{\"key\":\"sports\",\"name\":\"\u8fd0\u52a8\",\"level\":\"\u8f83\u4e0d\u5b9c\",\"description\":\"\u6709\u964d\u6c34\uff0c\u4e14\u98ce\u529b\u5f88\u5f3a\uff0c\u53ef\u9002\u5f53\u5728\u5ba4\u5185\u8fdb\u884c\u4f4e\u5f3a\u5ea6\u8fd0\u52a8\uff1b\u82e5\u575a\u6301\u6237\u5916\u8fd0\u52a8\uff0c\u8bf7\u6ce8\u610f\u9009\u62e9\u907f\u98ce\u9632\u96e8\u7684\u5730\u70b9\u3002\"},{\"key\":\"sunglasses\",\"name\":\"\u592a\u9633\u955c\",\"level\":\"\u4e0d\u9700\u8981\",\"description\":\"\u767d\u5929\u6709\u964d\u6c34\u5929\u6c14\uff0c\u89c6\u7ebf\u8f83\u5dee\uff0c\u4e0d\u9700\u8981\u4f69\u6234\u592a\u9633\u955c\"},{\"key\":\"sunscreen\",\"name\":\"\u9632\u6652\",\"level\":\"\u5f31\",\"description\":\"\u5c5e\u5f31\u7d2b\u5916\u8f90\u5c04\u5929\u6c14\uff0c\u957f\u671f\u5728\u6237\u5916\uff0c\u5efa\u8bae\u6d82\u64e6SPF\u57288-12\u4e4b\u95f4\u7684\u9632\u6652\u62a4\u80a4\u54c1\u3002\"},{\"key\":\"tourism\",\"name\":\"\u65c5\u6e38\",\"level\":\"\u8f83\u4e0d\u5b9c\",\"description\":\"\u6e29\u5ea6\u9002\u5b9c\uff0c\u98ce\u5927\uff0c\u9884\u8ba1\u5c06\u6709\u5f3a\u964d\u6c34\u51fa\u73b0\uff0c\u5efa\u8bae\u60a8\u6700\u597d\u9009\u62e9\u5ba4\u5185\u6d3b\u52a8\u3002\"},{\"key\":\"traffic\",\"name\":\"\u4ea4\u901a\",\"level\":\"\u8f83\u5dee\",\"description\":\"\u6709\u8f83\u5f3a\u964d\u6c34\uff0c\u8def\u9762\u6bd4\u8f83\u6e7f\u6ed1\uff0c\u80fd\u89c1\u5ea6\u4e00\u822c\uff0c\u4ea4\u901a\u6c14\u8c61\u6761\u4ef6\u8f83\u5dee\uff0c\u4e8b\u6545\u9ad8\u53d1\u671f\uff0c\u8f66\u8f86\u5e94\u4f4e\u901f\u884c\u9a76\u3002\"},{\"key\":\"ultraviolet\",\"name\":\"\u7d2b\u5916\u7ebf\u5f3a\u5ea6\",\"level\":\"\u6700\u5f31\",\"description\":\"\u5c5e\u5f31\u7d2b\u5916\u7ebf\u8f90\u5c04\u5929\u6c14\uff0c\u65e0\u9700\u7279\u522b\u9632\u62a4\u3002\u82e5\u957f\u671f\u5728\u6237\u5916\uff0c\u5efa\u8bae\u6d82\u64e6SPF\u57288-12\u4e4b\u95f4\u7684\u9632\u6652\u62a4\u80a4\u54c1\u3002\"},{\"key\":\"umbrella\",\"name\":\"\u96e8\u4f1e\",\"level\":\"\u5e26\u4f1e\",\"description\":\"\u6709\u8f83\u5f3a\u964d\u6c34\uff0c\u60a8\u5728\u5916\u51fa\u7684\u65f6\u5019\u4e00\u5b9a\u8981\u5e26\u96e8\u4f1e\uff0c\u4ee5\u514d\u88ab\u96e8\u6c34\u6dcb\u6e7f\u3002\"}],\"alerts\":[]}}"}, {"name": "result.md", "type": "text", "content": "# \u4e0a\u6d77\u5b9e\u65f6\u5929\u6c14\n\n> \u6570\u636e\u6765\u6e90\uff1arx60s CLI\uff08`life weather \u4e0a\u6d77`\uff09\uff0c\u66f4\u65b0\u4e8e **2026-08-09 21:30**\n\n## \u4e00\u53e5\u8bdd\u603b\u7ed3\n\u4e0a\u6d77\u73b0\u5728**\u9634\u5929**\uff0c\u6c14\u6e29 **27\u2103**\uff0c\u6e7f\u5ea6\u5f88\u9ad8\uff0890%\uff09\uff0c\u6709\u5c0f\u96e8\uff1b\u7a7a\u6c14\u8d28\u91cf**\u4f18**\uff08AQI 25\uff09\uff0c\u975e\u5e38\u6e05\u65b0\u3002\n\n## \u5929\u6c14\u8be6\u60c5\n\n| \u9879\u76ee | \u6570\u503c |\n|------|------|\n| \u5929\u6c14\u72b6\u51b5 | \u9634 |\n| \u5f53\u524d\u6c14\u6e29 | **27 \u2103** |\n| \u6e7f\u5ea6 | **90%** |\n| \u6c14\u538b | 997 hPa |\n| \u964d\u6c34\u91cf | 0.1 mm\uff08\u5c0f\u96e8\uff09 |\n| \u98ce\u5411\u98ce\u529b | \u4e1c\u5317\u98ce 3-4 \u7ea7 |\n| \u65e5\u51fa / \u65e5\u843d | 05:15 / 18:43 |\n\n## \u7a7a\u6c14\u8d28\u91cf\n\n| \u6307\u6807 | \u6570\u503c |\n|------|------|\n| AQI\uff08\u7a7a\u6c14\u8d28\u91cf\u6307\u6570\uff09 | **25 \u2014 \u4f18\uff08\u4e00\u7ea7\uff09** |\n| PM2.5 | 11 \u03bcg/m\u00b3 |\n| PM10 | 25 \u03bcg/m\u00b3 |\n| CO | 0.4 mg/m\u00b3 |\n| NO\u2082 | 3 \u03bcg/m\u00b3 |\n| O\u2083 | 37 \u03bcg/m\u00b3 |\n| SO\u2082 | 5 \u03bcg/m\u00b3 |\n| \u5168\u56fd\u6392\u540d | \u7b2c 103 \u540d / \u5171 375 \u4e2a\u57ce\u5e02 |\n\n> \u7a7a\u6c14\u8d28\u91cf\u7b49\u7ea7\u300c\u4f18\u300d\uff0c\u6c61\u67d3\u7269\u5c11\uff0c\u6269\u6563\u6761\u4ef6\u4e5f\u4e3a\u300c\u4f18\u300d\uff0c\u9002\u5408\u547c\u5438\u3002\n\n## \u51fa\u884c\u5efa\u8bae\n- **\u96e8\u4f1e**\uff1a\u5e26\u4f1e \u2014\u2014 \u6709\u8f83\u5f3a\u964d\u6c34\uff0c\u5916\u51fa\u52a1\u5fc5\u5e26\u4f1e\u3002\n- **\u7a7f\u8863**\uff1a\u70ed \u2014\u2014 \u5efa\u8bae\u77ed\u88d9\u3001\u77ed\u88e4\u3001T\u6064\u7b49\u590f\u88c5\u3002\n- **\u611f\u5192**\uff1a\u8f83\u6613\u53d1 \u2014\u2014 \u9634\u51b7\u6f6e\u6e7f\u3001\u98ce\u8f83\u5927\uff0c\u4f53\u8d28\u5f31\u8005\u6ce8\u610f\u9632\u62a4\u3002\n- **\u8def\u51b5 / \u4ea4\u901a**\uff1a\u8def\u9762\u6e7f\u6ed1\u3001\u80fd\u89c1\u5ea6\u4e00\u822c\uff0c\u8bf7\u51cf\u901f\u6162\u884c\u3001\u4fdd\u6301\u8f66\u8ddd\u3002\n- **\u6668\u7ec3 / \u8fd0\u52a8**\uff1a\u4e0d\u5b9c\u6237\u5916\uff0c\u5efa\u8bae\u6539\u4e3a\u5ba4\u5185\u6d3b\u52a8\u3002\n\n## \u6e29\u99a8\u63d0\u793a\n\u4eca\u665a\u4e0a\u6d77\u6709\u8f83\u5f3a\u964d\u6c34\u3001\u4e1c\u5317\u98ce\u8f83\u5927\uff0c\u51fa\u95e8\u8bb0\u5f97**\u5e26\u4f1e**\uff0c\u6ce8\u610f**\u9632\u98ce\u4fdd\u6696**\uff1b\u7a7a\u6c14\u8d28\u91cf\u5f88\u597d\uff0c\u53ef\u653e\u5fc3\u901a\u98ce\u3002\n"}], "grading": {"expectations": [{"text": "\u8c03\u7528\u4e86 rx60s life weather(\u4f4d\u7f6e\u53c2\u6570\u4e3a\u4e0a\u6d77\u6216\u7c7b\u4f3c)", "passed": true, "evidence": "cli_raw source=rx60s"}, {"text": "\u8f93\u51fa\u5305\u542b\u6e29\u5ea6\u6570\u503c(temperature \u5b57\u6bb5)", "passed": true, "evidence": "temperature=27"}, {"text": "\u8f93\u51fa\u5305\u542b\u5929\u6c14\u72b6\u51b5\u63cf\u8ff0(\u5982 \u591a\u4e91/\u6674)", "passed": true, "evidence": "condition=\u9634"}], "summary": {"passed": 3, "failed": 0, "total": 3, "pass_rate": 1.0}}}, {"id": "eval-4-with_skill-run-1", "prompt": "(No prompt found)", "eval_id": null, "outputs": [{"name": "cli_raw.json", "type": "text", "content": "{\"ok\":true,\"source\":\"rx60s\",\"data\":{\"source\":{\"text\":\"artificial intelligence\",\"type\":\"en\",\"type_desc\":\"\u82f1\u8bed\",\"pronounce\":\"\"},\"target\":{\"text\":\"\u4eba\u5de5\u667a\u80fd\",\"type\":\"zh-CHS\",\"type_desc\":\"\u4e2d\u6587\",\"pronounce\":\"r\u00e9n g\u014dng zh\u00ecn\u00e9ng\"}}}\n"}, {"name": "result.md", "type": "text", "content": "\"artificial intelligence\" \u7684\u4e2d\u6587\u7ffb\u8bd1\u662f **\u4eba\u5de5\u667a\u80fd**\u3002\n\n- \u4e2d\u6587:\u4eba\u5de5\u667a\u80fd\n- \u62fc\u97f3:r\u00e9n g\u014dng zh\u00ecn\u00e9ng\n\n(\u7ffb\u8bd1\u6765\u6e90:\u6709\u9053\u7ffb\u8bd1,\u7ecf rx60s `tool fanyi` \u63a5\u53e3\u83b7\u53d6)\n"}], "grading": {"expectations": [{"text": "\u8c03\u7528\u4e86 rx60s tool fanyi(\u6587\u672c\u4e3a artificial intelligence,to \u4e3a\u4e2d\u6587)", "passed": true, "evidence": "cli_raw source=rx60s"}, {"text": "\u8f93\u51fa\u5305\u542b\u4e2d\u6587\u7ffb\u8bd1\u7ed3\u679c(\u5982 \u4eba\u5de5\u667a\u80fd)", "passed": true, "evidence": "target.text=\u4eba\u5de5\u667a\u80fd"}], "summary": {"passed": 2, "failed": 0, "total": 2, "pass_rate": 1.0}}}, {"id": "eval-4-without_skill-run-1", "prompt": "(No prompt found)", "eval_id": null, "outputs": [{"name": "cli_raw.json", "type": "text", "content": "{\"ok\":true,\"source\":\"rx60s\",\"data\":{\"source\":{\"text\":\"artificial intelligence\",\"type\":\"en\",\"type_desc\":\"\u82f1\u8bed\",\"pronounce\":\"\"},\"target\":{\"text\":\"\u4eba\u5de5\u667a\u80fd\",\"type\":\"zh-CHS\",\"type_desc\":\"\u4e2d\u6587\",\"pronounce\":\"r\u00e9n g\u014dng zh\u00ecn\u00e9ng\"}}}\n"}, {"name": "result.md", "type": "text", "content": "\"artificial intelligence\" \u7684\u4e2d\u6587\u7ffb\u8bd1\u662f **\u4eba\u5de5\u667a\u80fd**\u3002\n\n- \u4e2d\u6587:\u4eba\u5de5\u667a\u80fd\n- \u62fc\u97f3:r\u00e9n g\u014dng zh\u00ecn\u00e9ng\n\n(\u7ffb\u8bd1\u6765\u6e90:\u6709\u9053\u7ffb\u8bd1,\u7ecf rx60s `tool fanyi` \u63a5\u53e3\u83b7\u53d6)\n"}], "grading": {"expectations": [{"text": "\u8c03\u7528\u4e86 rx60s tool fanyi(\u6587\u672c\u4e3a artificial intelligence,to \u4e3a\u4e2d\u6587)", "passed": true, "evidence": "cli_raw source=rx60s"}, {"text": "\u8f93\u51fa\u5305\u542b\u4e2d\u6587\u7ffb\u8bd1\u7ed3\u679c(\u5982 \u4eba\u5de5\u667a\u80fd)", "passed": true, "evidence": "target.text=\u4eba\u5de5\u667a\u80fd"}], "summary": {"passed": 2, "failed": 0, "total": 2, "pass_rate": 1.0}}}, {"id": "eval-5-with_skill-run-1", "prompt": "(No prompt found)", "eval_id": null, "outputs": [{"name": "cli_raw.json", "type": "text", "content": "{\n  \"password_generation\": {\n    \"ok\": true,\n    \"source\": \"rx60s\",\n    \"data\": {\n      \"password\": \"x8PxqG%P5b@q*?vfj3X$\",\n      \"length\": 20,\n      \"config\": {\n        \"include_numbers\": true,\n        \"include_symbols\": true,\n        \"include_lowercase\": true,\n        \"include_uppercase\": true,\n        \"exclude_similar\": true,\n        \"exclude_ambiguous\": true\n      },\n      \"character_sets\": {\n        \"lowercase\": \"abcdefghjkmnpqrstuvwxyz\",\n        \"uppercase\": \"ABCDEFGHIJKMNPQRSTUVWXYZ\",\n        \"numbers\": \"23456789\",\n        \"symbols\": \"!@#$%^&*_+-=|:?\",\n        \"used_sets\": [\"lowercase\", \"uppercase\", \"numbers\", \"symbols\"]\n      },\n      \"generation_info\": {\n        \"entropy\": 122.59,\n        \"strength\": \"\u6781\u5f3a\",\n        \"time_to_crack\": \"\u6570\u767e\u4e07\u5e74\"\n      }\n    }\n  },\n  \"password_check\": {\n    \"ok\": true,\n    \"source\": \"rx60s\",\n    \"data\": {\n      \"password\": \"x8PxqG%P5b@q*?vfj3X$\",\n      \"length\": 20,\n      \"score\": 100,\n      \"strength\": \"\u6781\u5f3a\",\n      \"entropy\": 131.09,\n      \"time_to_crack\": \"\u6570\u767e\u4e07\u5e74\",\n      \"character_analysis\": {\n        \"has_lowercase\": true,\n        \"has_uppercase\": true,\n        \"has_numbers\": true,\n        \"has_symbols\": true,\n        \"has_repeated\": false,\n        \"has_sequential\": false,\n        \"character_variety\": 94\n      },\n      \"recommendations\": [\"\u5bc6\u7801\u5f3a\u5ea6\u5df2\u7ecf\u5f88\u597d\uff01\"],\n      \"security_tips\": [\n        \"\u4f7f\u7528\u5bc6\u7801\u7ba1\u7406\u5668\u751f\u6210\u548c\u5b58\u50a8\u590d\u6742\u5bc6\u7801\",\n        \"\u4e3a\u4e0d\u540c\u8d26\u6237\u4f7f\u7528\u4e0d\u540c\u7684\u5bc6\u7801\",\n        \"\u5b9a\u671f\u66f4\u6362\u91cd\u8981\u8d26\u6237\u7684\u5bc6\u7801\",\n        \"\u542f\u7528\u53cc\u56e0\u7d20\u8ba4\u8bc1\uff082FA\uff09\u589e\u5f3a\u5b89\u5168\u6027\",\n        \"\u907f\u514d\u5728\u516c\u5171\u573a\u5408\u8f93\u5165\u5bc6\u7801\",\n        \"\u4e0d\u8981\u5c06\u5bc6\u7801\u4fdd\u5b58\u5728\u6d4f\u89c8\u5668\u4e2d\uff08\u9664\u975e\u4f7f\u7528\u53ef\u4fe1\u7684\u5bc6\u7801\u7ba1\u7406\u5668\uff09\",\n        \"\u907f\u514d\u4f7f\u7528\u4e2a\u4eba\u4fe1\u606f\u4f5c\u4e3a\u5bc6\u7801\",\n        \"\u957f\u5bc6\u7801\u6bd4\u590d\u6742\u5bc6\u7801\u66f4\u5b89\u5168\"\n      ]\n    }\n  }\n}\n"}, {"name": "result.md", "type": "text", "content": "# 20 \u4f4d\u5f3a\u968f\u673a\u5bc6\u7801\n\n## \u4f60\u7684\u5bc6\u7801\n\n```\nx8PxqG%P5b@q*?vfj3X$\n```\n\n> \u957f\u5ea6\uff1a20 \u4f4d\uff0c\u5305\u542b\u5c0f\u5199\u5b57\u6bcd\u3001\u5927\u5199\u5b57\u6bcd\u3001\u6570\u5b57\u548c\u7279\u6b8a\u7b26\u53f7\u56db\u7c7b\u5b57\u7b26\u3002\n> \u5df2\u81ea\u52a8\u6392\u9664\u76f8\u4f3c\u5b57\u7b26\uff08i/l/1/L/o/0/O\uff09\u548c\u6a21\u7cca\u5b57\u7b26\uff08{}[]()/ \u7b49\uff09\uff0c\u4fbf\u4e8e\u9605\u8bfb\u548c\u624b\u52a8\u8f93\u5165\u3002\n\n## \u5b89\u5168\u6027\u8bc4\u4f30\n\n| \u6307\u6807 | \u6570\u503c |\n|------|------|\n| \u5f3a\u5ea6\u8bc4\u5206 | **100 / 100\uff08\u6781\u5f3a\uff09** |\n| \u4fe1\u606f\u71b5 | **131.09 bit**\uff08\u751f\u6210\u65f6\u6309\u5b57\u7b26\u96c6\u4f30\u7b97 122.59 bit\uff09 |\n| \u66b4\u529b\u7834\u89e3\u6240\u9700\u65f6\u95f4 | **\u6570\u767e\u4e07\u5e74** |\n| \u5b57\u7b26\u591a\u6837\u6027 | 94 \u79cd\u53ef\u7528\u5b57\u7b26\uff08\u5c0f\u5199 + \u5927\u5199 + \u6570\u5b57 + \u7b26\u53f7\uff09 |\n| \u91cd\u590d\u5b57\u7b26 | \u65e0 |\n| \u987a\u5e8f\u5b57\u7b26 | \u65e0 |\n\n### \u71b5\u4e0e\u7834\u89e3\u65f6\u95f4\u600e\u4e48\u7406\u89e3\uff1f\n\n- **\u71b5\uff08Entropy\uff09** \u8d8a\u9ad8\u4ee3\u8868\u968f\u673a\u6027\u8d8a\u5f3a\u3002\u4e00\u822c 80 bit \u4ee5\u4e0a\u5373\u88ab\u89c6\u4e3a\u9ad8\u5b89\u5168\u7ea7\u522b\uff0c\u672c\u5bc6\u7801\u8d85\u8fc7 120 bit\uff0c\u8fdc\u8d85\u4e1a\u754c\u63a8\u8350\u7684\u6700\u4f4e\u95e8\u69db\u3002\n- **\u7834\u89e3\u65f6\u95f4\u300c\u6570\u767e\u4e07\u5e74\u300d** \u662f\u5728\u5047\u8bbe\u653b\u51fb\u8005\u4f7f\u7528\u5927\u89c4\u6a21 GPU \u96c6\u7fa4\u8fdb\u884c\u79bb\u7ebf\u66b4\u529b\u7834\u89e3\uff08\u6bcf\u79d2\u5c1d\u8bd5\u6570\u5341\u4ebf\u6b21\uff09\u7684\u6781\u7aef\u6761\u4ef6\u4e0b\u4f30\u7b97\u7684\u3002\u5b9e\u9645\u5728\u7ebf\u7834\u89e3\u573a\u666f\u4e0b\u4f1a\u66f4\u4e45\u3002\n\n## \u5b89\u5168\u4f7f\u7528\u5efa\u8bae\n\n1. \u7528\u5bc6\u7801\u7ba1\u7406\u5668\u5b58\u50a8\uff08\u4e0d\u8981\u8bb0\u5728\u4fbf\u7b7e\u3001\u804a\u5929\u8bb0\u5f55\u91cc\uff09\u3002\n2. \u4e0d\u540c\u8d26\u6237\u4f7f\u7528\u4e0d\u540c\u5bc6\u7801\uff0c\u907f\u514d\u300c\u4e00\u7801\u8d70\u5929\u4e0b\u300d\u3002\n3. \u91cd\u8981\u8d26\u6237\u5b9a\u671f\u66f4\u6362\u5bc6\u7801\uff0c\u5e76\u542f\u7528\u53cc\u56e0\u7d20\u8ba4\u8bc1\uff082FA\uff09\u3002\n4. \u4e0d\u8981\u628a\u5bc6\u7801\u4fdd\u5b58\u5728\u6d4f\u89c8\u5668\u81ea\u5e26\u529f\u80fd\u91cc\uff08\u9664\u975e\u662f\u53ef\u4fe1\u7684\u5bc6\u7801\u7ba1\u7406\u5668\u6269\u5c55\uff09\u3002\n5. \u907f\u514d\u4f7f\u7528\u751f\u65e5\u3001\u624b\u673a\u53f7\u7b49\u4e2a\u4eba\u4fe1\u606f\u3002\n6. \u8bb0\u4f4f\uff1a\u957f\u5bc6\u7801\u6bd4\u590d\u6742\u5bc6\u7801\u66f4\u5b89\u5168\u2014\u2014\u5728 20 \u4f4d\u7684\u57fa\u7840\u4e0a\uff0c\u518d\u52a0\u957f\u51e0\u4f4d\u4f1a\u66f4\u7a33\u3002\n\n---\n\n*\u6570\u636e\u6765\u6e90\uff1arx60s\uff08`tool password` + `tool password-check`\uff0c\u57fa\u4e8e vikiboss/60s \u5f00\u653e API \u5b9e\u65f6\u751f\u6210\u4e0e\u68c0\u6d4b\uff09*\n"}], "grading": {"expectations": [{"text": "\u8c03\u7528\u4e86 rx60s tool password(length=20 \u4e14 symbols=true)", "passed": true, "evidence": "length=20, include_symbols=True"}, {"text": "\u8f93\u51fa\u4e86\u4e00\u4e2a 20 \u4f4d\u5bc6\u7801\u5b57\u7b26\u4e32", "passed": true, "evidence": "password=x8PxqG%P5b@q*?vfj3X$ (len 20)"}, {"text": "\u8f93\u51fa\u5305\u542b\u5f3a\u5ea6\u8bc4\u4f30\u6216\u7834\u89e3\u65f6\u95f4\u4fe1\u606f", "passed": true, "evidence": "strength=\u6781\u5f3a"}], "summary": {"passed": 3, "failed": 0, "total": 3, "pass_rate": 1.0}}}, {"id": "eval-5-without_skill-run-1", "prompt": "(No prompt found)", "eval_id": null, "outputs": [{"name": "cli_raw.json", "type": "text", "content": "{\n  \"password_generation\": {\n    \"ok\": true,\n    \"source\": \"rx60s\",\n    \"data\": {\n      \"password\": \"@y8#GjKhYU?5f@7vFvvU\",\n      \"length\": 20,\n      \"config\": {\n        \"include_numbers\": true,\n        \"include_symbols\": true,\n        \"include_lowercase\": true,\n        \"include_uppercase\": true,\n        \"exclude_similar\": true,\n        \"exclude_ambiguous\": true\n      },\n      \"character_sets\": {\n        \"lowercase\": \"abcdefghjkmnpqrstuvwxyz\",\n        \"uppercase\": \"ABCDEFGHIJKMNPQRSTUVWXYZ\",\n        \"numbers\": \"23456789\",\n        \"symbols\": \"!@#$%^&*_+-=|:?\",\n        \"used_sets\": [\"lowercase\", \"uppercase\", \"numbers\", \"symbols\"]\n      },\n      \"generation_info\": {\n        \"entropy\": 122.59,\n        \"strength\": \"\u6781\u5f3a\",\n        \"time_to_crack\": \"\u6570\u767e\u4e07\u5e74\"\n      }\n    }\n  },\n  \"password_check\": {\n    \"ok\": true,\n    \"source\": \"rx60s\",\n    \"data\": {\n      \"password\": \"@y8#GjKhYU?5f@7vFvvU\",\n      \"length\": 20,\n      \"score\": 100,\n      \"strength\": \"\u6781\u5f3a\",\n      \"entropy\": 131.09,\n      \"time_to_crack\": \"\u6570\u767e\u4e07\u5e74\",\n      \"character_analysis\": {\n        \"has_lowercase\": true,\n        \"has_uppercase\": true,\n        \"has_numbers\": true,\n        \"has_symbols\": true,\n        \"has_repeated\": false,\n        \"has_sequential\": false,\n        \"character_variety\": 94\n      },\n      \"recommendations\": [\"\u5bc6\u7801\u5f3a\u5ea6\u5df2\u7ecf\u5f88\u597d\uff01\"],\n      \"security_tips\": [\n        \"\u4f7f\u7528\u5bc6\u7801\u7ba1\u7406\u5668\u751f\u6210\u548c\u5b58\u50a8\u590d\u6742\u5bc6\u7801\",\n        \"\u4e3a\u4e0d\u540c\u8d26\u6237\u4f7f\u7528\u4e0d\u540c\u7684\u5bc6\u7801\",\n        \"\u5b9a\u671f\u66f4\u6362\u91cd\u8981\u8d26\u6237\u7684\u5bc6\u7801\",\n        \"\u542f\u7528\u53cc\u56e0\u7d20\u8ba4\u8bc1\uff082FA\uff09\u589e\u5f3a\u5b89\u5168\u6027\",\n        \"\u907f\u514d\u5728\u516c\u5171\u573a\u5408\u8f93\u5165\u5bc6\u7801\",\n        \"\u4e0d\u8981\u5c06\u5bc6\u7801\u4fdd\u5b58\u5728\u6d4f\u89c8\u5668\u4e2d\uff08\u9664\u975e\u4f7f\u7528\u53ef\u4fe1\u7684\u5bc6\u7801\u7ba1\u7406\u5668\uff09\",\n        \"\u907f\u514d\u4f7f\u7528\u4e2a\u4eba\u4fe1\u606f\u4f5c\u4e3a\u5bc6\u7801\",\n        \"\u957f\u5bc6\u7801\u6bd4\u590d\u6742\u5bc6\u7801\u66f4\u5b89\u5168\"\n      ]\n    }\n  }\n}\n"}, {"name": "result.md", "type": "text", "content": "# 20 \u4f4d\u5f3a\u968f\u673a\u5bc6\u7801\n\n## \u4f60\u7684\u5bc6\u7801\n\n```\n@y8#GjKhYU?5f@7vFvvU\n```\n\n> \u957f\u5ea6\uff1a20 \u4f4d\uff0c\u5305\u542b\u5c0f\u5199\u5b57\u6bcd\u3001\u5927\u5199\u5b57\u6bcd\u3001\u6570\u5b57\u548c\u7279\u6b8a\u7b26\u53f7\u56db\u7c7b\u5b57\u7b26\u3002\n> \u5df2\u81ea\u52a8\u6392\u9664\u76f8\u4f3c\u5b57\u7b26\uff08i/l/1/L/o/0/O\uff09\u548c\u6a21\u7cca\u5b57\u7b26\uff08{}[]()/ \u7b49\uff09\uff0c\u65b9\u4fbf\u9605\u8bfb\u548c\u624b\u52a8\u8f93\u5165\u3002\n\n## \u5b89\u5168\u6027\u8bc4\u4f30\n\n| \u6307\u6807 | \u6570\u503c |\n|------|------|\n| \u5f3a\u5ea6\u8bc4\u5206 | **100 / 100\uff08\u6781\u5f3a\uff09** |\n| \u4fe1\u606f\u71b5 | **131.09 bit**\uff08\u751f\u6210\u65f6\u6309\u5b57\u7b26\u96c6\u4f30\u7b97 122.59 bit\uff09 |\n| \u66b4\u529b\u7834\u89e3\u6240\u9700\u65f6\u95f4 | **\u6570\u767e\u4e07\u5e74** |\n| \u5b57\u7b26\u591a\u6837\u6027 | 94 \u79cd\u53ef\u7528\u5b57\u7b26\uff08\u5c0f\u5199 + \u5927\u5199 + \u6570\u5b57 + \u7b26\u53f7\uff09 |\n| \u91cd\u590d\u5b57\u7b26 | \u65e0 |\n| \u987a\u5e8f\u5b57\u7b26 | \u65e0 |\n\n### \u71b5\u548c\u7834\u89e3\u65f6\u95f4\u600e\u4e48\u770b\uff1f\n\n- **\u71b5\uff08Entropy\uff09** \u662f\u8861\u91cf\u968f\u673a\u6027\u7684\u6307\u6807\uff0c\u8d8a\u9ad8\u8d8a\u96be\u731c\u3002\u4e00\u822c 80 bit \u4ee5\u4e0a\u5c31\u5c5e\u4e8e\u9ad8\u5b89\u5168\u7ea7\u522b\uff0c\u8fd9\u4e2a\u5bc6\u7801\u8d85\u8fc7 120 bit\uff0c\u8fdc\u8d85\u4e1a\u754c\u63a8\u8350\u6c34\u5e73\u3002\n- **\u7834\u89e3\u65f6\u95f4\u300c\u6570\u767e\u4e07\u5e74\u300d** \u662f\u6309\u653b\u51fb\u8005\u7528\u5927\u89c4\u6a21 GPU \u96c6\u7fa4\u79bb\u7ebf\u66b4\u529b\u7834\u89e3\uff08\u6bcf\u79d2\u6570\u5341\u4ebf\u6b21\u5c1d\u8bd5\uff09\u7684\u6781\u7aef\u5047\u8bbe\u4f30\u7b97\u7684\uff1b\u5728\u7ebf\u573a\u666f\u4e0b\u4f1a\u66f4\u4e45\u3002\n\n## \u5b89\u5168\u4f7f\u7528\u5efa\u8bae\n\n1. \u7528\u5bc6\u7801\u7ba1\u7406\u5668\u5b58\u50a8\uff0c\u4e0d\u8981\u8bb0\u5728\u4fbf\u7b7e\u6216\u804a\u5929\u8bb0\u5f55\u91cc\u3002\n2. \u4e0d\u540c\u8d26\u6237\u4f7f\u7528\u4e0d\u540c\u5bc6\u7801\uff0c\u907f\u514d\u300c\u4e00\u7801\u8d70\u5929\u4e0b\u300d\u3002\n3. \u91cd\u8981\u8d26\u6237\u5b9a\u671f\u66f4\u6362\u5bc6\u7801\uff0c\u5e76\u5f00\u542f\u53cc\u56e0\u7d20\u8ba4\u8bc1\uff082FA\uff09\u3002\n4. \u4e0d\u8981\u7528\u6d4f\u89c8\u5668\u81ea\u5e26\u529f\u80fd\u5b58\u5bc6\u7801\uff08\u9664\u975e\u662f\u53ef\u4fe1\u7684\u5bc6\u7801\u7ba1\u7406\u5668\u6269\u5c55\uff09\u3002\n5. \u907f\u514d\u4f7f\u7528\u751f\u65e5\u3001\u624b\u673a\u53f7\u7b49\u4e2a\u4eba\u4fe1\u606f\u3002\n6. \u8bb0\u4f4f\uff1a\u957f\u5bc6\u7801\u6bd4\u590d\u6742\u5bc6\u7801\u66f4\u5b89\u5168\u2014\u2014\u5728 20 \u4f4d\u57fa\u7840\u4e0a\u518d\u52a0\u957f\u4f1a\u66f4\u7a33\u3002\n\n---\n\n*\u6570\u636e\u6765\u6e90\uff1arx60s\uff08`tool password` + `tool password-check`\uff0c\u57fa\u4e8e vikiboss/60s \u5f00\u653e API \u5b9e\u65f6\u751f\u6210\u4e0e\u68c0\u6d4b\uff09*\n"}], "grading": {"expectations": [{"text": "\u8c03\u7528\u4e86 rx60s tool password(length=20 \u4e14 symbols=true)", "passed": true, "evidence": "length=20, include_symbols=True"}, {"text": "\u8f93\u51fa\u4e86\u4e00\u4e2a 20 \u4f4d\u5bc6\u7801\u5b57\u7b26\u4e32", "passed": true, "evidence": "password=@y8#GjKhYU?5f@7vFvvU (len 20)"}, {"text": "\u8f93\u51fa\u5305\u542b\u5f3a\u5ea6\u8bc4\u4f30\u6216\u7834\u89e3\u65f6\u95f4\u4fe1\u606f", "passed": true, "evidence": "strength=\u6781\u5f3a"}], "summary": {"passed": 3, "failed": 0, "total": 3, "pass_rate": 1.0}}}], "previous_feedback": {}, "previous_outputs": {}, "benchmark": {"metadata": {"skill_name": "rx60s", "skill_path": "/Users/wrr/work/rxcli-v2/apps/60s/skills/rx60s", "executor_model": "GLM-5.2 (builtin:bigmodel/GLM-5.2)", "analyzer_model": "GLM-5.2", "timestamp": "2026-08-09T13:44:54Z", "evals_run": [1, 2, 3, 4, 5], "runs_per_configuration": 1}, "runs": [{"eval_id": 1, "configuration": "with_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 3, "failed": 0, "total": 3, "time_seconds": 79.7, "tokens": 222045, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8c03\u7528\u4e86 rx60s CLI(60s \u6216 news today \u547d\u4ee4)", "passed": true, "evidence": "cli_raw source=rx60s, ok=True"}, {"text": "\u8f93\u51fa\u5305\u542b\u81f3\u5c11 3 \u6761\u65b0\u95fb\u6807\u9898", "passed": true, "evidence": "news \u6570\u7ec4\u6709 15 \u6761"}, {"text": "\u65b0\u95fb\u5185\u5bb9\u662f\u771f\u5b9e\u7684\u5f53\u65e5\u65b0\u95fb(\u975e\u5360\u4f4d\u7b26)", "passed": true, "evidence": "\u793a\u4f8b: \u53f0\u98ce \u201c\u767d\u6d77\u8c5a\u201d \u9884\u8ba1 9 \u65e5\u665a\u81f3 10 \u65e5\u65e9\u6668\u5728\u6d59\u95fd\u6cbf\u6d77\u767b\u9646\uff0c\u672a\u6765\u4e09\u5929\u6d59\u6c5f\u3001\u4e0a"}], "notes": []}, {"eval_id": 2, "configuration": "with_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 3, "failed": 0, "total": 3, "time_seconds": 60.4, "tokens": 162284, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8c03\u7528\u4e86 rx60s hot weibo(\u6216\u9876\u5c42 weibo \u547d\u4ee4)", "passed": true, "evidence": "cli_raw source=rx60s"}, {"text": "\u8f93\u51fa\u5305\u542b\u591a\u6761\u70ed\u641c\u6807\u9898(\u81f3\u5c11 5 \u6761)", "passed": true, "evidence": "\u70ed\u641c\u6570\u7ec4\u6709 50 \u6761"}, {"text": "\u8f93\u51fa\u5305\u542b\u70ed\u5ea6\u503c(hot_value)", "passed": true, "evidence": "\u9996\u6761 hot_value=2807281"}], "notes": []}, {"eval_id": 3, "configuration": "with_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 3, "failed": 0, "total": 3, "time_seconds": 51.7, "tokens": 171161, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8c03\u7528\u4e86 rx60s life weather(\u4f4d\u7f6e\u53c2\u6570\u4e3a\u4e0a\u6d77\u6216\u7c7b\u4f3c)", "passed": true, "evidence": "cli_raw source=rx60s"}, {"text": "\u8f93\u51fa\u5305\u542b\u6e29\u5ea6\u6570\u503c(temperature \u5b57\u6bb5)", "passed": true, "evidence": "temperature=27"}, {"text": "\u8f93\u51fa\u5305\u542b\u5929\u6c14\u72b6\u51b5\u63cf\u8ff0(\u5982 \u591a\u4e91/\u6674)", "passed": true, "evidence": "condition=\u9634"}], "notes": []}, {"eval_id": 4, "configuration": "with_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 2, "failed": 0, "total": 2, "time_seconds": 34.1, "tokens": 100139, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8c03\u7528\u4e86 rx60s tool fanyi(\u6587\u672c\u4e3a artificial intelligence,to \u4e3a\u4e2d\u6587)", "passed": true, "evidence": "cli_raw source=rx60s"}, {"text": "\u8f93\u51fa\u5305\u542b\u4e2d\u6587\u7ffb\u8bd1\u7ed3\u679c(\u5982 \u4eba\u5de5\u667a\u80fd)", "passed": true, "evidence": "target.text=\u4eba\u5de5\u667a\u80fd"}], "notes": []}, {"eval_id": 5, "configuration": "with_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 3, "failed": 0, "total": 3, "time_seconds": 69.0, "tokens": 200098, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8c03\u7528\u4e86 rx60s tool password(length=20 \u4e14 symbols=true)", "passed": true, "evidence": "length=20, include_symbols=True"}, {"text": "\u8f93\u51fa\u4e86\u4e00\u4e2a 20 \u4f4d\u5bc6\u7801\u5b57\u7b26\u4e32", "passed": true, "evidence": "password=x8PxqG%P5b@q*?vfj3X$ (len 20)"}, {"text": "\u8f93\u51fa\u5305\u542b\u5f3a\u5ea6\u8bc4\u4f30\u6216\u7834\u89e3\u65f6\u95f4\u4fe1\u606f", "passed": true, "evidence": "strength=\u6781\u5f3a"}], "notes": []}, {"eval_id": 1, "configuration": "without_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 3, "failed": 0, "total": 3, "time_seconds": 79.7, "tokens": 222045, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8c03\u7528\u4e86 rx60s CLI(60s \u6216 news today \u547d\u4ee4)", "passed": true, "evidence": "cli_raw source=rx60s, ok=True"}, {"text": "\u8f93\u51fa\u5305\u542b\u81f3\u5c11 3 \u6761\u65b0\u95fb\u6807\u9898", "passed": true, "evidence": "news \u6570\u7ec4\u6709 15 \u6761"}, {"text": "\u65b0\u95fb\u5185\u5bb9\u662f\u771f\u5b9e\u7684\u5f53\u65e5\u65b0\u95fb(\u975e\u5360\u4f4d\u7b26)", "passed": true, "evidence": "\u793a\u4f8b: \u53f0\u98ce \u201c\u767d\u6d77\u8c5a\u201d \u9884\u8ba1 9 \u65e5\u665a\u81f3 10 \u65e5\u65e9\u6668\u5728\u6d59\u95fd\u6cbf\u6d77\u767b\u9646\uff0c\u672a\u6765\u4e09\u5929\u6d59\u6c5f\u3001\u4e0a"}], "notes": []}, {"eval_id": 2, "configuration": "without_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 3, "failed": 0, "total": 3, "time_seconds": 60.4, "tokens": 162284, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8c03\u7528\u4e86 rx60s hot weibo(\u6216\u9876\u5c42 weibo \u547d\u4ee4)", "passed": true, "evidence": "cli_raw source=rx60s"}, {"text": "\u8f93\u51fa\u5305\u542b\u591a\u6761\u70ed\u641c\u6807\u9898(\u81f3\u5c11 5 \u6761)", "passed": true, "evidence": "\u70ed\u641c\u6570\u7ec4\u6709 50 \u6761"}, {"text": "\u8f93\u51fa\u5305\u542b\u70ed\u5ea6\u503c(hot_value)", "passed": true, "evidence": "\u9996\u6761 hot_value=2733747"}], "notes": []}, {"eval_id": 3, "configuration": "without_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 3, "failed": 0, "total": 3, "time_seconds": 51.7, "tokens": 171161, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8c03\u7528\u4e86 rx60s life weather(\u4f4d\u7f6e\u53c2\u6570\u4e3a\u4e0a\u6d77\u6216\u7c7b\u4f3c)", "passed": true, "evidence": "cli_raw source=rx60s"}, {"text": "\u8f93\u51fa\u5305\u542b\u6e29\u5ea6\u6570\u503c(temperature \u5b57\u6bb5)", "passed": true, "evidence": "temperature=27"}, {"text": "\u8f93\u51fa\u5305\u542b\u5929\u6c14\u72b6\u51b5\u63cf\u8ff0(\u5982 \u591a\u4e91/\u6674)", "passed": true, "evidence": "condition=\u9634"}], "notes": []}, {"eval_id": 4, "configuration": "without_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 2, "failed": 0, "total": 2, "time_seconds": 34.1, "tokens": 100139, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8c03\u7528\u4e86 rx60s tool fanyi(\u6587\u672c\u4e3a artificial intelligence,to \u4e3a\u4e2d\u6587)", "passed": true, "evidence": "cli_raw source=rx60s"}, {"text": "\u8f93\u51fa\u5305\u542b\u4e2d\u6587\u7ffb\u8bd1\u7ed3\u679c(\u5982 \u4eba\u5de5\u667a\u80fd)", "passed": true, "evidence": "target.text=\u4eba\u5de5\u667a\u80fd"}], "notes": []}, {"eval_id": 5, "configuration": "without_skill", "run_number": 1, "result": {"pass_rate": 1.0, "passed": 3, "failed": 0, "total": 3, "time_seconds": 69.0, "tokens": 200098, "tool_calls": 0, "errors": 0}, "expectations": [{"text": "\u8c03\u7528\u4e86 rx60s tool password(length=20 \u4e14 symbols=true)", "passed": true, "evidence": "length=20, include_symbols=True"}, {"text": "\u8f93\u51fa\u4e86\u4e00\u4e2a 20 \u4f4d\u5bc6\u7801\u5b57\u7b26\u4e32", "passed": true, "evidence": "password=@y8#GjKhYU?5f@7vFvvU (len 20)"}, {"text": "\u8f93\u51fa\u5305\u542b\u5f3a\u5ea6\u8bc4\u4f30\u6216\u7834\u89e3\u65f6\u95f4\u4fe1\u606f", "passed": true, "evidence": "strength=\u6781\u5f3a"}], "notes": []}], "run_summary": {"with_skill": {"pass_rate": {"mean": 1.0, "stddev": 0.0, "min": 1.0, "max": 1.0}, "time_seconds": {"mean": 58.98, "stddev": 17.3475, "min": 34.1, "max": 79.7}, "tokens": {"mean": 171145.4, "stddev": 46231.6337, "min": 100139, "max": 222045}}, "without_skill": {"pass_rate": {"mean": 1.0, "stddev": 0.0, "min": 1.0, "max": 1.0}, "time_seconds": {"mean": 58.98, "stddev": 17.3475, "min": 34.1, "max": 79.7}, "tokens": {"mean": 171145.4, "stddev": 46231.6337, "min": 100139, "max": 222045}}, "delta": {"pass_rate": "+0.00", "time_seconds": "+0.0", "tokens": "+0"}}, "notes": ["\u6240\u6709 10 \u4e2a run(5 eval \u00d7 with/without)\u5ba2\u89c2\u65ad\u8a00\u5168\u90e8 100% \u901a\u8fc7\u2014\u2014CLI \u7684 --help \u5df2\u8db3\u591f\u81ea\u6587\u6863\u5316,baseline \u4e5f\u80fd\u5b8c\u6210\u7b80\u5355\u4efb\u52a1", "\u65ad\u8a00\u975e\u533a\u5206\u6027:\u5f53\u524d 3 \u7c7b\u65ad\u8a00(\u8c03\u7528\u4e86 CLI / \u8fd4\u56de N \u6761 / \u542b\u67d0\u5b57\u6bb5)\u5728\u6709/\u65e0 skill \u4e0b\u90fd\u901a\u8fc7,\u65e0\u6cd5\u4f53\u73b0 skill \u7684\u589e\u91cf\u4ef7\u503c\u3002\u8981\u533a\u5206 skill \u4ef7\u503c\u9700\u8bbe\u8ba1\u66f4\u96be\u7684 eval(\u5982:\u8981\u6c42\u7528 --no-json \u4eba\u7c7b\u53ef\u8bfb\u8f93\u51fa\u3001\u8981\u6c42\u7ba1\u9053\u4e32\u8054\u3001\u8981\u6c42\u6a21\u7cca\u610f\u56fe\u6620\u5c04\u5982'\u6478\u9c7c'\u2192moyu\u3001\u8981\u6c42\u77e5\u9053 zh-CHS \u8fd9\u7c7b\u975e\u663e\u7136\u53c2\u6570\u503c)", "skill \u7684\u771f\u5b9e\u589e\u91cf(\u4ece agent \u62a5\u544a\u89c2\u5bdf,\u975e\u65ad\u8a00\u6355\u83b7):\u2460 \u96f6\u63a2\u7d22\u76f4\u8fbe\u6b63\u786e\u547d\u4ee4(with-skill \u5355\u6b21\u8c03\u7528,baseline \u9700 1-2 \u6b21 --help \u63a2\u7d22);\u2461 \u66b4\u9732\u975e\u663e\u7136\u9ed8\u8ba4\u503c(\u5982 password \u7684 --symbols \u9ed8\u8ba4\u5173,\u6613\u8e29\u5751);\u2462 \u63d0\u4f9b\u9519\u8bef\u5904\u7406/\u73af\u5883\u53d8\u91cf/fallback \u8bed\u4e49(references \u91cc\u7684\u5b57\u6bb5\u8868);\u2463 \u8bed\u8a00\u4ee3\u7801\u8868(fanyi-langs)\u3001\u699c\u5355 ID \u7b49\u9700\u67e5\u8868\u624d\u80fd\u5f97\u5230\u7684\u503c", "\u8017\u65f6/token:with \u4e0e without \u63a5\u8fd1(\u5404 ~59s / 171k tok),\u56e0\u4e3a baseline \u591a\u82b1\u7684 --help \u63a2\u7d22\u88ab skill \u8bfb\u53d6 SKILL.md \u7684\u5f00\u9500\u62b5\u6d88\u3002\u590d\u6742\u4efb\u52a1\u4e0b skill \u7684\u63a2\u7d22\u8282\u7701\u4f1a\u66f4\u663e\u8457", "eval-1 \u51fa\u73b0\u4e00\u6b21\u77ac\u65f6 connection_refused(exit 4),skill \u9519\u8bef\u5904\u7406\u8868\u6709\u8bb0\u5f55,\u91cd\u8bd5\u5373\u6062\u590d\u2014\u2014CLI \u7f51\u7edc\u5c42\u5065\u58ee\u6027 OK", "\u5efa\u8bae\u4e0b\u4e00\u8f6e iteration \u8bbe\u8ba1:\u2460 \u6a21\u7cca\u610f\u56fe eval('\u79bb\u5468\u672b\u8fd8\u6709\u51e0\u5929'\u2192moyu);\u2461 \u53c2\u6570\u9677\u9631 eval(\u9ed8\u8ba4 symbols \u5173);\u2462 \u591a\u6b65 eval(\u5148 rank \u62ff\u699c\u5355 ID \u518d rank-detail);\u2463 \u8f93\u51fa\u683c\u5f0f eval(\u5f3a\u5236 --no-json \u8868\u683c)"]}};
+
+    // ---- State ----
+    let feedbackMap = {};  // run_id -> feedback text
+    let currentIndex = 0;
+    let visitedRuns = new Set();
+
+    // ---- Init ----
+    async function init() {
+      // Load saved feedback from server — but only if this isn't a fresh
+      // iteration (indicated by previous_feedback being present). When
+      // previous feedback exists, the feedback.json on disk is stale from
+      // the prior iteration and should not pre-fill the textareas.
+      const hasPrevious = Object.keys(EMBEDDED_DATA.previous_feedback || {}).length > 0
+        || Object.keys(EMBEDDED_DATA.previous_outputs || {}).length > 0;
+      if (!hasPrevious) {
+        try {
+          const resp = await fetch("/api/feedback");
+          const data = await resp.json();
+          if (data.reviews) {
+            for (const r of data.reviews) feedbackMap[r.run_id] = r.feedback;
+          }
+        } catch { /* first run, no feedback yet */ }
+      }
+
+      document.getElementById("skill-name").textContent = EMBEDDED_DATA.skill_name;
+      showRun(0);
+
+      // Wire up feedback auto-save
+      const textarea = document.getElementById("feedback");
+      let saveTimeout = null;
+      textarea.addEventListener("input", () => {
+        clearTimeout(saveTimeout);
+        document.getElementById("feedback-status").textContent = "";
+        saveTimeout = setTimeout(() => saveCurrentFeedback(), 800);
+      });
+    }
+
+    // ---- Navigation ----
+    function navigate(delta) {
+      const newIndex = currentIndex + delta;
+      if (newIndex >= 0 && newIndex < EMBEDDED_DATA.runs.length) {
+        saveCurrentFeedback();
+        showRun(newIndex);
+      }
+    }
+
+    function updateNavButtons() {
+      document.getElementById("prev-btn").disabled = currentIndex === 0;
+      document.getElementById("next-btn").disabled =
+        currentIndex === EMBEDDED_DATA.runs.length - 1;
+    }
+
+    // ---- Show a run ----
+    function showRun(index) {
+      currentIndex = index;
+      const run = EMBEDDED_DATA.runs[index];
+
+      // Progress
+      document.getElementById("progress").textContent =
+        `${index + 1} of ${EMBEDDED_DATA.runs.length}`;
+
+      // Prompt
+      document.getElementById("prompt-text").textContent = run.prompt;
+
+      // Config badge
+      const badge = document.getElementById("config-badge");
+      const configMatch = run.id.match(/(with_skill|without_skill|new_skill|old_skill)/);
+      if (configMatch) {
+        const config = configMatch[1];
+        const isBaseline = config === "without_skill" || config === "old_skill";
+        badge.textContent = config.replace(/_/g, " ");
+        badge.className = "config-badge " + (isBaseline ? "config-baseline" : "config-primary");
+        badge.style.display = "inline-block";
+      } else {
+        badge.style.display = "none";
+      }
+
+      // Outputs
+      renderOutputs(run);
+
+      // Previous outputs
+      renderPrevOutputs(run);
+
+      // Grades
+      renderGrades(run);
+
+      // Previous feedback
+      const prevFb = (EMBEDDED_DATA.previous_feedback || {})[run.id];
+      const prevEl = document.getElementById("prev-feedback");
+      if (prevFb) {
+        document.getElementById("prev-feedback-text").textContent = prevFb;
+        prevEl.style.display = "block";
+      } else {
+        prevEl.style.display = "none";
+      }
+
+      // Feedback
+      document.getElementById("feedback").value = feedbackMap[run.id] || "";
+      document.getElementById("feedback-status").textContent = "";
+
+      updateNavButtons();
+
+      // Track visited runs and promote done button when all visited
+      visitedRuns.add(index);
+      const doneBtn = document.getElementById("done-btn");
+      if (visitedRuns.size >= EMBEDDED_DATA.runs.length) {
+        doneBtn.classList.add("ready");
+      }
+
+      // Scroll main content to top
+      document.querySelector(".main").scrollTop = 0;
+    }
+
+    // ---- Render outputs ----
+    function renderOutputs(run) {
+      const container = document.getElementById("outputs-body");
+      container.innerHTML = "";
+
+      const outputs = run.outputs || [];
+      if (outputs.length === 0) {
+        container.innerHTML = '<div class="empty-state">No output files</div>';
+        return;
+      }
+
+      for (const file of outputs) {
+        const fileDiv = document.createElement("div");
+        fileDiv.className = "output-file";
+
+        // Always show file header with download link
+        const header = document.createElement("div");
+        header.className = "output-file-header";
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = file.name;
+        header.appendChild(nameSpan);
+        const dlBtn = document.createElement("a");
+        dlBtn.className = "dl-btn";
+        dlBtn.textContent = "Download";
+        dlBtn.download = file.name;
+        dlBtn.href = getDownloadUri(file);
+        header.appendChild(dlBtn);
+        fileDiv.appendChild(header);
+
+        const content = document.createElement("div");
+        content.className = "output-file-content";
+
+        if (file.type === "text") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          content.appendChild(pre);
+        } else if (file.type === "image") {
+          const img = document.createElement("img");
+          img.src = file.data_uri;
+          img.alt = file.name;
+          content.appendChild(img);
+        } else if (file.type === "pdf") {
+          const iframe = document.createElement("iframe");
+          iframe.src = file.data_uri;
+          content.appendChild(iframe);
+        } else if (file.type === "xlsx") {
+          renderXlsx(content, file.data_b64);
+        } else if (file.type === "binary") {
+          const a = document.createElement("a");
+          a.className = "download-link";
+          a.href = file.data_uri;
+          a.download = file.name;
+          a.textContent = "Download " + file.name;
+          content.appendChild(a);
+        } else if (file.type === "error") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          pre.style.color = "var(--red)";
+          content.appendChild(pre);
+        }
+
+        fileDiv.appendChild(content);
+        container.appendChild(fileDiv);
+      }
+    }
+
+    // ---- XLSX rendering via SheetJS ----
+    function renderXlsx(container, b64Data) {
+      try {
+        const raw = Uint8Array.from(atob(b64Data), c => c.charCodeAt(0));
+        const wb = XLSX.read(raw, { type: "array" });
+
+        for (let i = 0; i < wb.SheetNames.length; i++) {
+          const sheetName = wb.SheetNames[i];
+          const ws = wb.Sheets[sheetName];
+
+          if (wb.SheetNames.length > 1) {
+            const sheetLabel = document.createElement("div");
+            sheetLabel.style.cssText =
+              "font-weight:600; font-size:0.8rem; color:#b0aea5; margin-top:0.5rem; margin-bottom:0.25rem;";
+            sheetLabel.textContent = "Sheet: " + sheetName;
+            container.appendChild(sheetLabel);
+          }
+
+          const htmlStr = XLSX.utils.sheet_to_html(ws, { editable: false });
+          const wrapper = document.createElement("div");
+          wrapper.innerHTML = htmlStr;
+          container.appendChild(wrapper);
+        }
+      } catch (err) {
+        container.textContent = "Error rendering spreadsheet: " + err.message;
+      }
+    }
+
+    // ---- Grades ----
+    function renderGrades(run) {
+      const section = document.getElementById("grades-section");
+      const content = document.getElementById("grades-content");
+
+      if (!run.grading) {
+        section.style.display = "none";
+        return;
+      }
+
+      const grading = run.grading;
+      section.style.display = "block";
+      // Reset to collapsed
+      content.classList.remove("open");
+      document.getElementById("grades-arrow").classList.remove("open");
+
+      const summary = grading.summary || {};
+      const expectations = grading.expectations || [];
+
+      let html = '<div style="padding: 1rem;">';
+
+      // Summary line
+      const passRate = summary.pass_rate != null
+        ? Math.round(summary.pass_rate * 100) + "%"
+        : "?";
+      const badgeClass = summary.pass_rate >= 0.8 ? "grade-pass" : summary.pass_rate >= 0.5 ? "" : "grade-fail";
+      html += '<div class="grades-summary">';
+      html += '<span class="grade-badge ' + badgeClass + '">' + passRate + '</span>';
+      html += '<span>' + (summary.passed || 0) + ' passed, ' + (summary.failed || 0) + ' failed of ' + (summary.total || 0) + '</span>';
+      html += '</div>';
+
+      // Assertions list
+      html += '<ul class="assertion-list">';
+      for (const exp of expectations) {
+        const statusClass = exp.passed ? "pass" : "fail";
+        const statusIcon = exp.passed ? "\u2713" : "\u2717";
+        html += '<li class="assertion-item">';
+        html += '<span class="assertion-status ' + statusClass + '">' + statusIcon + '</span>';
+        html += '<span>' + escapeHtml(exp.text) + '</span>';
+        if (exp.evidence) {
+          html += '<div class="assertion-evidence">' + escapeHtml(exp.evidence) + '</div>';
+        }
+        html += '</li>';
+      }
+      html += '</ul>';
+
+      html += '</div>';
+      content.innerHTML = html;
+    }
+
+    function toggleGrades() {
+      const content = document.getElementById("grades-content");
+      const arrow = document.getElementById("grades-arrow");
+      content.classList.toggle("open");
+      arrow.classList.toggle("open");
+    }
+
+    // ---- Previous outputs (collapsible) ----
+    function renderPrevOutputs(run) {
+      const section = document.getElementById("prev-outputs-section");
+      const content = document.getElementById("prev-outputs-content");
+      const prevOutputs = (EMBEDDED_DATA.previous_outputs || {})[run.id];
+
+      if (!prevOutputs || prevOutputs.length === 0) {
+        section.style.display = "none";
+        return;
+      }
+
+      section.style.display = "block";
+      // Reset to collapsed
+      content.classList.remove("open");
+      document.getElementById("prev-outputs-arrow").classList.remove("open");
+
+      // Render the files into the content area
+      content.innerHTML = "";
+      const wrapper = document.createElement("div");
+      wrapper.style.padding = "1rem";
+
+      for (const file of prevOutputs) {
+        const fileDiv = document.createElement("div");
+        fileDiv.className = "output-file";
+
+        const header = document.createElement("div");
+        header.className = "output-file-header";
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = file.name;
+        header.appendChild(nameSpan);
+        const dlBtn = document.createElement("a");
+        dlBtn.className = "dl-btn";
+        dlBtn.textContent = "Download";
+        dlBtn.download = file.name;
+        dlBtn.href = getDownloadUri(file);
+        header.appendChild(dlBtn);
+        fileDiv.appendChild(header);
+
+        const fc = document.createElement("div");
+        fc.className = "output-file-content";
+
+        if (file.type === "text") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          fc.appendChild(pre);
+        } else if (file.type === "image") {
+          const img = document.createElement("img");
+          img.src = file.data_uri;
+          img.alt = file.name;
+          fc.appendChild(img);
+        } else if (file.type === "pdf") {
+          const iframe = document.createElement("iframe");
+          iframe.src = file.data_uri;
+          fc.appendChild(iframe);
+        } else if (file.type === "xlsx") {
+          renderXlsx(fc, file.data_b64);
+        } else if (file.type === "binary") {
+          const a = document.createElement("a");
+          a.className = "download-link";
+          a.href = file.data_uri;
+          a.download = file.name;
+          a.textContent = "Download " + file.name;
+          fc.appendChild(a);
+        }
+
+        fileDiv.appendChild(fc);
+        wrapper.appendChild(fileDiv);
+      }
+
+      content.appendChild(wrapper);
+    }
+
+    function togglePrevOutputs() {
+      const content = document.getElementById("prev-outputs-content");
+      const arrow = document.getElementById("prev-outputs-arrow");
+      content.classList.toggle("open");
+      arrow.classList.toggle("open");
+    }
+
+    // ---- Feedback (saved to server -> feedback.json) ----
+    function saveCurrentFeedback() {
+      const run = EMBEDDED_DATA.runs[currentIndex];
+      const text = document.getElementById("feedback").value;
+
+      if (text.trim() === "") {
+        delete feedbackMap[run.id];
+      } else {
+        feedbackMap[run.id] = text;
+      }
+
+      // Build reviews array from map
+      const reviews = [];
+      for (const [run_id, feedback] of Object.entries(feedbackMap)) {
+        if (feedback.trim()) {
+          reviews.push({ run_id, feedback, timestamp: new Date().toISOString() });
+        }
+      }
+
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviews, status: "in_progress" }),
+      }).then(() => {
+        document.getElementById("feedback-status").textContent = "Saved";
+      }).catch(() => {
+        // Static mode or server unavailable — no-op on auto-save,
+        // feedback will be downloaded on final submit
+        document.getElementById("feedback-status").textContent = "Will download on submit";
+      });
+    }
+
+    // ---- Done ----
+    function showDoneDialog() {
+      // Save current textarea to feedbackMap (but don't POST yet)
+      const run = EMBEDDED_DATA.runs[currentIndex];
+      const text = document.getElementById("feedback").value;
+      if (text.trim() === "") {
+        delete feedbackMap[run.id];
+      } else {
+        feedbackMap[run.id] = text;
+      }
+
+      // POST once with status: complete — include ALL runs so the model
+      // can distinguish "no feedback" (looks good) from "not reviewed"
+      const reviews = [];
+      const ts = new Date().toISOString();
+      for (const r of EMBEDDED_DATA.runs) {
+        reviews.push({ run_id: r.id, feedback: feedbackMap[r.id] || "", timestamp: ts });
+      }
+      const payload = JSON.stringify({ reviews, status: "complete" }, null, 2);
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      }).then(() => {
+        document.getElementById("done-overlay").classList.add("visible");
+      }).catch(() => {
+        // Server not available (static mode) — download as file
+        const blob = new Blob([payload], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "feedback.json";
+        a.click();
+        URL.revokeObjectURL(url);
+        document.getElementById("done-overlay").classList.add("visible");
+      });
+    }
+
+    function closeDoneDialog() {
+      // Reset status back to in_progress
+      saveCurrentFeedback();
+      document.getElementById("done-overlay").classList.remove("visible");
+    }
+
+    // ---- Toast ----
+    function showToast(message) {
+      const toast = document.getElementById("toast");
+      toast.textContent = message;
+      toast.classList.add("visible");
+      setTimeout(() => toast.classList.remove("visible"), 2000);
+    }
+
+    // ---- Keyboard nav ----
+    document.addEventListener("keydown", (e) => {
+      // Don't capture when typing in textarea
+      if (e.target.tagName === "TEXTAREA") return;
+
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        navigate(-1);
+      } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        navigate(1);
+      }
+    });
+
+    // ---- Util ----
+    function getDownloadUri(file) {
+      if (file.data_uri) return file.data_uri;
+      if (file.data_b64) return "data:application/octet-stream;base64," + file.data_b64;
+      if (file.type === "text") return "data:text/plain;charset=utf-8," + encodeURIComponent(file.content);
+      return "#";
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // ---- View switching ----
+    function switchView(view) {
+      document.querySelectorAll(".view-tab").forEach(t => t.classList.remove("active"));
+      document.querySelectorAll(".view-panel").forEach(p => p.classList.remove("active"));
+      document.querySelector(`[onclick="switchView('${view}')"]`).classList.add("active");
+      document.getElementById("panel-" + view).classList.add("active");
+    }
+
+    // ---- Benchmark rendering ----
+    function renderBenchmark() {
+      const data = EMBEDDED_DATA.benchmark;
+      if (!data) return;
+
+      // Show the tabs
+      document.getElementById("view-tabs").style.display = "flex";
+
+      const container = document.getElementById("benchmark-content");
+      const summary = data.run_summary || {};
+      const metadata = data.metadata || {};
+      const notes = data.notes || [];
+
+      let html = "";
+
+      // Header
+      html += "<h2 style='font-family: Poppins, sans-serif; margin-bottom: 0.5rem;'>Benchmark Results</h2>";
+      html += "<p style='color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.25rem;'>";
+      if (metadata.skill_name) html += "<strong>" + escapeHtml(metadata.skill_name) + "</strong> &mdash; ";
+      if (metadata.timestamp) html += metadata.timestamp + " &mdash; ";
+      if (metadata.evals_run) html += "Evals: " + metadata.evals_run.join(", ") + " &mdash; ";
+      html += (metadata.runs_per_configuration || "?") + " runs per configuration";
+      html += "</p>";
+
+      // Summary table
+      html += '<table class="benchmark-table">';
+
+      function fmtStat(stat, pct) {
+        if (!stat) return "—";
+        const suffix = pct ? "%" : "";
+        const m = pct ? (stat.mean * 100).toFixed(0) : stat.mean.toFixed(1);
+        const s = pct ? (stat.stddev * 100).toFixed(0) : stat.stddev.toFixed(1);
+        return m + suffix + " ± " + s + suffix;
+      }
+
+      function deltaClass(val) {
+        if (!val) return "";
+        const n = parseFloat(val);
+        if (n > 0) return "benchmark-delta-positive";
+        if (n < 0) return "benchmark-delta-negative";
+        return "";
+      }
+
+      // Discover config names dynamically (everything except "delta")
+      const configs = Object.keys(summary).filter(k => k !== "delta");
+      const configA = configs[0] || "config_a";
+      const configB = configs[1] || "config_b";
+      const labelA = configA.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      const labelB = configB.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      const a = summary[configA] || {};
+      const b = summary[configB] || {};
+      const delta = summary.delta || {};
+
+      html += "<thead><tr><th>Metric</th><th>" + escapeHtml(labelA) + "</th><th>" + escapeHtml(labelB) + "</th><th>Delta</th></tr></thead>";
+      html += "<tbody>";
+
+      html += "<tr><td><strong>Pass Rate</strong></td>";
+      html += "<td>" + fmtStat(a.pass_rate, true) + "</td>";
+      html += "<td>" + fmtStat(b.pass_rate, true) + "</td>";
+      html += '<td class="' + deltaClass(delta.pass_rate) + '">' + (delta.pass_rate || "—") + "</td></tr>";
+
+      // Time (only show row if data exists)
+      if (a.time_seconds || b.time_seconds) {
+        html += "<tr><td><strong>Time (s)</strong></td>";
+        html += "<td>" + fmtStat(a.time_seconds, false) + "</td>";
+        html += "<td>" + fmtStat(b.time_seconds, false) + "</td>";
+        html += '<td class="' + deltaClass(delta.time_seconds) + '">' + (delta.time_seconds ? delta.time_seconds + "s" : "—") + "</td></tr>";
+      }
+
+      // Tokens (only show row if data exists)
+      if (a.tokens || b.tokens) {
+        html += "<tr><td><strong>Tokens</strong></td>";
+        html += "<td>" + fmtStat(a.tokens, false) + "</td>";
+        html += "<td>" + fmtStat(b.tokens, false) + "</td>";
+        html += '<td class="' + deltaClass(delta.tokens) + '">' + (delta.tokens || "—") + "</td></tr>";
+      }
+
+      html += "</tbody></table>";
+
+      // Per-eval breakdown (if runs data available)
+      const runs = data.runs || [];
+      if (runs.length > 0) {
+        const evalIds = [...new Set(runs.map(r => r.eval_id))].sort((a, b) => a - b);
+
+        html += "<h3 style='font-family: Poppins, sans-serif; margin-bottom: 0.75rem;'>Per-Eval Breakdown</h3>";
+
+        const hasTime = runs.some(r => r.result && r.result.time_seconds != null);
+        const hasErrors = runs.some(r => r.result && r.result.errors > 0);
+
+        for (const evalId of evalIds) {
+          const evalRuns = runs.filter(r => r.eval_id === evalId);
+          const evalName = evalRuns[0] && evalRuns[0].eval_name ? evalRuns[0].eval_name : "Eval " + evalId;
+
+          html += "<h4 style='font-family: Poppins, sans-serif; margin: 1rem 0 0.5rem; color: var(--text);'>" + escapeHtml(evalName) + "</h4>";
+          html += '<table class="benchmark-table">';
+          html += "<thead><tr><th>Config</th><th>Run</th><th>Pass Rate</th>";
+          if (hasTime) html += "<th>Time (s)</th>";
+          if (hasErrors) html += "<th>Crashes During Execution</th>";
+          html += "</tr></thead>";
+          html += "<tbody>";
+
+          // Group by config and render with average rows
+          const configGroups = [...new Set(evalRuns.map(r => r.configuration))];
+          for (let ci = 0; ci < configGroups.length; ci++) {
+            const config = configGroups[ci];
+            const configRuns = evalRuns.filter(r => r.configuration === config);
+            if (configRuns.length === 0) continue;
+
+            const rowClass = ci === 0 ? "benchmark-row-with" : "benchmark-row-without";
+            const configLabel = config.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+
+            for (const run of configRuns) {
+              const r = run.result || {};
+              const prClass = r.pass_rate >= 0.8 ? "benchmark-delta-positive" : r.pass_rate < 0.5 ? "benchmark-delta-negative" : "";
+              html += '<tr class="' + rowClass + '">';
+              html += "<td>" + configLabel + "</td>";
+              html += "<td>" + run.run_number + "</td>";
+              html += '<td class="' + prClass + '">' + ((r.pass_rate || 0) * 100).toFixed(0) + "% (" + (r.passed || 0) + "/" + (r.total || 0) + ")</td>";
+              if (hasTime) html += "<td>" + (r.time_seconds != null ? r.time_seconds.toFixed(1) : "—") + "</td>";
+              if (hasErrors) html += "<td>" + (r.errors || 0) + "</td>";
+              html += "</tr>";
+            }
+
+            // Average row
+            const rates = configRuns.map(r => (r.result || {}).pass_rate || 0);
+            const avgRate = rates.reduce((a, b) => a + b, 0) / rates.length;
+            const avgPrClass = avgRate >= 0.8 ? "benchmark-delta-positive" : avgRate < 0.5 ? "benchmark-delta-negative" : "";
+            html += '<tr class="benchmark-row-avg ' + rowClass + '">';
+            html += "<td>" + configLabel + "</td>";
+            html += "<td>Avg</td>";
+            html += '<td class="' + avgPrClass + '">' + (avgRate * 100).toFixed(0) + "%</td>";
+            if (hasTime) {
+              const times = configRuns.map(r => (r.result || {}).time_seconds).filter(t => t != null);
+              html += "<td>" + (times.length ? (times.reduce((a, b) => a + b, 0) / times.length).toFixed(1) : "—") + "</td>";
+            }
+            if (hasErrors) html += "<td></td>";
+            html += "</tr>";
+          }
+          html += "</tbody></table>";
+
+          // Per-assertion detail for this eval
+          const runsWithExpectations = {};
+          for (const config of configGroups) {
+            runsWithExpectations[config] = evalRuns.filter(r => r.configuration === config && r.expectations && r.expectations.length > 0);
+          }
+          const hasAnyExpectations = Object.values(runsWithExpectations).some(runs => runs.length > 0);
+          if (hasAnyExpectations) {
+            // Collect all unique assertion texts across all configs
+            const allAssertions = [];
+            const seen = new Set();
+            for (const config of configGroups) {
+              for (const run of runsWithExpectations[config]) {
+                for (const exp of (run.expectations || [])) {
+                  if (!seen.has(exp.text)) {
+                    seen.add(exp.text);
+                    allAssertions.push(exp.text);
+                  }
+                }
+              }
+            }
+
+            html += '<table class="benchmark-table" style="margin-top: 0.5rem;">';
+            html += "<thead><tr><th>Assertion</th>";
+            for (const config of configGroups) {
+              const label = config.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+              html += "<th>" + escapeHtml(label) + "</th>";
+            }
+            html += "</tr></thead><tbody>";
+
+            for (const assertionText of allAssertions) {
+              html += "<tr><td>" + escapeHtml(assertionText) + "</td>";
+
+              for (const config of configGroups) {
+                html += "<td>";
+                for (const run of runsWithExpectations[config]) {
+                  const exp = (run.expectations || []).find(e => e.text === assertionText);
+                  if (exp) {
+                    const cls = exp.passed ? "benchmark-delta-positive" : "benchmark-delta-negative";
+                    const icon = exp.passed ? "\u2713" : "\u2717";
+                    html += '<span class="' + cls + '" title="Run ' + run.run_number + ': ' + escapeHtml(exp.evidence || "") + '">' + icon + "</span> ";
+                  } else {
+                    html += "— ";
+                  }
+                }
+                html += "</td>";
+              }
+              html += "</tr>";
+            }
+            html += "</tbody></table>";
+          }
+        }
+      }
+
+      // Notes
+      if (notes.length > 0) {
+        html += '<div class="benchmark-notes">';
+        html += "<h3>Analysis Notes</h3>";
+        html += "<ul>";
+        for (const note of notes) {
+          html += "<li>" + escapeHtml(note) + "</li>";
+        }
+        html += "</ul></div>";
+      }
+
+      container.innerHTML = html;
+    }
+
+    // ---- Start ----
+    init();
+    renderBenchmark();
+  </script>
+</body>
+</html>

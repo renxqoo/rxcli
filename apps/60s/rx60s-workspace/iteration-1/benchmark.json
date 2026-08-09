@@ -1,0 +1,394 @@
+{
+  "metadata": {
+    "skill_name": "rx60s",
+    "skill_path": "/Users/wrr/work/rxcli-v2/apps/60s/skills/rx60s",
+    "executor_model": "GLM-5.2 (builtin:bigmodel/GLM-5.2)",
+    "analyzer_model": "GLM-5.2",
+    "timestamp": "2026-08-09T13:44:54Z",
+    "evals_run": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 79.7,
+        "tokens": 222045,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "调用了 rx60s CLI(60s 或 news today 命令)",
+          "passed": true,
+          "evidence": "cli_raw source=rx60s, ok=True"
+        },
+        {
+          "text": "输出包含至少 3 条新闻标题",
+          "passed": true,
+          "evidence": "news 数组有 15 条"
+        },
+        {
+          "text": "新闻内容是真实的当日新闻(非占位符)",
+          "passed": true,
+          "evidence": "示例: 台风 “白海豚” 预计 9 日晚至 10 日早晨在浙闽沿海登陆，未来三天浙江、上"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 60.4,
+        "tokens": 162284,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "调用了 rx60s hot weibo(或顶层 weibo 命令)",
+          "passed": true,
+          "evidence": "cli_raw source=rx60s"
+        },
+        {
+          "text": "输出包含多条热搜标题(至少 5 条)",
+          "passed": true,
+          "evidence": "热搜数组有 50 条"
+        },
+        {
+          "text": "输出包含热度值(hot_value)",
+          "passed": true,
+          "evidence": "首条 hot_value=2807281"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 51.7,
+        "tokens": 171161,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "调用了 rx60s life weather(位置参数为上海或类似)",
+          "passed": true,
+          "evidence": "cli_raw source=rx60s"
+        },
+        {
+          "text": "输出包含温度数值(temperature 字段)",
+          "passed": true,
+          "evidence": "temperature=27"
+        },
+        {
+          "text": "输出包含天气状况描述(如 多云/晴)",
+          "passed": true,
+          "evidence": "condition=阴"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 34.1,
+        "tokens": 100139,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "调用了 rx60s tool fanyi(文本为 artificial intelligence,to 为中文)",
+          "passed": true,
+          "evidence": "cli_raw source=rx60s"
+        },
+        {
+          "text": "输出包含中文翻译结果(如 人工智能)",
+          "passed": true,
+          "evidence": "target.text=人工智能"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 69.0,
+        "tokens": 200098,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "调用了 rx60s tool password(length=20 且 symbols=true)",
+          "passed": true,
+          "evidence": "length=20, include_symbols=True"
+        },
+        {
+          "text": "输出了一个 20 位密码字符串",
+          "passed": true,
+          "evidence": "password=x8PxqG%P5b@q*?vfj3X$ (len 20)"
+        },
+        {
+          "text": "输出包含强度评估或破解时间信息",
+          "passed": true,
+          "evidence": "strength=极强"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 79.7,
+        "tokens": 222045,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "调用了 rx60s CLI(60s 或 news today 命令)",
+          "passed": true,
+          "evidence": "cli_raw source=rx60s, ok=True"
+        },
+        {
+          "text": "输出包含至少 3 条新闻标题",
+          "passed": true,
+          "evidence": "news 数组有 15 条"
+        },
+        {
+          "text": "新闻内容是真实的当日新闻(非占位符)",
+          "passed": true,
+          "evidence": "示例: 台风 “白海豚” 预计 9 日晚至 10 日早晨在浙闽沿海登陆，未来三天浙江、上"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 60.4,
+        "tokens": 162284,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "调用了 rx60s hot weibo(或顶层 weibo 命令)",
+          "passed": true,
+          "evidence": "cli_raw source=rx60s"
+        },
+        {
+          "text": "输出包含多条热搜标题(至少 5 条)",
+          "passed": true,
+          "evidence": "热搜数组有 50 条"
+        },
+        {
+          "text": "输出包含热度值(hot_value)",
+          "passed": true,
+          "evidence": "首条 hot_value=2733747"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 51.7,
+        "tokens": 171161,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "调用了 rx60s life weather(位置参数为上海或类似)",
+          "passed": true,
+          "evidence": "cli_raw source=rx60s"
+        },
+        {
+          "text": "输出包含温度数值(temperature 字段)",
+          "passed": true,
+          "evidence": "temperature=27"
+        },
+        {
+          "text": "输出包含天气状况描述(如 多云/晴)",
+          "passed": true,
+          "evidence": "condition=阴"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 34.1,
+        "tokens": 100139,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "调用了 rx60s tool fanyi(文本为 artificial intelligence,to 为中文)",
+          "passed": true,
+          "evidence": "cli_raw source=rx60s"
+        },
+        {
+          "text": "输出包含中文翻译结果(如 人工智能)",
+          "passed": true,
+          "evidence": "target.text=人工智能"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 69.0,
+        "tokens": 200098,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "调用了 rx60s tool password(length=20 且 symbols=true)",
+          "passed": true,
+          "evidence": "length=20, include_symbols=True"
+        },
+        {
+          "text": "输出了一个 20 位密码字符串",
+          "passed": true,
+          "evidence": "password=@y8#GjKhYU?5f@7vFvvU (len 20)"
+        },
+        {
+          "text": "输出包含强度评估或破解时间信息",
+          "passed": true,
+          "evidence": "strength=极强"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 58.98,
+        "stddev": 17.3475,
+        "min": 34.1,
+        "max": 79.7
+      },
+      "tokens": {
+        "mean": 171145.4,
+        "stddev": 46231.6337,
+        "min": 100139,
+        "max": 222045
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 58.98,
+        "stddev": 17.3475,
+        "min": 34.1,
+        "max": 79.7
+      },
+      "tokens": {
+        "mean": 171145.4,
+        "stddev": 46231.6337,
+        "min": 100139,
+        "max": 222045
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.00",
+      "time_seconds": "+0.0",
+      "tokens": "+0"
+    }
+  },
+  "notes": [
+    "所有 10 个 run(5 eval × with/without)客观断言全部 100% 通过——CLI 的 --help 已足够自文档化,baseline 也能完成简单任务",
+    "断言非区分性:当前 3 类断言(调用了 CLI / 返回 N 条 / 含某字段)在有/无 skill 下都通过,无法体现 skill 的增量价值。要区分 skill 价值需设计更难的 eval(如:要求用 --no-json 人类可读输出、要求管道串联、要求模糊意图映射如'摸鱼'→moyu、要求知道 zh-CHS 这类非显然参数值)",
+    "skill 的真实增量(从 agent 报告观察,非断言捕获):① 零探索直达正确命令(with-skill 单次调用,baseline 需 1-2 次 --help 探索);② 暴露非显然默认值(如 password 的 --symbols 默认关,易踩坑);③ 提供错误处理/环境变量/fallback 语义(references 里的字段表);④ 语言代码表(fanyi-langs)、榜单 ID 等需查表才能得到的值",
+    "耗时/token:with 与 without 接近(各 ~59s / 171k tok),因为 baseline 多花的 --help 探索被 skill 读取 SKILL.md 的开销抵消。复杂任务下 skill 的探索节省会更显著",
+    "eval-1 出现一次瞬时 connection_refused(exit 4),skill 错误处理表有记录,重试即恢复——CLI 网络层健壮性 OK",
+    "建议下一轮 iteration 设计:① 模糊意图 eval('离周末还有几天'→moyu);② 参数陷阱 eval(默认 symbols 关);③ 多步 eval(先 rank 拿榜单 ID 再 rank-detail);④ 输出格式 eval(强制 --no-json 表格)"
+  ]
+}

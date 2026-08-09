@@ -1,0 +1,62 @@
+{
+  "password_generation": {
+    "ok": true,
+    "source": "rx60s",
+    "data": {
+      "password": "@y8#GjKhYU?5f@7vFvvU",
+      "length": 20,
+      "config": {
+        "include_numbers": true,
+        "include_symbols": true,
+        "include_lowercase": true,
+        "include_uppercase": true,
+        "exclude_similar": true,
+        "exclude_ambiguous": true
+      },
+      "character_sets": {
+        "lowercase": "abcdefghjkmnpqrstuvwxyz",
+        "uppercase": "ABCDEFGHIJKMNPQRSTUVWXYZ",
+        "numbers": "23456789",
+        "symbols": "!@#$%^&*_+-=|:?",
+        "used_sets": ["lowercase", "uppercase", "numbers", "symbols"]
+      },
+      "generation_info": {
+        "entropy": 122.59,
+        "strength": "极强",
+        "time_to_crack": "数百万年"
+      }
+    }
+  },
+  "password_check": {
+    "ok": true,
+    "source": "rx60s",
+    "data": {
+      "password": "@y8#GjKhYU?5f@7vFvvU",
+      "length": 20,
+      "score": 100,
+      "strength": "极强",
+      "entropy": 131.09,
+      "time_to_crack": "数百万年",
+      "character_analysis": {
+        "has_lowercase": true,
+        "has_uppercase": true,
+        "has_numbers": true,
+        "has_symbols": true,
+        "has_repeated": false,
+        "has_sequential": false,
+        "character_variety": 94
+      },
+      "recommendations": ["密码强度已经很好！"],
+      "security_tips": [
+        "使用密码管理器生成和存储复杂密码",
+        "为不同账户使用不同的密码",
+        "定期更换重要账户的密码",
+        "启用双因素认证（2FA）增强安全性",
+        "避免在公共场合输入密码",
+        "不要将密码保存在浏览器中（除非使用可信的密码管理器）",
+        "避免使用个人信息作为密码",
+        "长密码比复杂密码更安全"
+      ]
+    }
+  }
+}

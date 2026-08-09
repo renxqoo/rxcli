@@ -1,0 +1,25 @@
+{
+  "expectations": [
+    {
+      "text": "调用了 rx60s life weather(位置参数为上海或类似)",
+      "passed": true,
+      "evidence": "cli_raw source=rx60s"
+    },
+    {
+      "text": "输出包含温度数值(temperature 字段)",
+      "passed": true,
+      "evidence": "temperature=27"
+    },
+    {
+      "text": "输出包含天气状况描述(如 多云/晴)",
+      "passed": true,
+      "evidence": "condition=阴"
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 0,
+    "total": 3,
+    "pass_rate": 1.0
+  }
+}

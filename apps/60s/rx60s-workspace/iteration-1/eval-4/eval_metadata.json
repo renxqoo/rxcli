@@ -1,0 +1,9 @@
+{
+  "eval_id": 4,
+  "eval_name": "translate",
+  "prompt": "帮我把 'artificial intelligence' 翻译成中文。",
+  "assertions": [
+    "调用了 rx60s tool fanyi(文本为 artificial intelligence,to 为中文)",
+    "输出包含中文翻译结果(如 人工智能)"
+  ]
+}

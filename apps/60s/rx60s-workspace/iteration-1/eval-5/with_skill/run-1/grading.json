@@ -1,0 +1,25 @@
+{
+  "expectations": [
+    {
+      "text": "调用了 rx60s tool password(length=20 且 symbols=true)",
+      "passed": true,
+      "evidence": "length=20, include_symbols=True"
+    },
+    {
+      "text": "输出了一个 20 位密码字符串",
+      "passed": true,
+      "evidence": "password=x8PxqG%P5b@q*?vfj3X$ (len 20)"
+    },
+    {
+      "text": "输出包含强度评估或破解时间信息",
+      "passed": true,
+      "evidence": "strength=极强"
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 0,
+    "total": 3,
+    "pass_rate": 1.0
+  }
+}

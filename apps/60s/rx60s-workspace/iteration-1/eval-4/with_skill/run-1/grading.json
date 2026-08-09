@@ -1,0 +1,20 @@
+{
+  "expectations": [
+    {
+      "text": "调用了 rx60s tool fanyi(文本为 artificial intelligence,to 为中文)",
+      "passed": true,
+      "evidence": "cli_raw source=rx60s"
+    },
+    {
+      "text": "输出包含中文翻译结果(如 人工智能)",
+      "passed": true,
+      "evidence": "target.text=人工智能"
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 0,
+    "total": 2,
+    "pass_rate": 1.0
+  }
+}
