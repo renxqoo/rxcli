@@ -1,6 +1,6 @@
 {
   "name": "@renxqoo/rxcordys-cli",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "rxcordys — Cordys CRM L2C 全链路 agent 命令行工具(线索/客户/商机/合同/回款/发票/订单/审批/统计),基于 @renxqoo/agent-data-cli 框架",
   "keywords": [
     "agent",
