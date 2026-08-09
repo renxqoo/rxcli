@@ -52,6 +52,10 @@ import { deviceFlow, SplitFlowSignal } from "../flows/device.js";
 import { authCodeFlow } from "../flows/authCode.js";
 import { clientCredentialsFlow } from "../flows/clientCredentials.js";
 import type { AuthFlow, FlowType, FlowDeps } from "../flows/types.js";
+import { createLoginCommand } from "./commands/login.js";
+import { createStatusCommand } from "./commands/status.js";
+import { createLogoutCommand } from "./commands/logout.js";
+import { createRegisterCommand } from "./commands/register.js";
 import {
   fileStore,
   defaultProviders,
@@ -378,193 +382,37 @@ async function persistCredentials(
 }
 
 function createAuthCommands(o: AuthCommandOpts): CommandGroup {
-  const { oauth, store, scope, baseUrl } = o;
   const credNs = o.credentialNamespace;
   const cmdNs = o.commandNamespace;
-  const flow = o.flow;
 
   return {
-    // —— 登录(纯委托 flow 策略)——
-    login: defineCommand<any, unknown>({
-      name: "login",
-      description: `Log in via the middleware (OAuth ${flow.type.replace("_", " ")} flow)`,
-      // 不标 internal:靠 plugin 精确豁免(_ownedRoutes 自动跳自身 beforeCommand)
-      args: {
-        wait: { type: "boolean", desc: "Block and poll (default; --no-wait returns immediately)" },
-        json: { type: "boolean", desc: "Output JSON (with --no-wait, for agent split-flow)" },
-        "device-code": {
-          type: "string",
-          desc: "Complete login with an existing device_code (device flow split-flow step 2)",
-        },
-      },
-      async run(args, ctx): Promise<CommandResult> {
-        // 校验:--no-wait / --device-code 只对 device flow 有效
-        const deviceCode = args["device-code"] as string | undefined;
-        const noWait = args.wait === false;
-        if ((deviceCode || noWait) && flow.type !== "device") {
-          throw new errs.ValidationError({
-            subtype: "invalid_argument",
-            param: deviceCode ? "--device-code" : "--no-wait",
-            message: `--${deviceCode ? "device-code" : "no-wait"} is only supported for device flow (current: ${flow.type})`,
-          });
-        }
-
-        // 动态 scope:从 metadata 读 scopes_supported(运行时,不写死)
-        let effectiveScope = scope;
-        if (o.scopeFromMetadata) {
-          const remoteScopes = await fetchScopesFromMetadata(oauth);
-          if (remoteScopes.length > 0) {
-            effectiveScope = remoteScopes.join(" ");
-          }
-        }
-
-        // 构造 deps:所有 flow 共享基础 + device flow 专用参数
-        const deps: FlowDeps = {
-          cfg: oauth,
-          scope: effectiveScope,
-          log: ctx.log,
-          poller: o.poller,
-          callbackPort: o.redirectPort,
-          // device flow split-flow 参数(其它 flow 忽略)
-          noWait: args.wait === false,
-          resumeDeviceCode: args["device-code"] as string | undefined,
-        };
-
-        try {
-          // 委托 flow.login() → 统一落盘
-          const token = await flow.login(deps);
-          const result = await persistCredentials(store, credNs, oauth, token, flow.type, ctx.log);
-          return { data: result };
-        } catch (e) {
-          // device flow --no-wait:flow 抛 SplitFlowSignal,框架捕获后返回 JSON/url
-          if (e instanceof SplitFlowSignal) {
-            if (args.json) {
-              return {
-                data: {
-                  device_code: e.deviceCode,
-                  user_code: e.userCode,
-                  verification_url: e.verificationUrl,
-                  verification_uri_complete: e.verificationUriComplete,
-                  verification_uri: e.verificationUri,
-                  expires_in: e.expiresIn,
-                  interval: e.interval,
-                },
-              };
-            }
-            ctx.log.info(
-              `\nPlease complete login in your browser:\n  ${e.verificationUrl}\n  user code: ${e.userCode}\n\ndevice_code: ${e.deviceCode}\n(not polling. After authorizing, run: ${cmdNs} login --device-code ${e.deviceCode})`,
-            );
-            return { data: { device_code: e.deviceCode, verification_url: e.verificationUrl } };
-          }
-          throw e;
-        }
-      },
+    login: createLoginCommand({
+      oauth: o.oauth,
+      store: o.store,
+      credentialNamespace: credNs,
+      commandNamespace: cmdNs,
+      scope: o.scope,
+      flow: o.flow,
+      redirectPort: o.redirectPort,
+      poller: o.poller,
+      scopeFromMetadata: o.scopeFromMetadata,
     }),
-
-    // —— 状态 ——
-    status: defineCommand<any, unknown>({
-      name: "status",
-      description: "Show current login status",
-      async run(_args, ctx): Promise<CommandResult> {
-        const creds = (await store.loadCredentials(
-          credNs,
-        )) as Partial<StoredOAuthCredentials> | null;
-        if (!creds?.token) {
-          ctx.log.info(`Not logged in. Run \`${cmdNs} login\` to log in.`);
-          return { data: { loggedIn: false } };
-        }
-        const expired = creds.expiresAt ? Date.now() >= creds.expiresAt : false;
-
-        // client_credentials/机器 session:无用户上下文,跳过 getUserInfo
-        if (creds.authMethod === "client_credentials") {
-          ctx.log.info(
-            `Logged in (machine): ${oauth.baseUrl}\ntoken ${expired ? "expired (will auto-refresh on next call)" : "valid"}`,
-          );
-          return { data: { loggedIn: true, expired } };
-        }
-
-        try {
-          const user = await getUserInfo(oauth, creds.token);
-          ctx.log.info(
-            `Logged in: ${user.name} (${user.open_id})\nMiddleware: ${oauth.baseUrl}\ntoken ${expired ? "expired (will auto-refresh on next call)" : "valid"}`,
-          );
-          return { data: { loggedIn: true, user: { id: user.open_id, name: user.name }, expired } };
-        } catch (err) {
-          if (!(err instanceof AuthenticationError)) throw err;
-          ctx.log.info("Authentication expired. Please log in again.");
-          throw new errs.AuthenticationError({
-            subtype: "token_expired",
-            message: "Authentication expired",
-            hint: `run \`${cmdNs} login\` to log in again`,
-          });
-        }
-      },
+    status: createStatusCommand({
+      oauth: o.oauth,
+      store: o.store,
+      credentialNamespace: credNs,
+      commandNamespace: cmdNs,
     }),
-
-    // —— 登出 ——
-    logout: defineCommand<any, unknown>({
-      name: "logout",
-      description: "Log out (revoke session + clear local credentials)",
-      async run(_args, ctx): Promise<CommandResult> {
-        const creds = (await store.loadCredentials(
-          credNs,
-        )) as Partial<StoredOAuthCredentials> | null;
-        if (creds?.token) {
-          try {
-            await revokeToken(oauth, creds.token);
-          } catch {
-            /* 离线/服务不可用仍清本地 */
-          }
-        }
-        await store.clearCredentials(credNs);
-        ctx.log.info("Logged out.");
-        return { data: { loggedOut: true } };
-      },
+    logout: createLogoutCommand({
+      oauth: o.oauth,
+      store: o.store,
+      credentialNamespace: credNs,
     }),
-
-    // —— 注册:用注册令牌换独立 clientId/clientSecret ——
-    register: defineCommand<any, unknown>({
-      name: "register",
-      description:
-        "Register this machine's CLI client (exchange a registration token for standalone credentials)",
-      args: {
-        token: { type: "string", desc: "Registration token (interactive prompt if omitted)" },
-      },
-      async run(args, ctx): Promise<CommandResult> {
-        let token = args.token as string | undefined;
-        if (!token) {
-          if (!stdin.isTTY) {
-            throw new errs.ValidationError({
-              subtype: "missing_required",
-              param: "--token",
-              message: "--token is required in a non-interactive environment",
-              hint: `run \`${cmdNs} register --token <registration-token>\``,
-            });
-          }
-          const rl = readline.createInterface({ input: stdin, output: stdout });
-          try {
-            token = (await rl.question("Please enter the registration token: ")).trim();
-          } finally {
-            rl.close();
-          }
-        }
-        if (!token) {
-          throw new errs.ValidationError({
-            subtype: "missing_required",
-            param: "--token",
-            message: "No token entered",
-          });
-        }
-
-        const { clientId, clientSecret } = await registerClient(baseUrl, token, o.clientMetadata);
-        const config = (await store.loadConfig()) as Record<string, unknown>;
-        config.clientId = clientId;
-        config.clientSecret = clientSecret;
-        await store.saveConfig(config);
-
-        ctx.log.info(`\n✓ Registered successfully. clientId=${clientId}`);
-        return { data: { registered: true, clientId } };
-      },
+    register: createRegisterCommand({
+      baseUrl: o.baseUrl,
+      store: o.store,
+      commandNamespace: cmdNs,
+      clientMetadata: o.clientMetadata,
     }),
   };
 }
