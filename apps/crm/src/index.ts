@@ -8,7 +8,7 @@
  *   - skill 直接复用 v1(已搬到 skills/)
  */
 
-import { defineCli, defineAuth } from "@renxqoo/agent-data-cli";
+import { defineCli, defineAuth, envBearerProvider } from "@renxqoo/agent-data-cli";
 import { AUTH_BASE_URL, API_BASE_URL, SKILLS_DIR } from "./config.js";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -23,10 +23,15 @@ type CrmState = {
 
 // auth plugin(钩子 + auth 命令一捆):defineCli 自动注入 login/status/logout/register
 // scope 业务自定(crm 走中间层 company.api + offline_access 拿 refresh_token)
+// bearerToken + envBearerProvider:多环境自适应
+//   - 本地:无 CRM_BEARER_TOKEN → device flow 登录,token 存文件
+//   - sandbox:有 CRM_BEARER_TOKEN → 直接用 admin 预签发的 JWT
 const auth = await defineAuth<CrmState>({
   credentialNamespace: "crm",
   baseUrl: AUTH_BASE_URL,
   scope: "company.api offline_access",
+  clientMetadata: { client_name: "crm" },
+  bearerToken: process.env.CRM_BEARER_TOKEN,
 });
 
 const app = defineCli<CrmState>({

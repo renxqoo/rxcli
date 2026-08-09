@@ -139,6 +139,29 @@ export function oauthProvider(): CredentialProvider {
   };
 }
 
+/**
+ * envBearerProvider(priority 6):从 $<NS>_BEARER_TOKEN 环境变量取 Bearer JWT。
+ *
+ * sandbox/CI 场景:admin 预签发 token 注入环境变量,agent 直接用。
+ * 优先级介于 env api-key(5)和 file(10)之间。
+ */
+export function envBearerProvider(): CredentialProvider {
+  return {
+    name: () => "env-bearer",
+    priority: () => 6,
+    async resolveToken(pctx: ProviderContext): Promise<TokenResult | null> {
+      const envName = `${pctx.namespace.toUpperCase().replace(/-/g, "_")}_BEARER_TOKEN`;
+      const token = pctx.env[envName];
+      if (typeof token !== "string" || !token) return null;
+      return {
+        token,
+        type: "bearer",
+        source: `env:${envName}`,
+      };
+    },
+  };
+}
+
 /** 默认 4 个 provider,按 priority 升序。 */
 export function defaultProviders(): CredentialProvider[] {
   return [flagProvider(), envProvider(), fileProvider(), oauthProvider()];

@@ -60,7 +60,7 @@ import {
   type ProviderContext,
   type IdentityHint,
 } from "../credentials/index.js";
-import type { StoredOAuthCredentials } from "../credentials/types.js";
+import type { StoredOAuthCredentials, CredentialProvider } from "../credentials/types.js";
 import { credentialArgsKey } from "../context.js";
 
 // ============================================================================
@@ -111,6 +111,19 @@ export interface DefineAuthOptions {
 
   /** authorization_code flow:本地回调端口(不传=随机)。 */
   redirectPort?: number;
+
+  /**
+   * 预注入的 Bearer token(sandbox/CI 场景,admin issue-token 返回的 JWT)。
+   * 设了就直接用(priority=0,最高优先),跳过 provider chain + login。
+   * 最简注入:defineAuth({ bearerToken: process.env.CRM_BEARER_TOKEN })
+   */
+  bearerToken?: string;
+
+  /**
+   * 自定义 provider chain。不传 = defaultProviders()。
+   * 业务 app 可自定义 token 来源(如环境变量、文件、secret manager)。
+   */
+  providers?: CredentialProvider[];
 }
 
 // ============================================================================
@@ -144,7 +157,22 @@ export async function defineAuth<State = Record<string, never>>(
     }
   }
   const oauth: OAuthClientConfig = { baseUrl: opts.baseUrl, clientId, clientSecret };
-  const providers = defaultProviders();
+  // 构建 provider chain:bearerToken(注入)→ 自定义 providers → 默认 chain
+  const providers: CredentialProvider[] = [];
+  if (opts.bearerToken) {
+    providers.push({
+      name: () => "injected-bearer",
+      priority: () => 0,
+      async resolveToken() {
+        return {
+          token: opts.bearerToken!,
+          type: "bearer" as const,
+          source: "injected:bearerToken",
+        };
+      },
+    });
+  }
+  providers.push(...(opts.providers ?? defaultProviders()));
   const flowType = opts.flow ?? "device";
   const flow = resolveFlow(flowType);
 

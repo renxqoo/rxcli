@@ -62,6 +62,7 @@ export {
   defaultProviders,
   flagProvider,
   envProvider,
+  envBearerProvider,
   fileProvider,
   oauthProvider,
   resolveWithChain,
