@@ -95,6 +95,17 @@ export async function runCommand<State>(opts: RunCommandOptions<State>): Promise
         message: `命令 ${spec.name} 必须返回 { data } 或 void`,
       });
     }
+    // data 必须是 StructuredData(Record | 数组 | null)——裸标量(string/number/boolean)
+    // 破坏管道契约(下游 ctx.pipe.in() 拿到标量无法逐条包成 PipeRecord),尽早拒绝。
+    // 例外:meta._rawOutput=true 的命令(如 skills read)合法地用 string data 吐原文到 stdout
+    // (输出契约例外,见下方 _rawOutput 分支),这种命令豁免 StructuredData 检查。
+    const isRawOutput = !!(result.meta && result.meta._rawOutput);
+    if (!isRawOutput && !isStructuredData(result.data)) {
+      throw new InternalError({
+        subtype: "contract_violation",
+        message: `命令 ${spec.name} 的 data 必须是对象/数组/null,收到 ${typeof result.data}`,
+      });
+    }
 
     // 3'. beforeOutput transform data
     const transformed: StructuredData = await runBeforeOutput(plugins, ctx, result.data);
@@ -145,6 +156,13 @@ export async function runCommand<State>(opts: RunCommandOptions<State>): Promise
 // ============================================================================
 // 辅助:去掉 meta 里下划线前缀的内部标记字段(不进 wire)
 // ============================================================================
+
+/** data 契约守卫:StructuredData = Record<string,unknown> | unknown[] | null(见 types.ts)。 */
+function isStructuredData(value: unknown): value is StructuredData {
+  if (value === null) return true;
+  if (Array.isArray(value)) return true;
+  return typeof value === "object" && value !== null;
+}
 
 function stripInternalMeta(meta: Meta): Meta {
   const out: Meta = {};

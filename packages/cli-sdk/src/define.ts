@@ -86,9 +86,18 @@ function validateArgsSpec(commandName: string, spec: ArgsSpec | undefined): void
 
 export function defineCli<State = Record<string, never>>(options: DefineCliOptions<State>): App {
   const { name, description, errorOnStatus, baseUrl } = options;
-  // 启动期校验 errorOnStatus 的 subtype 是否已登记——避免拼写错误悄悄降级成 internal(exit 5)。
+  // 启动期校验 errorOnStatus:
+  //   (a) key 必须是合法的 HTTP status 形态(纯数字如 "404",或 Nxx 段如 "5xx")——
+  //       拼写错误(如 "5x"/"500s")会让该配置项永不匹配,静默失效。
+  //   (b) subtype 必须在 SUBTYPE_REGISTRY 登记——避免拼写错误悄悄降级成 internal(exit 5)。
   if (errorOnStatus) {
     for (const [statusKey, subtype] of Object.entries(errorOnStatus)) {
+      if (!/^\d+$|^\dxx$/.test(statusKey)) {
+        throw new Error(
+          `defineCli({ errorOnStatus }): 非法 status key "${statusKey}"。` +
+            `必须是数字(如 "404")或 Nxx 形态(如 "5xx")。`,
+        );
+      }
       if (!(subtype in SUBTYPE_REGISTRY)) {
         throw new Error(
           `defineCli({ errorOnStatus }): subtype "${subtype}"(配在 status ${statusKey})未在 SUBTYPE_REGISTRY 登记。` +
@@ -185,21 +194,30 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
     name,
     async run(argv: string[]): Promise<void> {
       try {
-        // —— 顶层 flag:--version / -v 单独处理(只打印版本,不是 help 全文)——
-        if (hasFlagBeforeSeparator(argv, "-v", "--version")) {
+        // —— 路由:匹配最长 route ——
+        // matchRoute 会跳过顶层 flag(--json/--no-json 等),使 `bin --json list` 也能路由到 list。
+        const { matched, rest } = matchRoute(argv, routed);
+
+        // 顶层 flag 区 = argv 开头的连续 flag(--开头 或 -x),直到首个非 flag token(命令名/位置参数)。
+        // --version/-v、顶层 --help/-h 只在这个区出现才算全局动作;
+        // 出现在命令名之后则交给命令解析(未知 flag 报错 / 命令自处理)。
+        const leadingFlags: string[] = [];
+        for (const t of argv) {
+          if (!t.startsWith("-")) break;
+          leadingFlags.push(t);
+        }
+
+        // —— 顶层 flag:--version / -v(只在命令名之前才触发)——
+        if (hasFlagBeforeSeparator(leadingFlags, "-v", "--version")) {
           process.stdout.write(`${binName}/${detectVersion()}\n`);
           process.exitCode = 0;
           return;
         }
 
-        // —— 路由:匹配最长 route ——
-        // 从 argv 头部取连续非 flag token,匹配最长的 route
-        const { matched, rest } = matchRoute(argv, routed);
-
         if (!matched) {
           // 无匹配:help / 空 argv → 显示 help(exit 0);其余视为未知命令 → 错误输出(exit 2)
           // agent-native CLI 不允许"拼错命令 exit 0"(会被 agent 误判为成功)。
-          if (hasFlagBeforeSeparator(argv, "-h", "--help") || argv.length === 0) {
+          if (hasFlagBeforeSeparator(leadingFlags, "-h", "--help") || argv.length === 0) {
             process.stdout.write(renderHelp(binName, description, routed) + "\n");
             process.exitCode = 0;
           } else {
@@ -226,9 +244,11 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
         // 从 rawOptions 剔除:json 是框架 flag,不进命令 args
         const jsonFlag = options.json;
         if (!matched.spec.args?.json) delete options.json;
-        // --api-key 是框架级一次性凭证，不属于命令 args；只传给 plugin provider chain。
-        const apiKeyFlag = options["api-key"];
-        delete options["api-key"];
+        // --api-key 是框架级一次性凭证 —— 仅当命令未声明 api-key arg 时才归框架(给 plugin provider chain);
+        // 命令声明了自己的 api-key 时,它就是普通命令 arg,不剔除、不进 pluginArgs。
+        const commandOwnsApiKey = !!matched.spec.args?.["api-key"];
+        const apiKeyFlag = commandOwnsApiKey ? undefined : options["api-key"];
+        if (!commandOwnsApiKey) delete options["api-key"];
         // 输出格式决策(优先级:显式 flag > defaultFormat > 管道保护):
         //   --json       → JSON(强制)
         //   --no-json    → 文本(强制,但管道保护:stdin 非 TTY 时仍 JSON)
@@ -292,9 +312,19 @@ interface MatchResult {
 }
 
 /**
+ * 顶层全局 flag:出现在任何命令 token 之前时具有框架级语义。
+ *   --json / --no-json : 输出格式(路由匹配时跳过,使 `bin --json list` 能路由)
+ *   --version / -v     : 版本(只在 argv 头部连续 flag 区触发)
+ *   --help / -h        : 帮助(只在 argv 头部连续 flag 区触发)
+ * 路由匹配时跳过这些 flag,使 `bin --json list` 能路由到 list。
+ */
+const TOP_LEVEL_FLAGS = new Set(["--json", "--no-json", "--version", "-v", "--help", "-h"]);
+
+/**
  * 从 argv 头部取连续非 flag token 匹配最长 route。
+ * 跳过前导的顶层 flag(--json/--no-json 等),其余 - 开头 token 视为命令专属 flag,终止路由匹配。
  * 只剥离 route 部分,剩余 token 原样返回(交给 parseFlags 分离 positional/flag,保留 flag-value 配对)。
- * 例:argv=['update','o1','--status','shipped'],route=['update'] → matched,rest=['o1','--status','shipped']
+ * 例:argv=['--json','list','--limit','1'] → matched route=['list'],rest=['--limit','1']
  */
 function matchRoute(
   argv: string[],
@@ -302,17 +332,28 @@ function matchRoute(
 ): MatchResult {
   const sorted = [...routed].sort((a, b) => b.route.length - a.route.length);
 
-  // 收集头部连续非 flag token(argv 里 - 开头的是 flag)
+  // 收集头部 token:跳过顶层 flag,其余 - 开头 token 终止(route 段是连续非 flag 的)。
   const headTokens: string[] = [];
   for (const t of argv) {
+    if (TOP_LEVEL_FLAGS.has(t)) continue;
     if (t.startsWith("-")) break;
     headTokens.push(t);
   }
 
   for (const r of sorted) {
     const routeLen = r.route.length;
-    if (headTokens.length >= routeLen && r.route.every((seg, i) => headTokens[i] === seg)) {
-      return { matched: r, rest: argv.slice(routeLen) };
+    if (headTokens.length >= routeLen && r.route.every((seg, j) => headTokens[j] === seg)) {
+      // route 占据 headTokens 前 routeLen 个;argv 中对应区段 = 跳过的顶层 flag + route 段
+      let taken = 0;
+      let end = 0;
+      for (let k = 0; k < argv.length && taken < routeLen; k++) {
+        const t = argv[k]!;
+        if (TOP_LEVEL_FLAGS.has(t)) continue;
+        if (t.startsWith("-")) break;
+        taken++;
+        end = k + 1;
+      }
+      return { matched: r, rest: argv.slice(end) };
     }
   }
   return { matched: null, rest: [] };
@@ -339,7 +380,9 @@ function parseFlags(
   // 需要 value 的 flag(number/string/array):它们的下一个 token 即使以 - 开头(负数)也视为值
   const valueKeys = new Set<string>();
   const arrayKeys = new Set<string>();
-  valueKeys.add("api-key");
+  // --api-key 是框架级一次性凭证 flag —— 但仅当命令未声明同名 arg 时才归框架;
+  // 命令声明了自己的 api-key 参数时,它就是普通命令 arg,原样透传。
+  if (!argsSpec || !("api-key" in argsSpec)) valueKeys.add("api-key");
   if (argsSpec) {
     for (const [k, s] of Object.entries(argsSpec)) {
       if (s.type === "boolean") booleanKeys.add(k);

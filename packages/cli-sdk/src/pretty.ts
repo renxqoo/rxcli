@@ -70,15 +70,18 @@ export function prettyPrint(data: unknown, meta?: Meta): string {
 /**
  * 从 data 提取数组:
  *   - data 本身是数组 → 返回
- *   - data 是 { key: 数组, ... } 包装(如 { orders: [...] } 或 { products: [...], total: 5 })
- *     → 返回**首个**数组值(忽略 total/count 等伴随的 scalar 字段)
+ *   - data 是 { key: 数组 } 单 key 包装(如 { orders: [...] })→ 返回那个数组
+ *   - data 是含数组字段但还有其他字段的对象(如 { name:'x', items:[...] })→ 返回 null
+ *     (多字段对象是详情视图,不应被当列表;否则会丢掉非数组字段)
  *   - 否则 → null(不是数组形态)
  */
 function extractArray(data: unknown): unknown[] | null {
   if (Array.isArray(data)) return data;
   if (data && typeof data === "object") {
-    for (const v of Object.values(data as Record<string, unknown>)) {
-      if (Array.isArray(v)) return v as unknown[];
+    const entries = Object.entries(data as Record<string, unknown>);
+    // 只有"恰好一个 key 且该 key 是数组"才当列表包装;多字段对象走详情视图
+    if (entries.length === 1 && Array.isArray(entries[0]![1])) {
+      return entries[0]![1] as unknown[];
     }
   }
   return null;

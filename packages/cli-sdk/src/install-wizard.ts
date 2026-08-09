@@ -134,6 +134,9 @@ export function fmt(template: string, ...values: (string | undefined)[]): string
 export function semverLessThan(a: string, b: string): boolean {
   const pa = a.replace(/-.*$/, "").split(".").map(Number);
   const pb = b.replace(/-.*$/, "").split(".").map(Number);
+  // 任一输入不是数字版本(如 npm 解析失败的 "unknown"/"abc")→ 无法判定为更小,返回 false。
+  // 避免 Number("unknown")=NaN 经 ?? 0 后被误判(原 bug:NaN 段被跳过,后续段 0<N 误返回 true)。
+  if (pa.some((n) => Number.isNaN(n)) || pb.some((n) => Number.isNaN(n))) return false;
   for (let i = 0; i < 3; i++) {
     if ((pa[i] ?? 0) < (pb[i] ?? 0)) return true;
     if ((pa[i] ?? 0) > (pb[i] ?? 0)) return false;
