@@ -117,3 +117,11 @@ Skill 文档:`skills/rx60s/SKILL.md`(frontmatter 手写符合 skill-creator 规�
 - **CLI 框架**:[`@renxqoo/agent-data-cli`](../../packages/cli-sdk)(本 monorepo 的 cli-sdk)。
 - **参考实现**:[`apps/a-stock`](../a-stock)(同为无鉴权公开数据 CLI)。
 - 如上游接口有变动或问题,请至 [vikiboss/60s issues](https://github.com/vikiboss/60s/issues) 反馈;本项目 CLI 本身的问题请在 [本仓库 issues](https://github.com/renxqoo/rxcli/issues) 反馈。
+
+## 免责声明
+
+- **本项目仅供学习研究使用**,不提供、不存储、不缓存任何数据,所有数据来自上游 [vikiboss/60s](https://github.com/vikiboss/60s) 开源项目及其数据源,版权归原始数据源所有。
+- 上游 60s API 的部分接口通过抓取或调用第三方平台(微博、知乎、QQ音乐、有道翻译等)获取数据,可能涉及第三方服务条款(ToS)。**本 CLI 仅作为上游 API 的命令行客户端,不包含任何逆向、破解或绕过反爬的代码。** 因使用本工具获取的数据而产生的任何法律责任,由使用者自行承担。
+- 本项目不对数据的准确性、完整性、时效性做任何保证。用户基于本工具数据做出的任何决策,风险自负。
+- 如任何数据源方认为本项目侵犯了其合法权益,请向上游 [vikiboss/60s](https://github.com/vikiboss/60s) 项目提出,本项目将在收到通知后配合处理。
+- 商业化使用(转售服务、集成到商业产品)可能放大法律风险,建议在法律顾问评估后进行。
