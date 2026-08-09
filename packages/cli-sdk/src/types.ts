@@ -81,7 +81,7 @@ export interface Meta {
 
 /** run 的返回值。纯副作用命令可不 return(void 合法)。 */
 export interface CommandResult<T = unknown> {
-  /** 结构化业务数据。 */
+  /** 结构化业务数据(对象/数组/null)。裸标量破坏管道契约,会被运行时拒绝(见 pipeline.ts)。 */
   data: T;
   meta?: Meta;
 }
