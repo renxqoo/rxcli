@@ -424,6 +424,8 @@ metadata:
 
 > 完整模板、AUTO-GEN 机制、签名规则见 `references/skill-gen.md`。
 
+**CLI 发布前生成 README**(项目入口,给人看;SKILL.md 是给 agent 的)——读 `references/readme-gen.md`,按标准结构(简介/快速开始/功能/命令/输出/开发/决策)生成,别漏「装 Skill」步骤。
+
 ---
 
 ## 8. 测试
@@ -466,6 +468,7 @@ const result = await todosCommands.list.run({ limit: 20 }, ctx);
 - **`references/patterns.md`** —— **列表要分页 / 管道下游 / humanFormat 时读**:pagination 续拉、`ctx.pipe` 消费上游、`printTable` 自定义表格
 - `references/plugin-patterns.md` —— 自定义插件(钩子选择、enforce 顺序、onError 链)
 - `references/skill-gen.md` —— SKILL.md 完整模板(含 split-flow 占位)、AUTO-GEN 机制、frontmatter 规范
+- `references/readme-gen.md` —— **生成 README 时读**:标准结构 + 模板(装CLI/装Skill/配凭证)+ 鉴权三分支 + 避坑
 - `references/error-catalog.md` —— 全部 30+ subtype 速查 + errorOnStatus 推荐配置
 - `references/testing.md` —— createTestCtx 全套(mock transport/store/pipe、端到端测试)
 
@@ -481,6 +484,7 @@ const result = await todosCommands.list.run({ limit: 20 }, ctx);
 - [ ] 分页命令填了 `pagination.complete`
 - [ ] `package.json` 的 `files` 含 `["dist", "skills"]`
 - [ ] 跑 `skills gen <name> --init` 生成 SKILL.md 并填了语义部分
+- [ ] 按 `references/readme-gen.md` 生成 README(含安装三步:CLI + Skill + 凭证)
 - [ ] **带鉴权的 CLI**:业务 SKILL.md 含 split-flow 登录指引
 - [ ] **带鉴权的 CLI**:入口处理了 `install` 向导(拦截 `argv[0]==='install'`)
 - [ ] **带鉴权的 CLI**:`defineAuth` 已 `await`(`const auth = await defineAuth(...)`,不是 `defineAuth(...)`)——见 §3① / §9 第 1 条
