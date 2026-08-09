@@ -56,7 +56,7 @@ export const approvalsCommands: CommandGroup = defineCommands({
         throw new errs.ValidationError({
           subtype: "invalid_argument",
           param: "<kind>",
-          message: `todo kind 只能是 ${APPROVAL_TODO_KINDS.join("/")},收到 "${args.kind}"`,
+          message: `todo kind must be ${APPROVAL_TODO_KINDS.join("/")}, got "${args.kind}"`,
         });
       }
       // count 是 GET,其余是 POST 分页
@@ -96,14 +96,14 @@ export const approvalsCommands: CommandGroup = defineCommands({
         throw new errs.ValidationError({
           subtype: "invalid_argument",
           param: "<action>",
-          message: `action 只能是 ${APPROVAL_ACTIONS.join("/")},收到 "${args.action}"`,
+          message: `action must be ${APPROVAL_ACTIONS.join("/")}, got "${args.action}"`,
         });
       }
       const body = parseJsonBody(args.data, "<data>");
       if (args.dryRun) return { data: null, meta: { dryRun: true } };
       ensureConfirmed(
         args.yes,
-        `审批动作 ${args.action}`,
+        `Approval action ${args.action}`,
         `rxcordys approvals action ${args.action} '<json>' --yes`,
       );
       const res = await ctx.post(`/approval-action/${args.action}`, body);
@@ -141,7 +141,7 @@ export const approvalsCommands: CommandGroup = defineCommands({
             throw new errs.ValidationError({
               subtype: "missing_required",
               param: "<arg>",
-              message: `${args.action} 需要 resourceId`,
+              message: `${args.action} requires resourceId`,
             });
           }
           const res = await ctx.get(
@@ -153,7 +153,7 @@ export const approvalsCommands: CommandGroup = defineCommands({
           throw new errs.ValidationError({
             subtype: "invalid_argument",
             param: "<action>",
-            message: `resource action 只能是 push/revoke/simple-detail/detail,收到 "${args.action}"`,
+            message: `resource action must be push/revoke/simple-detail/detail, got "${args.action}"`,
           });
       }
     },
@@ -223,7 +223,7 @@ export const approvalsCommands: CommandGroup = defineCommands({
             if (args.dryRun) return { data: null, meta: { dryRun: true } };
             ensureConfirmed(
               args.yes,
-              `审批流程 ${args.action}`,
+              `Approval flow ${args.action}`,
               `rxcordys approvals flow ${args.action} '<json>' --yes`,
             );
           }
@@ -234,8 +234,8 @@ export const approvalsCommands: CommandGroup = defineCommands({
           throw new errs.ValidationError({
             subtype: "invalid_argument",
             param: "<action>",
-            message: `flow action 不支持 "${args.action}"`,
-            hint: "可选:page/get/add/update/enable/disable/by-form/setting/webhook-test",
+            message: `flow action unsupported: "${args.action}"`,
+            hint: "Valid: page/get/add/update/enable/disable/by-form/setting/webhook-test",
           });
       }
     },
@@ -246,6 +246,6 @@ function missingIdError(action: string, label = "id"): ValidationError {
   return new errs.ValidationError({
     subtype: "missing_required",
     param: "<arg>",
-    message: `flow ${action} 需要 ${label}`,
+    message: `flow ${action} requires ${label}`,
   });
 }

@@ -167,7 +167,7 @@ const batchByCodes = memoize(async (codes: string[]): Promise<(Quote | null)[]> 
     }
   } catch (e) {
     process.stderr.write(
-      `warn: [fallback] tencent 批量失败: ${e instanceof Error ? e.message : e}\n`,
+      `warn: [fallback] tencent batch failed: ${e instanceof Error ? e.message : e}\n`,
     );
   }
 
@@ -182,7 +182,7 @@ const batchByCodes = memoize(async (codes: string[]): Promise<(Quote | null)[]> 
       });
     } catch (e) {
       process.stderr.write(
-        `warn: [fallback] sina 批量失败: ${e instanceof Error ? e.message : e}\n`,
+        `warn: [fallback] sina batch failed: ${e instanceof Error ? e.message : e}\n`,
       );
     }
   }

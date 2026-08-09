@@ -1,113 +1,115 @@
 # @renxqoo/rxcordys-cli (rxcordys)
 
-Cordys CRM L2C 全链路 agent 命令行工具 —— 基于 [`@renxqoo/agent-data-cli`](../../packages/cli-sdk) 框架,全量覆盖 CordysCRM 接口。
+A command-line agent tool for the full Cordys CRM Lead-to-Cash (L2C) pipeline — built on the [`@renxqoo/agent-data-cli`](../../packages/cli-sdk) framework, with full coverage of the CordysCRM API.
 
-## 快速开始
+[English](README.md) · [中文](README.zh-CN.md)
 
-### 一键安装(推荐)
+## Quick Start
+
+### One-step install (recommended)
 
 ```bash
 npx @renxqoo/rxcordys-cli install
 ```
 
-自动完成三步:① 全局安装 CLI → ② 安装 Skill 到 `~/.agents/skills/`(AI 工具发现路径)→ ③ 凭证配置。需 Node ≥ 20。
+Performs three steps automatically: ① globally install the CLI → ② install the Skill to `~/.agents/skills/` (the AI-tool discovery path) → ③ configure credentials. Requires Node ≥ 20.
 
-> `npx` 无需预装,跑完即得全局 `rxcordys` 命令 + 已就位的 skill。
+> `npx` requires no pre-install — once it finishes you'll have the global `rxcordys` command plus a skill ready to go.
 
-### 手动安装(分步,等价于一键安装)
+### Manual install (step by step, equivalent to one-step install)
 
-如果一键安装某步失败或想单独执行:
+If any step of the one-step install fails, or you prefer to run them individually:
 
-**第 1 步:安装 CLI**
+**Step 1: Install the CLI**
 
 ```bash
 npm install -g @renxqoo/rxcordys-cli
 ```
 
-安装后跑 `rxcordys --help` 确认可用。不想全局装?用 `npx @renxqoo/rxcordys-cli <命令>` 临时执行。
+After installation, run `rxcordys --help` to confirm it works. Don't want a global install? Use `npx @renxqoo/rxcordys-cli <command>` to execute on demand.
 
-**第 2 步:安装 Skill(让 AI 工具发现)**
+**Step 2: Install the Skill (so AI tools can discover it)**
 
-把 skill 同步到 `~/.agents/skills/`(Claude Code / Cursor / Trae 等 AI 工具的通用发现路径):
+Sync the skill to `~/.agents/skills/` (the common discovery path for AI tools such as Claude Code / Cursor / Trae):
 
 ```bash
 rxcordys skills sync
 ```
 
-同步后 AI 工具即可在用户提到线索/客户/商机/合同等关键词时自动触发本 skill。验证:
+Once synced, AI tools will automatically trigger this skill when users mention keywords like leads/accounts/opportunities/contracts. Verify:
 
 ```bash
-rxcordys skills list                # 列出已装的 skill
-ls ~/.agents/skills/rxcordys-cli/   # 确认 skill 文件就位
+rxcordys skills list                # List installed skills
+ls ~/.agents/skills/rxcordys-cli/   # Confirm the skill files are in place
 ```
 
-**第 3 步:配置凭证
+**Step 3: Configure credentials**
 
-凭证从 Cordys 管理后台「个人中心 → API Keys」获取,两种方式任选:
+Obtain credentials from the Cordys admin console under 'Profile Center → API Keys'. Choose one of two methods:
 
 ```bash
-# 方式 A:持久化(推荐,写 ~/.rxcli/credentials/cordys.json)
+# Method A: Persistent (recommended, writes to ~/.rxcli/credentials/cordys.json)
 rxcordys auth login --accessKey <AccessKey> --secretKey <SecretKey>
 
-# 方式 B:环境变量(CI / 临时)
+# Method B: Environment variables (CI / temporary)
 export CORDYS_ACCESS_KEY=<AccessKey>
 export CORDYS_SECRET_KEY=<SecretKey>
-# 自部署:export CORDYS_CRM_DOMAIN=https://你的地址
+# Self-hosted: export CORDYS_CRM_DOMAIN=https://your-address
 ```
 
-验证:`rxcordys whoami` 返回用户信息即凭证有效。
+Verify: `rxcordys whoami` returning user information means the credentials are valid.
 
-## 功能
+## Features
 
-覆盖线索 → 客户 → 商机 → 合同 → 回款 → 发票 → 订单的 L2C 全流程:
+Covers the full L2C workflow of leads → accounts → opportunities → contracts → payments → invoices → orders:
 
-| 模块 | 说明 |
+| Module | Description |
 |------|------|
-| `leads` | 线索 CRUD + 转客户(transition)/ 转商机(transform) |
-| `accounts` | 客户 CRUD + 客户 360(合同/商机/订单/回款/发票子资源 + 统计) |
-| `opportunities` | 商机 CRUD + 报价单(quotation) |
-| `contacts` | 联系人 CRUD |
-| `contracts` | 合同 + 回款计划/记录 + 工商抬头 + 统计 |
-| `invoices` | 发票 |
-| `orders` | 订单 + 统计 |
-| `follows` | 跟进计划/记录(跨 lead/account/opportunity) |
-| `approvals` | 审批待办/动作/资源/流程配置 |
-| `stats` | 模块金额统计 + 首页看板 |
-| `records` | 跨模块通用(view/get/page/search/contact/product/form) |
-| `util` | whoami/org/members/glocount/raw 透传 |
+| `leads` | Leads CRUD + convert to account (transition) / convert to opportunity (transform) |
+| `accounts` | Accounts CRUD + account 360 (contracts/opportunities/orders/payments/invoices sub-resources + stats) |
+| `opportunities` | Opportunities CRUD + quotations (quotation) |
+| `contacts` | Contacts CRUD |
+| `contracts` | Contracts + payment plans/records + business registration headers + stats |
+| `invoices` | Invoices |
+| `orders` | Orders + stats |
+| `follows` | Follow-up plans/records (across lead/account/opportunity) |
+| `approvals` | Approvals to-do/actions/resources/workflow config |
+| `stats` | Module amount stats + home page dashboard |
+| `records` | Cross-module generic (view/get/page/search/contact/product/form) |
+| `util` | whoami/org/members/glocount/raw passthrough |
 
-## 常用命令
-
-```bash
-rxcordys leads page --json                              # 查询线索(分页)
-rxcordys accounts page "张三"                           # 搜客户
-rxcordys accounts sub contract <customerId>            # 某客户名下的合同
-rxcordys contracts stat                                # 合同金额统计
-rxcordys accounts add '{"name":"客户A"}' --yes         # 新增客户(高危需 --yes)
-rxcordys leads transition '{"clueId":"L1","name":"X"}' --yes  # 线索转客户
-rxcordys approvals todo pending                        # 待我审批
-rxcordys util raw GET /lead/view/view                  # 透传未覆盖端点
-```
-
-加 `--dryRun` 仅校验不提交;完整命令见 `rxcordys --help`。
-
-## 输出契约
-
-遵循 agent-data-cli 统一输出格式:`{ ok, source, data, meta }`。列表命令自动计算 `meta.pagination.complete`。
-
-## 开发
+## Common commands
 
 ```bash
-pnpm --filter @renxqoo/rxcordys-cli build       # 编译
-pnpm --filter @renxqoo/rxcordys-cli test         # 测试(61 用例)
-pnpm --filter @renxqoo/rxcordys-cli typecheck    # 类型检查
+rxcordys leads page --json                              # Query leads (paginated)
+rxcordys accounts page "张三"                           # Search accounts
+rxcordys accounts sub contract <customerId>            # Contracts under an account
+rxcordys contracts stat                                # Contract amount stats
+rxcordys accounts add '{"name":"客户A"}' --yes         # Create account (high-risk, requires --yes)
+rxcordys leads transition '{"clueId":"L1","name":"X"}' --yes  # Convert lead to account
+rxcordys approvals todo pending                        # Approvals pending for me
+rxcordys util raw GET /lead/view/view                  # Passthrough for uncovered endpoints
 ```
 
-Skill 文档:`skills/rxcordys-cli/SKILL.md`(手写维护,决策信息前置)。
+Add `--dryRun` to validate only, do not submit; see `rxcordys --help` for the full command list.
 
-## 技术决策
+## Output contract
 
-- **命名**:npm 包 `@renxqoo/rxcordys-cli` / bin 命令 `rxcordys` / skill `rxcordys-cli` / 凭证 namespace `cordys`。
-- **手写 auth plugin**(非 `defineAuth`):Cordys 用静态双 header,框架 `injectAuthHeader` 只支持单 header,故手写 `beforeRequest` 注入。
-- **业务码解包**:Cordys 业务错误可能 HTTP 200 + `code≠100200`,所有命令经 `unwrap()` 解包校验。
-- **credentialNamespace = `cordys`**:避免与 `apps/crm` 的 `crm` namespace 撞名共用凭证。
+Follows the unified agent-data-cli output format: `{ ok, source, data, meta }`. List commands automatically compute `meta.pagination.complete`.
+
+## Development
+
+```bash
+pnpm --filter @renxqoo/rxcordys-cli build       # Compile
+pnpm --filter @renxqoo/rxcordys-cli test         # Test (61 cases)
+pnpm --filter @renxqoo/rxcordys-cli typecheck    # Type check
+```
+
+Skill documentation: `skills/rxcordys-cli/SKILL.md` (hand-written and maintained, with decision information up front).
+
+## Technical decisions
+
+- **Naming**: npm package `@renxqoo/rxcordys-cli` / bin command `rxcordys` / skill `rxcordys-cli` / credential namespace `cordys`.
+- **Hand-written auth plugin** (not `defineAuth`): Cordys uses static dual headers, and the framework's `injectAuthHeader` only supports a single header, so a hand-written `beforeRequest` injection is used.
+- **Business code unwrapping**: Cordys business errors may return HTTP 200 + `code≠100200`, so all commands go through `unwrap()` for unwrapping and validation.
+- **credentialNamespace = `cordys`**: Avoids colliding and sharing credentials with the `crm` namespace of `apps/crm`.

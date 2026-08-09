@@ -6,6 +6,7 @@ import { cleanSubPath, listPath } from "../skills/reader.js";
 import { syncSkills } from "../skills/sync.js";
 import {
   signatureLine,
+  argsTable,
   generateAutogenBlock,
   refreshAutogen,
   generateSkillSkeleton,
@@ -118,13 +119,13 @@ describe("gen: AUTO-GEN 块生成", () => {
 
   it("generateAutogenBlock 只生成命令索引表(不含参数说明)", () => {
     const block = generateAutogenBlock("rxcli-orders", cliOptions);
-    expect(block).toContain("## 命令");
-    expect(block).toContain("| 操作 | 命令 |");
+    expect(block).toContain("## Commands");
+    expect(block).toContain("| Operation | Command |");
     expect(block).toContain("查询订单列表");
     expect(block).toContain("rxcli-orders list");
     // 参数细节不进 AUTO-GEN 块(交给 references 按需加载)
-    expect(block).not.toContain("### 参数说明");
-    expect(block).not.toContain("| 参数 | 类型 |");
+    expect(block).not.toContain("### Argument");
+    expect(block).not.toContain("| Argument | Type |");
     expect(block).not.toContain("返回数量上限");
   });
 
@@ -143,7 +144,7 @@ describe("gen: AUTO-GEN 块生成", () => {
     const block = generateAutogenBlock("demo", opts);
     expect(block).toContain("demo ping");
     expect(block).toContain("demo list");
-    expect(block).not.toContain("### 参数说明");
+    expect(block).not.toContain("### Argument");
     expect(block).not.toContain("无参数");
   });
 
@@ -192,8 +193,87 @@ describe("gen: 骨架生成(--init)", () => {
     expect(skel).toContain("{{FILL"); // 占位
     expect(skel).toContain(AUTOGEN_START);
     expect(skel).toContain("rxcli-orders list");
+    expect(skel).toContain("## When to use");
+    expect(skel).toContain("## Error handling");
+  });
+});
+
+describe("gen: lang 参数(中英文)", () => {
+  const cliOptions: Pick<DefineCliOptions<any>, "commands" | "namespaces"> = {
+    commands: defineCommands({
+      list: defineCommand({
+        name: "list",
+        description: "查询订单列表",
+        args: { limit: { type: "number", desc: "返回数量上限" } },
+        async run() {},
+      }),
+    }),
+  };
+
+  it("generateAutogenBlock lang='en' (默认) → 英文表头", () => {
+    const block = generateAutogenBlock("rxcli", cliOptions);
+    expect(block).toContain("## Commands");
+    expect(block).toContain("| Operation | Command |");
+    expect(block).not.toContain("## 命令");
+  });
+
+  it("generateAutogenBlock lang='zh' → 中文表头", () => {
+    const block = generateAutogenBlock("rxcli", cliOptions, "zh");
+    expect(block).toContain("## 命令");
+    expect(block).toContain("| 操作 | 命令 |");
+    expect(block).not.toContain("## Commands");
+  });
+
+  it("argsTable lang='en' (默认) → 英文表头 + yes/no", () => {
+    const table = argsTable({
+      id: { type: "string", required: true, desc: "ID" },
+      tag: { type: "string", desc: "标签" },
+    });
+    expect(table).toContain("| Argument | Type | Required | Default | Description |");
+    expect(table).toMatch(/\| .* \| .* \| yes \|/); // id required
+    expect(table).toMatch(/\| .* \| .* \| no \|/); // tag optional
+  });
+
+  it("argsTable lang='zh' → 中文表头 + 是/否", () => {
+    const table = argsTable(
+      {
+        id: { type: "string", required: true, desc: "ID" },
+        tag: { type: "string", desc: "标签" },
+      },
+      "zh",
+    );
+    expect(table).toContain("| 参数 | 类型 | 必填 | 默认 | 说明 |");
+    expect(table).toMatch(/\| .* \| .* \| 是 \|/);
+    expect(table).toMatch(/\| .* \| .* \| 否 \|/);
+  });
+
+  it("generateSkillSkeleton lang='zh' → 中文章节标题 + 中文占位", () => {
+    const skel = generateSkillSkeleton("orders", "查询订单", "rxcli", cliOptions, "zh");
     expect(skel).toContain("## 何时用");
+    expect(skel).toContain("## 前置条件");
     expect(skel).toContain("## 错误处理");
+    expect(skel).toContain("本区块由");
+    expect(skel).toContain("{{FILL: 简介");
+    expect(skel).not.toContain("## When to use");
+  });
+
+  it("generateSkillSkeleton lang='en' (默认) → 英文章节标题", () => {
+    const skel = generateSkillSkeleton("orders", "查询订单", "rxcli", cliOptions);
+    expect(skel).toContain("## When to use");
+    expect(skel).toContain("## Prerequisites");
+    expect(skel).toContain("## Error handling");
+    expect(skel).toContain("do not edit by hand");
+    expect(skel).toContain("{{FILL: intro");
+    expect(skel).not.toContain("## 何时用");
+  });
+
+  it("refreshAutogen lang='zh' → 中文 AUTO-GEN 注释 + 命令表", () => {
+    const updated = refreshAutogen("# orders\n\n简介", "rxcli", cliOptions, "zh");
+    expect(updated).toContain("本区块由");
+    expect(updated).toContain("## 命令");
+    expect(updated).toContain("| 操作 | 命令 |");
+    // 块外语义内容保留
+    expect(updated).toContain("简介");
   });
 });
 

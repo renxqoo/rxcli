@@ -1,72 +1,75 @@
 # @renxqoo/agent-data-cli
 
-> Agent-native CLI framework —— 让 AI agent 结构化获取业务数据的命令行框架。
+[English](README.md) · [中文](README.zh-CN.md)
+
+> Agent-native CLI framework — a command-line framework that lets AI agents consume business data in a structured way.
 >
-> 业务包只声明"调哪个后端接口、字段怎么处理",就获得鉴权、统一输出格式、错误分类、凭证、管道、skill 发现等全套能力。
+> Business packages only declare "which backend API to call and how to process fields" — and get auth, unified output format, error classification, credentials, pipes, skill discovery, and more out of the box.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 
 ---
 
-## 为什么需要它
+## Why you need it
 
-让 AI agent(或脚本、管道)消费你的业务数据时,有个核心矛盾:**后端接口千差万别**(REST/GraphQL/RPC、OAuth/API-key/mTLS、各种字段命名),但"把数据交给 agent 的方式"是通用的。
+When an AI agent (or script, or pipeline) consumes your business data, there's a core tension: **backend APIs vary wildly** (REST/GraphQL/RPC, OAuth/API-key/mTLS, all kinds of field naming), but "how data is delivered to an agent" is universal.
 
-`agentdatacli` 把前者交给业务包,后者收敛成框架能力:
+`agent-data-cli` leaves the former to business packages and converges the latter into framework capabilities:
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  @renxqoo/agent-data-cli  (本包,框架)                      │
-│  鉴权 / 请求 / 统一输出 / 错误分类 / 凭证 / 管道 / skill │
-├─────────────────────────────────────────────────────────┤
-│  你的业务包  (依赖本包,只对接业务接口)                    │
-│  例:@renxqoo/rxstock(A 股行情/财务/技术指标,公开数据)   │
-│     @renxqoo/cli(订单/商品/发票,OAuth 鉴权)            │
-├─────────────────────────────────────────────────────────┤
-│  agent / 终端用户                                        │
-│  unix 管道组合命令,读 skill 自服务发现                   │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│  @renxqoo/agent-data-cli  (this package, the framework)             │
+│  auth / request / unified output / error classification /           │
+│  credentials / pipe / skill                                         │
+├─────────────────────────────────────────────────────────────────────┤
+│  Your business package  (depends on this package, only wires APIs)  │
+│  e.g. @renxqoo/rxstock (A-share quotes/financials/indicators, public)│
+│       @renxqoo/cli (orders/products/invoices, OAuth auth)           │
+├─────────────────────────────────────────────────────────────────────┤
+│  agent / terminal user                                              │
+│  compose commands via unix pipes, read skills for self-discovery    │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 特性
+## Features
 
-- **🔐 鉴权工厂 `defineAuth`** —— OAuth 2.0 device flow(RFC 8628)+ 401 singleflight 自动刷新。一行配置,login/status/logout/register 命令自动注入。
-- **📦 结构化统一输出** —— JSON 模式输出 `{ok, source, data, meta}`,stderr 是错误输出,exit code 分类；`defaultFormat` 可选择 JSON、人类文本或 TTY 自动模式。
-- **🏷️ 9 类类型化错误** —— validation/authentication/permission/config/network/api/not_found/policy/internal,每类映射 exit code。
-- **🔌 vite 式插件** —— beforeCommand/beforeRequest/afterRequest/beforeOutput/onError 钩子 + `provides` 自动贡献命令。
-- **🔑 provider chain** —— flag/env/file/oauth 四级凭证解析优先级,业务自定义凭证源。
-- **🚇 unix 管道** —— `rxcli orders list | rxcli report` 自动把上游统一输出格式拆成记录流。
-- **📖 skill 系统** —— SKILL.md 命令文档自动生成,同步到 `~/.agents/skills/`,供 AI agent 自服务发现。
-- **🖥️ 双模输出** —— 默认 `auto`(TTY 文本、脚本/管道 JSON);`--json` / `--no-json` 显式覆盖；`defaultFormat` 可固定默认。
-- **🧙 install 向导** —— 全局安装 + skills 装载 + 注册 + 登录引导,业务包拦截 `install` 命令即可。
+- **🔐 Auth factory `defineAuth`** — OAuth 2.0 device flow (RFC 8628) + 401 singleflight auto-refresh. One line of config and login/status/logout/register commands are injected automatically.
+- **📦 Structured unified output** — JSON mode outputs `{ok, source, data, meta}`, stderr is the error stream, exit codes are categorized; `defaultFormat` can choose JSON, human text, or TTY auto mode.
+- **🏷️ 9 typed error classes** — validation/authentication/permission/config/network/api/not_found/policy/internal, each mapped to an exit code.
+- **🔌 Vite-style plugins** — beforeCommand/beforeRequest/afterRequest/beforeOutput/onError hooks + `provides` for auto-contributing commands.
+- **🔑 Provider chain** — flag/env/file/oauth four-tier credential resolution priority, with custom credential sources per business.
+- **🚇 Unix pipes** — `rxcli orders list | rxcli report` automatically splits the upstream unified output into a record stream.
+- **📖 Skill system** — SKILL.md command docs auto-generated and synced to `~/.agents/skills/` for AI agent self-discovery.
+- **🖥️ Dual-mode output** — defaults to `auto` (TTY→text, script/pipe→JSON); `--json` / `--no-json` for explicit override; `defaultFormat` to pin a default.
+- **🧙 Install wizard** — global install + skills loading + register + login guidance; business packages just intercept the `install` command.
 
-### 实际业务包(基于本框架)
+### Real business packages (built on this framework)
 
-| 业务包                                   | 场景                   | 鉴权模式          | 看点                                                  |
-| ---------------------------------------- | ---------------------- | ----------------- | ----------------------------------------------------- |
-| [`@renxqoo/rxstock`](../../apps/a-stock) | A 股行情/财务/技术指标 | 无(公开数据)      | 多源 fallback、统一 fallback 执行器、技术指标本地计算 |
-| [`@renxqoo/cli`](../../apps/crm)         | 公司业务(订单/商品)    | OAuth device flow | 中间层鉴权、split-flow 登录、install 向导             |
+| Package                                 | Scenario                        | Auth mode         | Highlights                                              |
+| --------------------------------------- | ------------------------------- | ----------------- | ------------------------------------------------------- |
+| [`@renxqoo/rxstock`](../../apps/a-stock) | A-share quotes/financials/indicators | None (public data) | Multi-source fallback, unified fallback executor, local indicator computation |
+| [`@renxqoo/cli`](../../apps/crm)        | Company business (orders/products) | OAuth device flow | Middleware auth, split-flow login, install wizard       |
 
 ---
 
-## 安装
+## Installation
 
 ```bash
 npm install @renxqoo/agent-data-cli
-# 或
+# or
 pnpm add @renxqoo/agent-data-cli
 ```
 
-> **要求** Node.js >= 18
+> **Requires** Node.js >= 18
 
 ---
 
-## 快速开始(写一个业务包)
+## Quick start (write a business package)
 
-一个命令 < 30 行(无鉴权场景,如公开数据):
+A single command in < 30 lines (no-auth scenario, e.g. public data):
 
 ```ts
 import { defineCli, defineCommand } from "@renxqoo/agent-data-cli";
@@ -75,12 +78,12 @@ import { fileURLToPath } from "node:url";
 
 const app = defineCli({
   name: "myapp",
-  description: "我的数据 CLI",
+  description: "My data CLI",
   commands: {
     list: defineCommand({
       name: "list",
-      description: "查询列表",
-      args: { limit: { type: "number", default: 20, desc: "返回数量上限" } },
+      description: "Query list",
+      args: { limit: { type: "number", default: 20, desc: "Maximum number of results" } },
       async run(args, ctx) {
         const res = await ctx.get<{ items: any[] }>("/items", { limit: args.limit });
         return { data: res.data.items, meta: { count: res.data.items.length } };
@@ -89,7 +92,7 @@ const app = defineCli({
   },
 });
 
-// bin 入口检测(realpathSync 避免 npm 全局安装软链失配)
+// bin entry detection (realpathSync avoids npm global-install symlink mismatch)
 function isMainEntry(): boolean {
   try {
     return realpathSync(process.argv[1] ?? "") === fileURLToPath(import.meta.url);
@@ -101,10 +104,10 @@ if (isMainEntry()) app.run(process.argv.slice(2));
 export default app;
 ```
 
-> 完整无鉴权示例见实际业务包 [`@renxqoo/rxstock`](../../apps/a-stock)(A 股数据,多源 fallback)。
-> 鉴权场景(对接 OAuth 后端)见 [`@renxqoo/cli`](../../apps/crm)。
+> For a complete no-auth example, see the real package [`@renxqoo/rxstock`](../../apps/a-stock) (A-share data, multi-source fallback).
+> For an auth scenario (OAuth backend), see [`@renxqoo/cli`](../../apps/crm).
 
-加鉴权(一行):
+Add auth (one line):
 
 ```ts
 import { defineCli, defineAuth } from "@renxqoo/agent-data-cli";
@@ -112,91 +115,91 @@ import { defineCli, defineAuth } from "@renxqoo/agent-data-cli";
 const auth = await defineAuth({
   credentialNamespace: "orders",
   baseUrl: "https://auth.example.com",
-  scope: "orders.read offline_access", // 业务自定,无默认值
+  scope: "orders.read offline_access", // business-defined, no default
 });
 
 export default defineCli({
   name: "orders",
-  plugins: [auth], // ← 钩子 + login/status/logout/register 全自动注入
+  plugins: [auth], // ← hooks + login/status/logout/register auto-injected
   commands: {},
   // ...
 });
 ```
 
-→ `rxcli auth login` / `rxcli auth status` / `rxcli auth logout` / `rxcli auth register` 自动可用,无需手挂命令。
+→ `rxcli auth login` / `rxcli auth status` / `rxcli auth logout` / `rxcli auth register` are available automatically — no manual command mounting needed.
 
 ---
 
-## 核心 API
+## Core API
 
-### `defineCli(options)` — 装配业务包
+### `defineCli(options)` — Assemble a business package
 
 ```ts
 defineCli({
-  name: 'orders',                  // 必填:命名空间
-  description: '...',              // 必填
-  plugins: [authPlugin],           // 可选:插件(auth/日志/审计...)
-  commands: { list, get },         // 必填:顶层命令 → rxcli list
-  namespaces: { orders: {...} },   // 可选:子命名空间 → rxcli orders list
-  baseUrl: 'https://api.x.com',    // 可选:后端地址
-  errorOnStatus: { 404: 'not_found', '5xx': 'server_error' },  // 可选
-  defaultFormat: 'auto',           // 可选:'auto'(默认)|'json'|'human'
-  skillsDir: './skills',           // 可选:skill 目录
+  name: 'orders',                  // required: namespace
+  description: '...',              // required
+  plugins: [authPlugin],           // optional: plugins (auth/logging/audit...)
+  commands: { list, get },         // required: top-level commands → rxcli list
+  namespaces: { orders: {...} },   // optional: sub-namespaces → rxcli orders list
+  baseUrl: 'https://api.x.com',    // optional: backend address
+  errorOnStatus: { 404: 'not_found', '5xx': 'server_error' },  // optional
+  defaultFormat: 'auto',           // optional: 'auto' (default) | 'json' | 'human'
+  skillsDir: './skills',           // optional: skill directory
 })
 ```
 
-### `defineCommand(spec)` — 声明命令
+### `defineCommand(spec)` — Declare a command
 
 ```ts
 defineCommand({
   name: "get",
-  description: "查询单个订单",
+  description: "Query a single order",
   args: {
-    id: { type: "string", required: true, positional: true, desc: "订单 ID" },
-    verbose: { type: "boolean", desc: "详细输出" },
+    id: { type: "string", required: true, positional: true, desc: "Order ID" },
+    verbose: { type: "boolean", desc: "Verbose output" },
   },
-  humanFormat: (data, meta) => `订单: ${data.id}`, // 可选:--no-json 自定义文本
+  humanFormat: (data, meta) => `Order: ${data.id}`, // optional: custom text for --no-json
   async run(args, ctx) {
-    // ctx.get/post/put/patch/delete —— 请求方法直接挂 ctx
+    // ctx.get/post/put/patch/delete — request methods are attached directly to ctx
     const res = await ctx.get(`/orders/${args.id}`);
     return { data: res.data };
   },
 });
 ```
 
-### `defineAuth(opts)` — OAuth 鉴权工厂
+### `defineAuth(opts)` — OAuth auth factory
 
 ```ts
 const auth = await defineAuth({
   credentialNamespace: "crm", // → credentials/crm.json
-  baseUrl: AUTH_BASE_URL, // OAuth 中间层
-  scope: "company.api offline_access", // 业务自定,空=不带 scope
-  // commandNamespace: 'auth',      // 默认 'auth' → rxcli auth login
-  // authStyle: 'bearer',           // 默认 'bearer' | 'x-api-key' | 'basic'
+  baseUrl: AUTH_BASE_URL, // OAuth middleware
+  scope: "company.api offline_access", // business-defined; empty = no scope
+  // commandNamespace: 'auth',      // default 'auth' → rxcli auth login
+  // authStyle: 'bearer',           // default 'bearer' | 'x-api-key' | 'basic'
 });
 ```
 
-返回一个 Plugin,塞进 `plugins: [auth]` 即:钩子生效 + auth 命令自动挂载。
+Returns a Plugin — drop it into `plugins: [auth]` to activate the hooks and auto-mount the auth commands.
 
-### Plugin(钩子 + provides)
+### Plugin (hooks + provides)
 
 ```ts
 const myPlugin: Plugin = {
   name: "audit",
-  enforce: "pre", // 'pre' | 'post'(默认 normal)
+  enforce: "pre", // 'pre' | 'post' (default normal)
   provides: {
-    // 可选:贡献命令,defineCli 自动注入
+    // optional: contribute commands, auto-injected by defineCli
     namespaces: { admin: { users: userCmd } },
     commands: { telemetry: telemetryCmd },
   },
   async beforeCommand(ctx) {
-    /* 填 state */
+    /* populate state */
   },
   async beforeRequest(ctx, req) {
-    /* 加 header */
+    /* add header */
   },
   async afterRequest(ctx, res) {
-    /* 审计 */
+    /* audit */
   },
   async beforeOutput(ctx, data) {
     return transformedData;
@@ -207,92 +210,92 @@ const myPlugin: Plugin = {
 };
 ```
 
-> plugin `provides` 贡献的命令**自动豁免该 plugin 自身的 beforeCommand**(精确豁免),不豁免别的 plugin。无需手写 `internal: true`。
+> Commands contributed via a plugin's `provides` are **automatically exempted from that same plugin's own `beforeCommand`** (precise exemption), but not from other plugins. No need to hand-write `internal: true`.
 
 ---
 
-## 输出契约
+## Output contract
 
-**成功**(stdout):
+**Success** (stdout):
 
 ```json
 {"ok":true,"identity":"user","data":{"orders":[...]},"meta":{"count":2,"pagination":{"complete":true}}}
 ```
 
-**错误**(stderr):
+**Error** (stderr):
 
 ```json
 {
   "ok": false,
-  "error": { "type": "api", "subtype": "not_found", "message": "订单不存在", "hint": "检查 ID" }
+  "error": { "type": "api", "subtype": "not_found", "message": "Order not found", "hint": "Check the ID" }
 }
 ```
 
-**exit code 映射**(框架按错误类别自动设,agent 可据此判断处理策略):
+**Exit code mapping** (set automatically by the framework by error category; agents can use it to decide handling strategy):
 
-| code | 类别                                    | 含义                           |
-| ---- | --------------------------------------- | ------------------------------ |
-| 0    | —                                       | 成功                           |
-| 1    | api                                     | 服务端业务错误(404/500/429 等) |
-| 2    | validation                              | 参数不合法                     |
-| 3    | authentication / authorization / config | 需登录 / 缺权限 / 配置缺失     |
-| 4    | network                                 | DNS / 超时 / 拒绝              |
-| 5    | internal                                | SDK 内部错误(几乎不该发生)     |
-| 6    | policy                                  | 风控拦截                       |
-| 10   | confirmation                            | 高危写入需 `--yes`             |
+| code | category                                | meaning                              |
+| ---- | --------------------------------------- | ------------------------------------ |
+| 0    | —                                       | success                              |
+| 1    | api                                     | server-side business error (404/500/429, etc.) |
+| 2    | validation                              | invalid parameter                    |
+| 3    | authentication / authorization / config | login required / missing permission / missing config |
+| 4    | network                                 | DNS / timeout / connection refused   |
+| 5    | internal                                | SDK internal error (should rarely happen) |
+| 6    | policy                                  | risk-control block                   |
+| 10   | confirmation                            | high-risk write requires `--yes`     |
 
-9 类类型化错误:`ValidationError` / `AuthenticationError` / `PermissionError` / `ConfigError` / `NetworkError` / `APIError`(`NotFoundError` 子类)/ `PolicyError` / `InternalError` / `ConfirmationRequiredError`。永远用 `errs.*` 构造,不要 `throw new Error()`(会被降级成 internal/unknown)。
-
----
-
-## `--json` / `--no-json` 输出模式
-
-| 模式                     | 行为                                              |
-| ------------------------ | ------------------------------------------------- |
-| 默认(`auto`)             | stdout 是 TTY(终端)→ 文本;非 TTY(管道/脚本)→ JSON |
-| `--json`                 | 强制 JSON 统一输出                                    |
-| `--no-json`              | 强制文本(管道保护:stdin 非 TTY 时仍 JSON)         |
-| `defaultFormat: 'human'` | 业务设默认文本                                    |
-| `defaultFormat: 'json'`  | 业务设默认 JSON                                   |
-
-`--no-json` 文本模式:框架自动识别数据结构出表格(对象数组→表格 / 单对象→key:value / scalar 数组→序号列表),命令可选 `humanFormat` 精致化(¥/中文列名/翻译)。CJK 字符按显示宽度对齐。
+9 typed error classes: `ValidationError` / `AuthenticationError` / `PermissionError` / `ConfigError` / `NetworkError` / `APIError` (with `NotFoundError` subclass) / `PolicyError` / `InternalError` / `ConfirmationRequiredError`. Always construct them with `errs.*` — never `throw new Error()` (it gets downgraded to internal/unknown).
 
 ---
 
-## 文档
+## `--json` / `--no-json` output modes
 
-### 设计文档(随包发布,`docs/` 目录)
+| Mode                      | Behavior                                                        |
+| ------------------------- | --------------------------------------------------------------- |
+| Default (`auto`)          | stdout is a TTY (terminal) → text; non-TTY (pipe/script) → JSON |
+| `--json`                  | Force unified JSON output                                       |
+| `--no-json`               | Force text (pipe protection: still JSON when stdin is non-TTY)  |
+| `defaultFormat: 'human'`  | Business sets text as default                                   |
+| `defaultFormat: 'json'`   | Business sets JSON as default                                   |
 
-| 文档                                          | 内容                            |
-| --------------------------------------------- | ------------------------------- |
-| [`00-overview.md`](docs/00-overview.md)       | 架构、分层、决策清单            |
-| [`01-cli-usage.md`](docs/01-cli-usage.md)     | 命令调用、管道、分页、exit code |
-| [`02-sdk-guide.md`](docs/02-sdk-guide.md)     | SDK 用法、ctx 接口、钩子        |
-| [`03-envelopes.md`](docs/03-envelopes.md)     | 统一输出字段契约                    |
-| [`04-errors.md`](docs/04-errors.md)           | 9 类错误、何时 throw            |
-| [`05-credentials.md`](docs/05-credentials.md) | provider chain、自定义凭证      |
-| [`06-skills.md`](docs/06-skills.md)           | skill 系统、命令文档自动生成    |
-
-### Agent Skill:agent-cli-builder
-
-框架自带一个 AI Agent Skill([`skills/agent-cli-builder`](skills/agent-cli-builder/SKILL.md)),教 AI 如何用本框架从零构建 agent-native CLI 业务包。AI Agent 读它即可学会:5 分钟写出无鉴权 CLI、配置 OAuth 鉴权、多源 fallback、写 SKILL.md 让 Agent 自服务发现。这是"用 AI 做 CLI"的关键能力。
-
-包含进阶参考:
-
-- [`auth-patterns.md`](skills/agent-cli-builder/references/auth-patterns.md) — defineAuth / split-flow 登录 / register / HMAC
-- [`patterns.md`](skills/agent-cli-builder/references/patterns.md) — 分页续拉 / 管道下游 / humanFormat
-- [`error-catalog.md`](skills/agent-cli-builder/references/error-catalog.md) — 30+ subtype 速查 + errorOnStatus 配置
-- [`testing.md`](skills/agent-cli-builder/references/testing.md) — createTestCtx 全套 mock
+`--no-json` text mode: the framework auto-detects the data structure and renders a table (array of objects → table / single object → key:value / scalar array → numbered list); commands can optionally provide a `humanFormat` for polish (¥ / Chinese column names / translations). CJK characters are aligned by display width.
 
 ---
 
-## 开发
+## Documentation
+
+### Design docs (shipped with the package, in the `docs/` directory)
+
+| Doc                                         | Content                                       |
+| ------------------------------------------- | --------------------------------------------- |
+| [`00-overview.md`](docs/00-overview.md)     | Architecture, layering, decision checklist    |
+| [`01-cli-usage.md`](docs/01-cli-usage.md)   | Command invocation, pipes, pagination, exit codes |
+| [`02-sdk-guide.md`](docs/02-sdk-guide.md)   | SDK usage, ctx interface, hooks               |
+| [`03-envelopes.md`](docs/03-envelopes.md)   | Unified output field contract                 |
+| [`04-errors.md`](docs/04-errors.md)         | 9 error classes, when to throw                |
+| [`05-credentials.md`](docs/05-credentials.md) | Provider chain, custom credentials          |
+| [`06-skills.md`](docs/06-skills.md)         | Skill system, command doc auto-generation     |
+
+### Agent Skill: agent-cli-builder
+
+The framework ships an AI Agent Skill ([`skills/agent-cli-builder`](skills/agent-cli-builder/SKILL.md)) that teaches AI how to build an agent-native CLI business package from scratch using this framework. After reading it, an AI agent can: write a no-auth CLI in 5 minutes, configure OAuth auth, set up multi-source fallback, and write a SKILL.md so the agent can self-discover. This is the key capability for "building CLIs with AI".
+
+Includes advanced references:
+
+- [`auth-patterns.md`](skills/agent-cli-builder/references/auth-patterns.md) — defineAuth / split-flow login / register / HMAC
+- [`patterns.md`](skills/agent-cli-builder/references/patterns.md) — pagination follow-up / pipe downstream / humanFormat
+- [`error-catalog.md`](skills/agent-cli-builder/references/error-catalog.md) — 30+ subtype quick reference + errorOnStatus config
+- [`testing.md`](skills/agent-cli-builder/references/testing.md) — createTestCtx full mock suite
+
+---
+
+## Development
 
 ```bash
-pnpm install        # 装依赖
-pnpm build          # 构建
-pnpm typecheck      # 类型检查
-pnpm test           # 跑测试(vitest)
+pnpm install        # Install dependencies
+pnpm build          # Build
+pnpm typecheck      # Type checking
+pnpm test           # Run tests (vitest)
 ```
 
 ## License

@@ -40,7 +40,7 @@ export const stockCommands = defineCommands({
         meta: {
           total: data.length,
           keyword,
-          hint: "使用 `rxstock stock info <code>` 或 `rxstock quote get <code>` 查详情",
+          hint: "Use `rxstock stock info <code>` or `rxstock quote get <code>` for details",
         },
       };
     },
@@ -86,7 +86,7 @@ export const stockCommands = defineCommands({
         throw new errs.ValidationError({
           subtype: "invalid_param",
           param: "market",
-          message: `不支持的市场:${market}(可选:${VALID_MARKETS.join(",")})`,
+          message: `Unsupported market: ${market} (valid: ${VALID_MARKETS.join(",")})`,
         });
       }
       const s = (sort ?? "changePercent") as ListSort;
@@ -94,7 +94,7 @@ export const stockCommands = defineCommands({
         throw new errs.ValidationError({
           subtype: "invalid_param",
           param: "sort",
-          message: `不支持的排序字段:${sort}(可选:${VALID_SORTS.join(",")})`,
+          message: `Unsupported sort field: ${sort} (valid: ${VALID_SORTS.join(",")})`,
         });
       }
       const data = await getStockList({
@@ -134,7 +134,7 @@ export const stockCommands = defineCommands({
     humanFormat: formatProfileHuman,
     async run({ code }) {
       const data = await getCompanyProfile(code);
-      if (!data) throw new errs.NotFoundError(`未找到 ${code} 的公司信息`);
+      if (!data) throw new errs.NotFoundError(`Company info not found for ${code}`);
       return { data };
     },
   }),
@@ -157,11 +157,13 @@ export const stockCommands = defineCommands({
     async run({ code, days }) {
       const data = await getValuation(code, days ?? 250);
       if (!data)
-        throw new errs.NotFoundError(`无法计算 ${code} 的估值(可能缺 EPS/BPS 或历史数据不足)`);
+        throw new errs.NotFoundError(
+          `Cannot calculate valuation for ${code} (missing EPS/BPS or insufficient historical data)`,
+        );
       return {
         data,
         meta: {
-          hint: "百分位 0-100:>80 偏贵(高估),<20 偏便宜(低估),50 为中位。基于价/EPS 代理,反映估值随价变动趋势",
+          hint: "Percentile 0-100: >80 expensive (overvalued), <20 cheap (undervalued), 50 median. Based on price/EPS proxy, reflects valuation trend with price changes",
         },
       };
     },
@@ -184,7 +186,7 @@ export const stockCommands = defineCommands({
         data,
         meta: {
           dimensions: ["fundamental", "technical", "holders"],
-          hint: "基本面看 PE/PB/ROE/成长性;技术面看均线排列/MACD/RSI/KDJ;股东看筹码集中度趋势",
+          hint: "Fundamentals: PE/PB/ROE/growth; Technicals: MA alignment/MACD/RSI/KDJ; Shareholders: concentration trend",
         },
       };
     },

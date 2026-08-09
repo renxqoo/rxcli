@@ -44,9 +44,9 @@ import { runBeforeRequest } from "./plugin.js";
 export function defineCommand<Args = any, Result = unknown>(
   spec: CommandSpec<Args, Result>,
 ): CommandSpec<Args, Result> {
-  if (!spec.name) throw new Error("defineCommand: name 必填");
+  if (!spec.name) throw new Error("defineCommand: name is required");
   if (typeof spec.run !== "function")
-    throw new Error(`defineCommand(${spec.name}): run 必填且为函数`);
+    throw new Error(`defineCommand(${spec.name}): run is required and must be a function`);
   validateArgsSpec(spec.name, spec.args);
   return spec;
 }
@@ -54,9 +54,9 @@ export function defineCommand<Args = any, Result = unknown>(
 /** 声明命令组(key=命令名)。identity 函数。 */
 export function defineCommands(group: CommandGroup): CommandGroup {
   for (const [key, cmd] of Object.entries(group)) {
-    if (!cmd.name) throw new Error(`defineCommands(${key}): 命令缺少 name`);
+    if (!cmd.name) throw new Error(`defineCommands(${key}): command is missing name`);
     if (typeof cmd.run !== "function")
-      throw new Error(`defineCommands(${key}.${cmd.name}): run 必填且为函数`);
+      throw new Error(`defineCommands(${key}.${cmd.name}): run is required and must be a function`);
     validateArgsSpec(cmd.name, cmd.args);
   }
   return group;
@@ -67,14 +67,14 @@ function validateArgsSpec(commandName: string, spec: ArgsSpec | undefined): void
   for (const [name, arg] of Object.entries(spec ?? {})) {
     if (arg.required && arg.default !== undefined) {
       throw new Error(
-        `defineCommand(${commandName}): 参数 ${name} 不能同时声明 required 和 default`,
+        `defineCommand(${commandName}): argument ${name} cannot declare both required and default`,
       );
     }
     if (!arg.positional) continue;
     if (!arg.required) sawOptionalPositional = true;
     else if (sawOptionalPositional) {
       throw new Error(
-        `defineCommand(${commandName}): 必填位置参数 ${name} 不能位于可选位置参数之后`,
+        `defineCommand(${commandName}): required positional argument ${name} cannot follow an optional positional argument`,
       );
     }
   }
@@ -94,14 +94,14 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
     for (const [statusKey, subtype] of Object.entries(errorOnStatus)) {
       if (!/^\d+$|^\dxx$/.test(statusKey)) {
         throw new Error(
-          `defineCli({ errorOnStatus }): 非法 status key "${statusKey}"。` +
-            `必须是数字(如 "404")或 Nxx 形态(如 "5xx")。`,
+          `defineCli({ errorOnStatus }): invalid status key "${statusKey}". ` +
+            `Must be a number (e.g. "404") or Nxx form (e.g. "5xx").`,
         );
       }
       if (!(subtype in SUBTYPE_REGISTRY)) {
         throw new Error(
-          `defineCli({ errorOnStatus }): subtype "${subtype}"(配在 status ${statusKey})未在 SUBTYPE_REGISTRY 登记。` +
-            `用标准 subtype(见 error-catalog)或先登记:SUBTYPE_REGISTRY['${subtype}'] = { category: 'api' }。`,
+          `defineCli({ errorOnStatus }): subtype "${subtype}" (mapped to status ${statusKey}) is not registered in SUBTYPE_REGISTRY. ` +
+            `Use a standard subtype (see error-catalog) or register it first: SUBTYPE_REGISTRY['${subtype}'] = { category: 'api' }.`,
         );
       }
     }
@@ -223,8 +223,8 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
           } else {
             throw new errs.ValidationError({
               subtype: "invalid_argument",
-              message: `未知命令: ${argv.filter((a) => !a.startsWith("-")).join(" ") || argv.join(" ")}`,
-              hint: `运行 \`${binName} --help\` 查看可用命令`,
+              message: `Unknown command: ${argv.filter((a) => !a.startsWith("-")).join(" ") || argv.join(" ")}`,
+              hint: `Run \`${binName} --help\` to see available commands`,
             });
           }
           return;
@@ -414,8 +414,8 @@ function parseFlags(
         throw new errs.ValidationError({
           subtype: "invalid_argument",
           param: t,
-          message: `未知短 flag ${t}(本框架只支持长 flag --xxx)`,
-          hint: `如需传负数值,用 -- 分隔:rxcordys cmd -- ${t}`,
+          message: `Unknown short flag ${t} (this framework only supports long flags --xxx)`,
+          hint: `To pass a negative number, use -- as a separator: rxcordys cmd -- ${t}`,
         });
       }
       // 非 flag → positional
@@ -719,7 +719,7 @@ async function executeOne<State>(opts: ExecuteOneOptions<State>): Promise<number
         throw new errs.ValidationError({
           subtype: "missing_required",
           param: "--api-key",
-          message: "参数 --api-key 缺少值",
+          message: "Argument --api-key requires a value",
         });
       }
       return parseArgs(opts.argsSpec, opts.rawOptions, opts.rawPositionals);

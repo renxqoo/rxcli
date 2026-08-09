@@ -88,10 +88,10 @@ export const opportunitiesCommands: CommandGroup = defineCommands({
     async run(args, ctx) {
       const body = parseJsonBody(args.data, "<data>");
       for (const f of ["name", "customerId", "contactId", "amount", "owner"]) {
-        assertHasField(body, "新增商机", f);
+        assertHasField(body, "Create opportunity", f);
       }
       if (args.dryRun) return { data: null, meta: { dryRun: true } };
-      ensureConfirmed(args.yes, "新增商机", "rxcordys opportunities add '<json>' --yes");
+      ensureConfirmed(args.yes, "Create opportunity", "rxcordys opportunities add '<json>' --yes");
       const res = await ctx.post(`/${MODULE}/add`, body);
       return { data: unwrap(res) };
     },
@@ -107,9 +107,13 @@ export const opportunitiesCommands: CommandGroup = defineCommands({
     },
     async run(args, ctx) {
       const body = parseJsonBody(args.data, "<data>");
-      assertHasId(body, "更新商机");
+      assertHasId(body, "Update opportunity");
       if (args.dryRun) return { data: null, meta: { dryRun: true } };
-      ensureConfirmed(args.yes, "更新商机", "rxcordys opportunities update '<json>' --yes");
+      ensureConfirmed(
+        args.yes,
+        "Update opportunity",
+        "rxcordys opportunities update '<json>' --yes",
+      );
       const res = await ctx.post(`/${MODULE}/update`, body);
       return { data: unwrap(res) };
     },
@@ -160,12 +164,12 @@ export const opportunitiesCommands: CommandGroup = defineCommands({
     async run(args, ctx) {
       const body = parseJsonBody(args.data, "<data>");
       for (const f of ["name", "opportunityId", "untilTime"]) {
-        assertHasField(body, "新增报价单", f);
+        assertHasField(body, "Create quotation", f);
       }
       if (args.dryRun) return { data: null, meta: { dryRun: true } };
       ensureConfirmed(
         args.yes,
-        "新增报价单",
+        "Create quotation",
         "rxcordys opportunities quotation-add '<json>' --yes",
       );
       const res = await ctx.post(`/${MODULE}/quotation/add`, body);
@@ -188,12 +192,12 @@ export const opportunitiesCommands: CommandGroup = defineCommands({
     },
     async run(args, ctx) {
       const body = parseJsonBody(args.data, "<data>");
-      assertHasId(body, "更新报价单");
-      assertHasField(body, "更新报价单", "approvalStatus");
+      assertHasId(body, "Update quotation");
+      assertHasField(body, "Update quotation", "approvalStatus");
       if (args.dryRun) return { data: null, meta: { dryRun: true } };
       ensureConfirmed(
         args.yes,
-        "更新报价单",
+        "Update quotation",
         "rxcordys opportunities quotation-update '<json>' --yes",
       );
       const res = await ctx.post(`/${MODULE}/quotation/update`, body);

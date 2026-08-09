@@ -103,7 +103,7 @@ export const utilCommands: CommandGroup = defineCommands({
         throw new errs.ValidationError({
           subtype: "invalid_argument",
           param: "<method>",
-          message: `method 只能是 GET/POST/PUT/PATCH/DELETE,收到 "${args.method}"`,
+          message: `method must be GET/POST/PUT/PATCH/DELETE, got "${args.method}"`,
         });
       }
       const hasBody = method === "POST" || method === "PUT" || method === "PATCH";

@@ -18,6 +18,7 @@ export {
 
 export { syncSkills } from "./sync.js";
 
+export type { GenLang } from "./gen.js";
 export {
   flattenCommands,
   signatureLine,

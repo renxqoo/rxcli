@@ -187,8 +187,8 @@ describe("--no-json: 人类可读文本(通用兜底)", () => {
       },
     });
     await app.run(["list", "--no-json"]);
-    expect(stdoutBuf).toContain("1 项");
-    expect(stdoutBuf).toContain("已全部加载");
+    expect(stdoutBuf).toContain("1 item(s)");
+    expect(stdoutBuf).toContain("all loaded");
   });
 
   it("--no-json null data → （无数据）", async () => {
@@ -206,7 +206,7 @@ describe("--no-json: 人类可读文本(通用兜底)", () => {
       },
     });
     await app.run(["void", "--no-json"]);
-    expect(stdoutBuf.trim()).toBe("（无数据）");
+    expect(stdoutBuf.trim()).toBe("(no data)");
   });
 });
 
@@ -232,14 +232,14 @@ describe("--no-json: 命令自定义 humanFormat", () => {
 
   it("prettyPrint 可被业务复用(导出)", () => {
     expect(prettyPrint({ a: 1 })).toContain("a");
-    expect(prettyPrint(null)).toBe("（无数据）");
+    expect(prettyPrint(null)).toBe("(no data)");
     expect(prettyPrint([1, 2])).toContain("1.");
   });
 });
 
 describe("printTable: 表格渲染工具", () => {
   it("空数组 → （空）", () => {
-    expect(printTable([], [{ header: "ID", value: (r: { id: string }) => r.id }])).toBe("（空）");
+    expect(printTable([], [{ header: "ID", value: (r: { id: string }) => r.id }])).toBe("(empty)");
   });
 
   it("基本表格:标题行 + 分隔行 + 数据行,列对齐", () => {

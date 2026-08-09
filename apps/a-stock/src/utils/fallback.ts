@@ -56,7 +56,7 @@ export async function trySources<T>(
   if (sources.length === 0) {
     throw new NetworkError({
       subtype: "connection_refused",
-      message: "未配置任何数据源",
+      message: "No data sources configured",
       retryable: false,
     });
   }
@@ -69,19 +69,19 @@ export async function trySources<T>(
         ? await withTimeout(src.fetch(), perSourceTimeoutMs, src.name)
         : await src.fetch();
       if (isEmpty && isEmpty(value)) {
-        failures.push({ name: src.name, reason: "返回空数据" });
-        log?.("info", `[fallback] ${src.name} 返回空,尝试下一个源`);
+        failures.push({ name: src.name, reason: "returned empty data" });
+        log?.("info", `[fallback] ${src.name} returned empty, trying next source`);
         continue;
       }
       // 多源场景下,记录最终命中源便于 agent/用户诊断
       if (failures.length > 0) {
-        log?.("info", `[fallback] ${src.name} 命中(前 ${failures.length} 个源失败)`);
+        log?.("info", `[fallback] ${src.name} hit (after ${failures.length} source(s) failed)`);
       }
       return value;
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       failures.push({ name: src.name, reason });
-      log?.("warn", `[fallback] ${src.name} 失败: ${reason}`);
+      log?.("warn", `[fallback] ${src.name} failed: ${reason}`);
       // 继续下一个源
     }
   }
@@ -90,7 +90,7 @@ export async function trySources<T>(
   const tried = failures.map((f) => `${f.name}(${f.reason})`).join(" / ");
   throw new NetworkError({
     subtype: "connection_refused",
-    message: `所有数据源均失败,已尝试: ${tried}`,
+    message: `All data sources failed, tried: ${tried}`,
     retryable: false,
   });
 }
@@ -100,7 +100,7 @@ export async function trySources<T>(
  */
 function withTimeout<T>(promise: Promise<T>, ms: number, sourceName: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`${sourceName} 超时(${ms}ms)`)), ms);
+    const timer = setTimeout(() => reject(new Error(`${sourceName} timed out (${ms}ms)`)), ms);
     promise.then(
       (v) => {
         clearTimeout(timer);

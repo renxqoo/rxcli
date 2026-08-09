@@ -402,6 +402,7 @@ defineCli({
 
 ```bash
 rx-todos skills gen rx-todos --init   # 首次:生成 SKILL.md 骨架(带 AUTO-GEN 命令表 + {{FILL}} 占位)
+# 中文项目加 --lang zh:rx-todos skills gen rx-todos --init --lang zh
 # 手工填语义部分(何时用、错误处理、前置条件)
 rx-todos skills gen rx-todos          # 后续改命令:只刷 AUTO-GEN 块,语义部分不动
 ```

@@ -19,29 +19,29 @@ import { errs } from "./errs/index.js";
 // 直接构造 CommandSpec 对象(defineCommand 只是 identity + 校验,这里手动保证 name/run)。
 export const qrcodeCommand: CommandSpec<any, unknown> = {
   name: "qrcode",
-  description: "把 URL 生成二维码(终端 ASCII 或 PNG 文件)",
+  description: "Generate a QR code from a URL (terminal ASCII or PNG file)",
   internal: true,
   args: {
     url: {
       type: "string",
       required: true,
       positional: true,
-      desc: "要编码的 URL(opaque string,不要修改)",
+      desc: "URL to encode (opaque string, do not modify)",
     },
-    output: { type: "string", desc: "输出 PNG 到指定文件路径" },
-    ascii: { type: "boolean", desc: "在终端打印 ASCII 二维码(默认行为)" },
+    output: { type: "string", desc: "Output PNG to the specified file path" },
+    ascii: { type: "boolean", desc: "Print ASCII QR code to terminal (default behavior)" },
   },
   async run(args, ctx) {
     const url = args.url;
     if (args.output) {
       try {
         await QRCode.toFile(args.output, url, { type: "png" });
-        ctx.log.info(`已生成二维码 PNG:${args.output}`);
+        ctx.log.info(`QR code PNG generated: ${args.output}`);
         return { data: { output: args.output } };
       } catch (e) {
         throw new errs.InternalError({
           subtype: "unknown",
-          message: `生成二维码失败:${e instanceof Error ? e.message : e}`,
+          message: `Failed to generate QR code: ${e instanceof Error ? e.message : e}`,
         });
       }
     }
@@ -53,7 +53,7 @@ export const qrcodeCommand: CommandSpec<any, unknown> = {
     } catch (e) {
       throw new errs.InternalError({
         subtype: "unknown",
-        message: `生成二维码失败:${e instanceof Error ? e.message : e}`,
+        message: `Failed to generate QR code: ${e instanceof Error ? e.message : e}`,
       });
     }
   },

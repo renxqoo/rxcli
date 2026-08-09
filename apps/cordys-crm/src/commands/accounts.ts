@@ -109,9 +109,9 @@ export const accountsCommands: CommandGroup = defineCommands({
     },
     async run(args, ctx) {
       const body = parseJsonBody(args.data, "<data>");
-      assertHasField(body, "新增客户", "name");
+      assertHasField(body, "Create account", "name");
       if (args.dryRun) return { data: null, meta: { dryRun: true } };
-      ensureConfirmed(args.yes, "新增客户", "rxcordys accounts add '<json>' --yes");
+      ensureConfirmed(args.yes, "Create account", "rxcordys accounts add '<json>' --yes");
       const res = await ctx.post(`/${MODULE}/add`, body);
       return { data: unwrap(res) };
     },
@@ -127,9 +127,9 @@ export const accountsCommands: CommandGroup = defineCommands({
     },
     async run(args, ctx) {
       const body = parseJsonBody(args.data, "<data>");
-      assertHasId(body, "更新客户");
+      assertHasId(body, "Update account");
       if (args.dryRun) return { data: null, meta: { dryRun: true } };
-      ensureConfirmed(args.yes, "更新客户", "rxcordys accounts update '<json>' --yes");
+      ensureConfirmed(args.yes, "Update account", "rxcordys accounts update '<json>' --yes");
       const res = await ctx.post(`/${MODULE}/update`, body);
       return { data: unwrap(res) };
     },
@@ -191,8 +191,8 @@ export const accountsCommands: CommandGroup = defineCommands({
       throw new errs.ValidationError({
         subtype: "invalid_argument",
         param: "<type>",
-        message: `不支持的子资源类型 "${args.type}"`,
-        hint: `分页:${ACCT_SUB_PAGES.join(", ")};统计:${ACCT_SUB_GETS.join(", ")}`,
+        message: `Unsupported sub-resource type "${args.type}"`,
+        hint: `Paged: ${ACCT_SUB_PAGES.join(", ")}; Stats: ${ACCT_SUB_GETS.join(", ")}`,
       });
     },
   }),

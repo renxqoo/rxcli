@@ -88,7 +88,7 @@ export const followsCommands: CommandGroup = defineCommands({
         throw new errs.ValidationError({
           subtype: "invalid_argument",
           param: "<type>",
-          message: `form type 只能是 plan 或 record,收到 "${args.type}"`,
+          message: `form type must be plan or record, got "${args.type}"`,
         });
       }
       const res = await ctx.get(`/follow/${args.type}/module/form`);
@@ -115,12 +115,12 @@ export const followsCommands: CommandGroup = defineCommands({
       assertParent(args.parent);
       const body = parseJsonBody(args.data, "<data>");
       for (const f of ["content", "method", "owner", "type"]) {
-        assertHasField(body, "新增跟进计划", f);
+        assertHasField(body, "Create follow-up plan", f);
       }
       if (args.dryRun) return { data: null, meta: { dryRun: true } };
       ensureConfirmed(
         args.yes,
-        "新增跟进计划",
+        "Create follow-up plan",
         "rxcordys follows plan-add <parent> '<json>' --yes",
       );
       const res = await ctx.post(`/${args.parent}/follow/plan/add`, body);
@@ -146,11 +146,11 @@ export const followsCommands: CommandGroup = defineCommands({
     async run(args, ctx) {
       assertParent(args.parent);
       const body = parseJsonBody(args.data, "<data>");
-      assertHasId(body, "更新跟进计划");
+      assertHasId(body, "Update follow-up plan");
       if (args.dryRun) return { data: null, meta: { dryRun: true } };
       ensureConfirmed(
         args.yes,
-        "更新跟进计划",
+        "Update follow-up plan",
         "rxcordys follows plan-update <parent> '<json>' --yes",
       );
       const res = await ctx.post(`/${args.parent}/follow/plan/update`, body);
@@ -177,12 +177,12 @@ export const followsCommands: CommandGroup = defineCommands({
       assertParent(args.parent);
       const body = parseJsonBody(args.data, "<data>");
       for (const f of ["content", "followMethod", "owner", "type"]) {
-        assertHasField(body, "新增跟进记录", f);
+        assertHasField(body, "Create follow-up record", f);
       }
       if (args.dryRun) return { data: null, meta: { dryRun: true } };
       ensureConfirmed(
         args.yes,
-        "新增跟进记录",
+        "Create follow-up record",
         "rxcordys follows record-add <parent> '<json>' --yes",
       );
       const res = await ctx.post(`/${args.parent}/follow/record/add`, body);
@@ -208,11 +208,11 @@ export const followsCommands: CommandGroup = defineCommands({
     async run(args, ctx) {
       assertParent(args.parent);
       const body = parseJsonBody(args.data, "<data>");
-      assertHasId(body, "更新跟进记录");
+      assertHasId(body, "Update follow-up record");
       if (args.dryRun) return { data: null, meta: { dryRun: true } };
       ensureConfirmed(
         args.yes,
-        "更新跟进记录",
+        "Update follow-up record",
         "rxcordys follows record-update <parent> '<json>' --yes",
       );
       const res = await ctx.post(`/${args.parent}/follow/record/update`, body);
@@ -227,8 +227,8 @@ function assertParent(parent: string): void {
     throw new errs.ValidationError({
       subtype: "invalid_argument",
       param: "<parent>",
-      message: `跟进的父模块只能是 lead/account/opportunity,收到 "${parent}"`,
-      hint: `可选:${FOLLOW_MODULES.join(", ")}`,
+      message: `follow parent module must be lead/account/opportunity, got "${parent}"`,
+      hint: `Valid: ${FOLLOW_MODULES.join(", ")}`,
     });
   }
 }

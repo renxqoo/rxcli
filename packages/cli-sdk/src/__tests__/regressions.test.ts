@@ -62,7 +62,7 @@ describe("args: reject ambiguous or unsafe values", () => {
         },
         async run() {},
       }),
-    ).toThrow(/必填位置参数/);
+    ).toThrow(/required positional argument/);
   });
 });
 

@@ -36,7 +36,7 @@ export function unwrap<T = unknown>(res: TransportResponse): T {
     const detail = env.messageDetail ? ` (${env.messageDetail})` : "";
     const message = env.message
       ? `${env.message}${detail}`
-      : `Cordys 业务错误 code=${env.code}${detail}`;
+      : `Cordys business error code=${env.code}${detail}`;
     throw new errs.APIError({
       subtype: mapCordysCodeToSubtype(env.code),
       code: env.code,
@@ -130,8 +130,8 @@ export function parseJsonBody(raw: string | undefined, param: string): unknown {
     throw new errs.ValidationError({
       subtype: "missing_required",
       param,
-      message: `缺少 ${param}(JSON 字符串)`,
-      hint: `传入 JSON,如 '{"name":"客户A"}'`,
+      message: `Missing ${param} (JSON string)`,
+      hint: `Provide JSON, e.g. '{"name":"Account A"}'`,
     });
   }
   try {
@@ -140,8 +140,8 @@ export function parseJsonBody(raw: string | undefined, param: string): unknown {
     throw new errs.ValidationError({
       subtype: "invalid_argument",
       param,
-      message: `${param} 不是合法 JSON: ${raw}`,
-      hint: "检查 JSON 引号/逗号是否闭合",
+      message: `${param} is not valid JSON: ${raw}`,
+      hint: "Check that JSON quotes/commas are properly closed",
       cause: cause instanceof Error ? cause : undefined,
     });
   }

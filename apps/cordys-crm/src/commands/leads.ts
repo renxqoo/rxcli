@@ -86,9 +86,9 @@ export const leadsCommands: CommandGroup = defineCommands({
     async run(args, ctx) {
       const body = parseJsonBody(args.data, "<data>");
       // 字段校验在 dryRun/confirm 之前(dryRun 也要校验必填字段)
-      assertHasField(body, "新增线索", "name");
+      assertHasField(body, "Create lead", "name");
       if (args.dryRun) return { data: null, meta: { dryRun: true } };
-      ensureConfirmed(args.yes, "新增线索", "rxcordys leads add '<json>' --yes");
+      ensureConfirmed(args.yes, "Create lead", "rxcordys leads add '<json>' --yes");
       const res = await ctx.post(`/${MODULE}/add`, body);
       return {
         data: unwrap(res),
@@ -107,9 +107,9 @@ export const leadsCommands: CommandGroup = defineCommands({
     },
     async run(args, ctx) {
       const body = parseJsonBody(args.data, "<data>");
-      assertHasId(body, "线索");
+      assertHasId(body, "Lead");
       if (args.dryRun) return { data: null, meta: { dryRun: true } };
-      ensureConfirmed(args.yes, "更新线索", "rxcordys leads update '<json>' --yes");
+      ensureConfirmed(args.yes, "Update lead", "rxcordys leads update '<json>' --yes");
       const res = await ctx.post(`/${MODULE}/update`, body);
       return { data: unwrap(res) };
     },
@@ -153,10 +153,10 @@ export const leadsCommands: CommandGroup = defineCommands({
     },
     async run(args, ctx) {
       const body = parseJsonBody(args.data, "<data>");
-      assertHasField(body, "线索转客户", "clueId");
-      assertHasField(body, "线索转客户", "name");
+      assertHasField(body, "Lead to account", "clueId");
+      assertHasField(body, "Lead to account", "name");
       if (args.dryRun) return { data: null, meta: { dryRun: true } };
-      ensureConfirmed(args.yes, "线索转客户", "rxcordys leads transition '<json>' --yes");
+      ensureConfirmed(args.yes, "Lead to account", "rxcordys leads transition '<json>' --yes");
       const res = await ctx.post(`/${MODULE}/transition/account`, body);
       return {
         data: unwrap(res),
@@ -181,9 +181,9 @@ export const leadsCommands: CommandGroup = defineCommands({
     },
     async run(args, ctx) {
       const body = parseJsonBody(args.data, "<data>");
-      assertHasField(body, "线索转商机", "clueId");
+      assertHasField(body, "Lead to opportunity", "clueId");
       if (args.dryRun) return { data: null, meta: { dryRun: true } };
-      ensureConfirmed(args.yes, "线索转商机", "rxcordys leads transform '<json>' --yes");
+      ensureConfirmed(args.yes, "Lead to opportunity", "rxcordys leads transform '<json>' --yes");
       const res = await ctx.post(`/${MODULE}/transform`, body);
       return {
         data: unwrap(res),
@@ -202,8 +202,8 @@ export function ensureConfirmed(yes: boolean | undefined, action: string, retryC
   if (yes) return;
   throw new errs.ConfirmationRequiredError({
     subtype: "high_risk_write",
-    message: `${action} 是高危操作,需确认`,
-    hint: `加 --yes 确认执行,或使用:${retryCmd}`,
+    message: `${action} is a high-risk operation and requires confirmation`,
+    hint: `Add --yes to confirm, or use: ${retryCmd}`,
   });
 }
 
@@ -218,7 +218,7 @@ export function assertHasField(body: unknown, label: string, field: string): voi
     throw new errs.ValidationError({
       subtype: "invalid_argument",
       param: "<data>",
-      message: `${label}:数据需为 JSON 对象`,
+      message: `${label}: data must be a JSON object`,
     });
   }
   const obj = body as Record<string, unknown>;
@@ -226,8 +226,8 @@ export function assertHasField(body: unknown, label: string, field: string): voi
     throw new errs.ValidationError({
       subtype: "missing_required",
       param: field,
-      message: `${label}:缺少必填字段 ${field}`,
-      hint: `在 JSON 中提供 "${field}"`,
+      message: `${label}: missing required field ${field}`,
+      hint: `Provide "${field}" in the JSON`,
     });
   }
 }

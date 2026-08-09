@@ -27,6 +27,7 @@
 | `my-cli skills sync`                          | 同步到 `~/.agents/skills/`(主流 agent 工具发现路径) |
 | `my-cli skills gen <name>`                    | 刷新已有 SKILL.md 的命令表(AUTO-GEN 块内)           |
 | `my-cli skills gen <name> --init`             | 首次生成整份 SKILL.md 骨架(带 `{{FILL}}` 占位)      |
+| `my-cli skills gen <name> --init --lang zh`   | 生成中文骨架(默认 `--lang en` 英文)                |
 
 ---
 
@@ -235,6 +236,7 @@ description 是 agent 决定**何时触发**你的 skill 的唯一依据。触�
 # 2. 首次生成 SKILL.md 骨架
 my-cli skills gen rx-todos --init
 # → 生成 skills/rx-todos/SKILL.md,带 AUTO-GEN 块(已填)+ {{FILL}} 占位
+# 中文项目加 --lang zh:my-cli skills gen rx-todos --init --lang zh
 
 # 3. 编辑 SKILL.md,填语义部分(何时用、错误处理、前置条件)
 vi skills/rx-todos/SKILL.md

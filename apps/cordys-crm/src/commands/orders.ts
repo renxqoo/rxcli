@@ -100,9 +100,9 @@ export const ordersCommands: CommandGroup = defineCommands({
     },
     async run(args, ctx) {
       const body = parseJsonBody(args.data, "<data>");
-      assertHasId(body, "更新订单");
+      assertHasId(body, "Update order");
       if (args.dryRun) return { data: null, meta: { dryRun: true } };
-      ensureConfirmed(args.yes, "更新订单", "rxcordys orders update '<json>' --yes");
+      ensureConfirmed(args.yes, "Update order", "rxcordys orders update '<json>' --yes");
       const res = await ctx.post(`/${MODULE}/update`, body);
       return { data: unwrap(res) };
     },

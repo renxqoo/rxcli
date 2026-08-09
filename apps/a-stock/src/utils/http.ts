@@ -125,7 +125,7 @@ export async function httpFetch<T = unknown>(
         } catch {
           throw new APIError({
             subtype: "bad_response",
-            message: `响应非 JSON: ${text.slice(0, 200)}`,
+            message: `Non-JSON response: ${text.slice(0, 200)}`,
             retryable: false,
           });
         }

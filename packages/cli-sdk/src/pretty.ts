@@ -33,7 +33,7 @@ export function prettyPrint(data: unknown, meta?: Meta): string {
   const lines: string[] = [];
 
   if (data === null || data === undefined) {
-    lines.push("（无数据）");
+    lines.push("(no data)");
   } else if (typeof data === "string" || typeof data === "number" || typeof data === "boolean") {
     lines.push(String(data));
   } else {
@@ -52,15 +52,15 @@ export function prettyPrint(data: unknown, meta?: Meta): string {
   // meta 摘要(count / pagination)
   if (meta) {
     const summary: string[] = [];
-    if (meta.count !== undefined) summary.push(`${meta.count} 项`);
+    if (meta.count !== undefined) summary.push(`${meta.count} item(s)`);
     if (meta.pagination) {
       const p = meta.pagination;
-      summary.push(p.complete ? "已全部加载" : `更多:${p.nextToken ?? "?"}`);
-      if (p.pages !== undefined) summary.push(`${p.pages} 页`);
+      summary.push(p.complete ? "all loaded" : `more: ${p.nextToken ?? "?"}`);
+      if (p.pages !== undefined) summary.push(`${p.pages} page(s)`);
     }
     if (summary.length > 0) {
       lines.push("");
-      lines.push(`（${summary.join(" · ")}）`);
+      lines.push(`(${summary.join(" · ")})`);
     }
   }
 
@@ -92,7 +92,7 @@ function extractArray(data: unknown): unknown[] | null {
  * scalar 项 → 序号列表。
  */
 function renderArray(arr: unknown[]): string {
-  if (arr.length === 0) return "（空）";
+  if (arr.length === 0) return "(empty)";
   // 对象项 → 自动表格
   if (arr.every((item) => item && typeof item === "object" && !Array.isArray(item))) {
     const records = arr as Record<string, unknown>[];
@@ -199,7 +199,7 @@ function padStartDisplay(s: string, width: number): string {
  * @returns 多行文本(标题行 + 分隔行 + 数据行)
  */
 export function printTable<T>(rows: T[], columns: TableColumn<T>[]): string {
-  if (rows.length === 0) return "（空）";
+  if (rows.length === 0) return "(empty)";
   // 计算每列最大显示宽度(标题 vs 数据;CJK 按 2 列)
   const widths = columns.map((col) => {
     const dataMax = Math.max(...rows.map((r) => displayWidth(String(col.value(r) ?? ""))));

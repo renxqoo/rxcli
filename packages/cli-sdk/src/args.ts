@@ -44,7 +44,7 @@ export function parseArgs(
       throw new ValidationError({
         subtype: "invalid_argument",
         param: `--${name}`,
-        message: `未知参数 --${name}`,
+        message: `Unknown argument --${name}`,
       });
     }
   }
@@ -72,8 +72,8 @@ export function parseArgs(
       throw new ValidationError({
         subtype: "missing_required",
         param: positionalLabel(name, argSpec),
-        message: `缺少必填参数 ${positionalLabel(name, argSpec)}`,
-        hint: argSpec.desc ? `参见: ${argSpec.desc}` : undefined,
+        message: `Missing required argument ${positionalLabel(name, argSpec)}`,
+        hint: argSpec.desc ? `See: ${argSpec.desc}` : undefined,
       });
     }
 
@@ -94,7 +94,7 @@ export function parseArgs(
     throw new ValidationError({
       subtype: "invalid_argument",
       param: positionals[posIdx],
-      message: `未预期的位置参数: ${positionals.slice(posIdx).join(" ")}`,
+      message: `Unexpected positional argument(s): ${positionals.slice(posIdx).join(" ")}`,
     });
   }
 
@@ -107,7 +107,7 @@ function coerceType(name: string, type: string, value: unknown): unknown {
     throw new ValidationError({
       subtype: "missing_required",
       param: `--${name}`,
-      message: `参数 --${name} 缺少值`,
+      message: `Argument --${name} requires a value`,
     });
   }
   switch (type) {
@@ -119,7 +119,7 @@ function coerceType(name: string, type: string, value: unknown): unknown {
         throw new ValidationError({
           subtype: "invalid_argument",
           param: `--${name}`,
-          message: `--${name} 必须为数字,收到: ${String(value)}`,
+          message: `--${name} must be a number, got: ${String(value)}`,
         });
       }
       return n;
@@ -132,7 +132,7 @@ function coerceType(name: string, type: string, value: unknown): unknown {
       throw new ValidationError({
         subtype: "invalid_argument",
         param: `--${name}`,
-        message: `--${name} 必须为布尔值(true/false/1/0),收到: ${String(value)}`,
+        message: `--${name} must be a boolean (true/false/1/0), got: ${String(value)}`,
       });
     case "array": {
       // 重复 array flag 已聚合为数组;直接调用 parseArgs 时的单值也包装成数组

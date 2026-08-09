@@ -41,9 +41,9 @@ export function createBuiltinSkillsCommands(
     // list:列出所有 skill(统一输出格式),或列举一层(带 name/path 参数)
     list: defineCommand<any, unknown>({
       name: "list",
-      description: "列出所有 skill,或列举某 skill 下的一层",
+      description: "List all skills, or list one level under a skill",
       internal: true,
-      args: { name: { type: "string", positional: true, desc: "skill 名或 name/subpath" } },
+      args: { name: { type: "string", positional: true, desc: "skill name or name/subpath" } },
       async run(args) {
         if (!args.name) {
           const all = listSkills(skillsDir);
@@ -57,14 +57,15 @@ export function createBuiltinSkillsCommands(
     // read:读 SKILL.md 或 reference。**输出契约例外**:stdout 吐原文
     read: defineCommand<any, unknown>({
       name: "read",
-      description: "读 skill 的 SKILL.md 或 reference(原文到 stdout,输出契约例外)",
+      description:
+        "Read a skill's SKILL.md or reference (raw content to stdout, output contract exception)",
       internal: true,
       args: {
         name: {
           type: "string",
           required: true,
           positional: true,
-          desc: "skill 名 或 name/subpath",
+          desc: "skill name or name/subpath",
         },
       },
       async run(args) {
@@ -87,7 +88,7 @@ export function createBuiltinSkillsCommands(
     // sync:同步到 ~/.agents/skills/
     sync: defineCommand<any, unknown>({
       name: "sync",
-      description: "把 skills 同步到 ~/.agents/skills/(供 AI agent 发现)",
+      description: "Sync skills to ~/.agents/skills/ (for AI agent discovery)",
       internal: true,
       async run() {
         const { count, destDir } = syncSkills(skillsDir);
@@ -98,28 +99,39 @@ export function createBuiltinSkillsCommands(
     // gen:自动生成命令文档(刷新 AUTO-GEN 块 / --init 吐骨架)
     gen: defineCommand<any, unknown>({
       name: "gen",
-      description: "从 defineCommands 生成 SKILL.md 命令文档(刷新 AUTO-GEN 块)",
+      description:
+        "Generate SKILL.md command docs from defineCommands (refreshes the AUTO-GEN block)",
       internal: true,
       args: {
-        name: { type: "string", required: true, positional: true, desc: "skill 名(= 目录名)" },
-        init: { type: "boolean", desc: "首次生成整份 SKILL.md 骨架(带 {{FILL}} 占位)" },
+        name: {
+          type: "string",
+          required: true,
+          positional: true,
+          desc: "skill name (= directory name)",
+        },
+        init: {
+          type: "boolean",
+          desc: "Generate the full SKILL.md skeleton on first run (with {{FILL}} placeholders)",
+        },
+        lang: { type: "string", desc: "Skeleton language: 'en' (default) or 'zh'", default: "en" },
       },
       async run(args) {
         const skillName = args.name;
         const skillDir = prepareSkillDir(skillsDir, skillName);
         const skillMdPath = join(skillDir, "SKILL.md");
+        const lang = args.lang === "zh" ? "zh" : "en";
 
         if (args.init || !existsSync(skillMdPath)) {
           // 策略 B:吐整份骨架
-          const desc = `${binName} 业务 skill`;
-          const content = generateSkillSkeleton(skillName, desc, binName, cliOptions);
+          const desc = `${binName} business skill`;
+          const content = generateSkillSkeleton(skillName, desc, binName, cliOptions, lang);
           writeFileSync(skillMdPath, content);
           return { data: { generated: skillMdPath, mode: "init" } };
         }
 
         // 策略 A:刷新 AUTO-GEN 块(块外语义内容保留)
         const existing = readFileSync(skillMdPath, "utf8");
-        const updated = refreshAutogen(existing, binName, cliOptions);
+        const updated = refreshAutogen(existing, binName, cliOptions, lang);
         writeFileSync(skillMdPath, updated);
         return { data: { refreshed: skillMdPath, mode: "refresh" } };
       },

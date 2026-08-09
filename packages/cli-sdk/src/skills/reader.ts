@@ -68,7 +68,7 @@ export function listPath(skillsRoot: string, arg: string): { entries: DirEntry[]
     // M7:子路径不存在 → NotFoundError(而非裸 statSync ENOENT 被兜底成 internal/unknown)
     const subFull = join(skillsRoot, dir);
     if (!existsSync(subFull)) {
-      throw new NotFoundError(`path "${name}/${cleaned}" 不存在`);
+      throw new NotFoundError(`path "${name}/${cleaned}" does not exist`);
     }
     const info = statSync(subFull);
     if (!info.isDirectory()) {
@@ -95,7 +95,7 @@ export function readSkill(skillsRoot: string, name: string): Buffer {
   ensureSkill(skillsRoot, name);
   const p = join(skillsRoot, name, "SKILL.md");
   if (!existsSync(p)) {
-    throw new NotFoundError(`skill "${name}" 无 SKILL.md`);
+    throw new NotFoundError(`skill "${name}" has no SKILL.md`);
   }
   return readFileSync(p);
 }
@@ -110,7 +110,7 @@ export function readReference(
   const cleaned = cleanSubPath(relpath);
   const full = join(skillsRoot, name, cleaned);
   if (!existsSync(full)) {
-    throw new NotFoundError(`reference "${name}/${relpath}" 不存在`);
+    throw new NotFoundError(`reference "${name}/${relpath}" does not exist`);
   }
   const info = statSync(full);
   if (info.isDirectory()) {

@@ -113,9 +113,9 @@ export const contractsCommands: CommandGroup = defineCommands({
     },
     async run(args, ctx) {
       const body = parseJsonBody(args.data, "<data>");
-      assertHasId(body, "更新合同");
+      assertHasId(body, "Update contract");
       if (args.dryRun) return { data: null, meta: { dryRun: true } };
-      ensureConfirmed(args.yes, "更新合同", "rxcordys contracts update '<json>' --yes");
+      ensureConfirmed(args.yes, "Update contract", "rxcordys contracts update '<json>' --yes");
       const res = await ctx.post(`/${MODULE}/update`, body);
       return { data: unwrap(res) };
     },
@@ -214,11 +214,11 @@ export const contractsCommands: CommandGroup = defineCommands({
     },
     async run(args, ctx) {
       const body = parseJsonBody(args.data, "<data>");
-      assertHasId(body, "更新回款计划");
+      assertHasId(body, "Update payment plan");
       if (args.dryRun) return { data: null, meta: { dryRun: true } };
       ensureConfirmed(
         args.yes,
-        "更新回款计划",
+        "Update payment plan",
         "rxcordys contracts payment-plan-update '<json>' --yes",
       );
       const res = await ctx.post(`/${MODULE}/payment-plan/update`, body);
@@ -301,11 +301,11 @@ export const contractsCommands: CommandGroup = defineCommands({
     },
     async run(args, ctx) {
       const body = parseJsonBody(args.data, "<data>");
-      assertHasId(body, "更新回款记录");
+      assertHasId(body, "Update payment record");
       if (args.dryRun) return { data: null, meta: { dryRun: true } };
       ensureConfirmed(
         args.yes,
-        "更新回款记录",
+        "Update payment record",
         "rxcordys contracts payment-record-update '<json>' --yes",
       );
       const res = await ctx.post(`/${MODULE}/payment-record/update`, body);
@@ -378,11 +378,11 @@ export const contractsCommands: CommandGroup = defineCommands({
     },
     async run(args, ctx) {
       const body = parseJsonBody(args.data, "<data>");
-      assertHasId(body, "更新工商抬头");
+      assertHasId(body, "Update business header");
       if (args.dryRun) return { data: null, meta: { dryRun: true } };
       ensureConfirmed(
         args.yes,
-        "更新工商抬头",
+        "Update business header",
         "rxcordys contracts business-title-update '<json>' --yes",
       );
       const res = await ctx.post(`/${MODULE}/business-title/update`, body);

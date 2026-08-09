@@ -27,7 +27,7 @@ export const productsCommands = defineCommands({
     args: { id: { type: "string", required: true, positional: true, desc: "商品 ID" } },
     async run({ id }, ctx) {
       const res = await ctx.get(`/proxy/api/products/${encodeURIComponent(id)}`);
-      if (res.status === 404) throw new errs.NotFoundError(`商品 ${id} 不存在`);
+      if (res.status === 404) throw new errs.NotFoundError(`Product ${id} not found`);
       return { data: res.data };
     },
   }),

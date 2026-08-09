@@ -187,6 +187,9 @@ rxcli skills gen orders --init             # 或走 rxcli 主包
 
 # 后续:只刷新 AUTO-GEN 标记块,保留人工内容
 rxcli-orders skills gen orders
+
+# --lang 控制骨架语言(默认英文;中文项目用 zh)
+rxcli-orders skills gen orders --init --lang zh
 ```
 
 ### 生成策略 A + B(都用,决策清单 #15)
@@ -339,6 +342,8 @@ CLI 参数来自不可信的 agent,所有文件 IO 前必须校验路径(对齐 
 # 2. 首次生成 SKILL.md 骨架
 rxcli-orders skills gen orders --init
 # → 生成 skills/orders/SKILL.md,带 AUTO-GEN 块(已填)+ {{FILL}} 占位
+# 中文项目加 --lang zh:
+# rxcli-orders skills gen orders --init --lang zh
 
 # 3. 编辑 SKILL.md,填语义部分(何时用、错误处理、前置条件)
 vi skills/orders/SKILL.md

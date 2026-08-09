@@ -42,8 +42,8 @@ export const statsCommands: CommandGroup = defineCommands({
         throw new errs.ValidationError({
           subtype: "invalid_argument",
           param: "<module>",
-          message: `stat 不支持模块 "${args.module}"`,
-          hint: `可选:${STAT_MODULES.join(", ")}`,
+          message: `stat does not support module "${args.module}"`,
+          hint: `Valid: ${STAT_MODULES.join(", ")}`,
         });
       }
       const body = args.payload ? parseJsonBody(args.payload, "<payload>") : {};
@@ -83,7 +83,7 @@ export const statsCommands: CommandGroup = defineCommands({
         throw new errs.ValidationError({
           subtype: "invalid_argument",
           param: "--type",
-          message: `home-opportunity type 只能是 all/success/underway,收到 "${type}"`,
+          message: `home-opportunity type must be all/success/underway, got "${type}"`,
         });
       }
       const body = args.payload ? parseJsonBody(args.payload, "<payload>") : {};

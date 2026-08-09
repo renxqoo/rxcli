@@ -88,9 +88,9 @@ export const invoicesCommands: CommandGroup = defineCommands({
     },
     async run(args, ctx) {
       const body = parseJsonBody(args.data, "<data>");
-      assertHasId(body, "更新发票");
+      assertHasId(body, "Update invoice");
       if (args.dryRun) return { data: null, meta: { dryRun: true } };
-      ensureConfirmed(args.yes, "更新发票", "rxcordys invoices update '<json>' --yes");
+      ensureConfirmed(args.yes, "Update invoice", "rxcordys invoices update '<json>' --yes");
       const res = await ctx.post(`/${MODULE}/update`, body);
       return { data: unwrap(res) };
     },

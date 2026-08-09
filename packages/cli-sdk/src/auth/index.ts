@@ -162,8 +162,8 @@ export async function defineAuth<State = Record<string, never>>(
       if (!resolved) {
         throw new AuthenticationError({
           subtype: "no_credentials",
-          message: `${credNs} 未登录`,
-          hint: `run \`${cmdNs} login\` 登录`,
+          message: `${credNs} is not logged in`,
+          hint: `run \`${cmdNs} login\` to log in`,
         });
       }
 
@@ -228,12 +228,15 @@ function createAuthCommands(o: AuthCommandOpts): CommandGroup {
     // —— 登录(device flow 三分支)——
     login: defineCommand<any, unknown>({
       name: "login",
-      description: "通过中间层登录(OAuth device flow)",
+      description: "Log in via the middleware (OAuth device flow)",
       // 不标 internal:靠 plugin 精确豁免(_ownedRoutes 自动跳自身 beforeCommand)
       args: {
-        wait: { type: "boolean", desc: "阻塞轮询(默认;--no-wait 立即返回)" },
-        json: { type: "boolean", desc: "输出 JSON(配合 --no-wait,agent split-flow)" },
-        "device-code": { type: "string", desc: "用已有 device_code 完成登录(split-flow 第二步)" },
+        wait: { type: "boolean", desc: "Block and poll (default; --no-wait returns immediately)" },
+        json: { type: "boolean", desc: "Output JSON (with --no-wait, for agent split-flow)" },
+        "device-code": {
+          type: "string",
+          desc: "Complete login with an existing device_code (split-flow step 2)",
+        },
       },
       async run(args, ctx): Promise<CommandResult> {
         // 分支二:split-flow 第二步 —— 用已有 device_code 轮询
@@ -263,7 +266,7 @@ function createAuthCommands(o: AuthCommandOpts): CommandGroup {
             };
           }
           ctx.log.info(
-            `\n请在浏览器中完成登录:\n  ${verificationUrl}\n  用户码:${info.user_code}\n\ndevice_code: ${info.device_code}\n(未轮询。完成授权后运行:${cmdNs} login --device-code ${info.device_code})`,
+            `\nPlease complete login in your browser:\n  ${verificationUrl}\n  user code: ${info.user_code}\n\ndevice_code: ${info.device_code}\n(not polling. After authorizing, run: ${cmdNs} login --device-code ${info.device_code})`,
           );
           return { data: { device_code: info.device_code, verification_url: verificationUrl } };
         }
@@ -271,7 +274,7 @@ function createAuthCommands(o: AuthCommandOpts): CommandGroup {
         // 默认分支:阻塞轮询(人类用)
         const verificationUrl = info.verification_uri_complete ?? info.verification_uri;
         ctx.log.info(
-          `\n请在浏览器中完成登录:\n  ${verificationUrl}\n  用户码:${info.user_code}\n\n等待登录完成...`,
+          `\nPlease complete login in your browser:\n  ${verificationUrl}\n  user code: ${info.user_code}\n\nWaiting for login to complete...`,
         );
         // 用服务端返回的 interval 作为轮询间隔(RFC 8628)
         return pollAndPersist(
@@ -290,29 +293,29 @@ function createAuthCommands(o: AuthCommandOpts): CommandGroup {
     // —— 状态 ——
     status: defineCommand<any, unknown>({
       name: "status",
-      description: "查看当前登录状态",
+      description: "Show current login status",
       async run(_args, ctx): Promise<CommandResult> {
         const creds = (await store.loadCredentials(
           credNs,
         )) as Partial<StoredOAuthCredentials> | null;
         if (!creds?.token) {
-          ctx.log.info(`未登录。运行 \`${cmdNs} login\` 登录。`);
+          ctx.log.info(`Not logged in. Run \`${cmdNs} login\` to log in.`);
           return { data: { loggedIn: false } };
         }
         try {
           const user = await getUserInfo(oauth, creds.token);
           const expired = creds.expiresAt ? Date.now() >= creds.expiresAt : false;
           ctx.log.info(
-            `已登录:${user.name} (${user.open_id})\n中间层:${oauth.baseUrl}\ntoken ${expired ? "已过期(下次调用会自动刷新)" : "有效"}`,
+            `Logged in: ${user.name} (${user.open_id})\nMiddleware: ${oauth.baseUrl}\ntoken ${expired ? "expired (will auto-refresh on next call)" : "valid"}`,
           );
           return { data: { loggedIn: true, user: { id: user.open_id, name: user.name }, expired } };
         } catch (err) {
           if (!(err instanceof AuthenticationError)) throw err;
-          ctx.log.info("登录态已失效。请重新登录。");
+          ctx.log.info("Authentication expired. Please log in again.");
           throw new errs.AuthenticationError({
             subtype: "token_expired",
-            message: "登录态已失效",
-            hint: `run \`${cmdNs} login\` 重新登录`,
+            message: "Authentication expired",
+            hint: `run \`${cmdNs} login\` to log in again`,
           });
         }
       },
@@ -321,7 +324,7 @@ function createAuthCommands(o: AuthCommandOpts): CommandGroup {
     // —— 登出 ——
     logout: defineCommand<any, unknown>({
       name: "logout",
-      description: "退出登录(吊销 session + 清本地凭证)",
+      description: "Log out (revoke session + clear local credentials)",
       async run(_args, ctx): Promise<CommandResult> {
         const creds = (await store.loadCredentials(
           credNs,
@@ -334,7 +337,7 @@ function createAuthCommands(o: AuthCommandOpts): CommandGroup {
           }
         }
         await store.clearCredentials(credNs);
-        ctx.log.info("已退出登录。");
+        ctx.log.info("Logged out.");
         return { data: { loggedOut: true } };
       },
     }),
@@ -342,9 +345,10 @@ function createAuthCommands(o: AuthCommandOpts): CommandGroup {
     // —— 注册:用注册令牌换独立 clientId/clientSecret ——
     register: defineCommand<any, unknown>({
       name: "register",
-      description: "注册本机的 CLI client(用注册令牌换取独立凭据)",
+      description:
+        "Register this machine's CLI client (exchange a registration token for standalone credentials)",
       args: {
-        token: { type: "string", desc: "注册令牌(不传则交互输入)" },
+        token: { type: "string", desc: "Registration token (interactive prompt if omitted)" },
       },
       async run(args, ctx): Promise<CommandResult> {
         let token = args.token as string | undefined;
@@ -353,13 +357,13 @@ function createAuthCommands(o: AuthCommandOpts): CommandGroup {
             throw new errs.ValidationError({
               subtype: "missing_required",
               param: "--token",
-              message: "非交互环境需要 --token",
-              hint: `run \`${cmdNs} register --token <注册令牌>\``,
+              message: "--token is required in a non-interactive environment",
+              hint: `run \`${cmdNs} register --token <registration-token>\``,
             });
           }
           const rl = readline.createInterface({ input: stdin, output: stdout });
           try {
-            token = (await rl.question("请输入注册令牌: ")).trim();
+            token = (await rl.question("Please enter the registration token: ")).trim();
           } finally {
             rl.close();
           }
@@ -368,7 +372,7 @@ function createAuthCommands(o: AuthCommandOpts): CommandGroup {
           throw new errs.ValidationError({
             subtype: "missing_required",
             param: "--token",
-            message: "未输入令牌",
+            message: "No token entered",
           });
         }
 
@@ -378,7 +382,7 @@ function createAuthCommands(o: AuthCommandOpts): CommandGroup {
         config.clientSecret = clientSecret;
         await store.saveConfig(config);
 
-        ctx.log.info(`\n✓ 注册成功。clientId=${clientId}`);
+        ctx.log.info(`\n✓ Registered successfully. clientId=${clientId}`);
         return { data: { registered: true, clientId } };
       },
     }),
@@ -429,11 +433,11 @@ export async function pollAndPersist(
         const user = await getUserInfo(oauth, r.token.access_token);
         base.user = { userId: user.open_id, name: user.name };
         await store.saveCredentials(namespace, base as unknown as Record<string, unknown>);
-        ctx.log.info(`\n✓ 登录成功:${user.name} (${user.open_id})`);
+        ctx.log.info(`\n✓ Login successful: ${user.name} (${user.open_id})`);
         return { data: { loggedIn: true, user: { id: user.open_id, name: user.name } } };
       } catch {
         await store.saveCredentials(namespace, base as unknown as Record<string, unknown>);
-        ctx.log.info("\n✓ 登录成功(未能获取用户信息)");
+        ctx.log.info("\n✓ Login successful (could not fetch user info)");
         return { data: { loggedIn: true } };
       }
     }
@@ -446,10 +450,13 @@ export async function pollAndPersist(
     // error
     throw new errs.AuthenticationError({
       subtype: "token_revoked",
-      message: `登录失败:${r.message}`,
+      message: `Login failed: ${r.message}`,
     });
   }
-  throw new errs.AuthenticationError({ subtype: "token_expired", message: "登录超时,请重试" });
+  throw new errs.AuthenticationError({
+    subtype: "token_expired",
+    message: "Login timed out, please retry",
+  });
 }
 
 function sleep(ms: number): Promise<void> {
