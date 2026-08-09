@@ -116,6 +116,8 @@ rxcordys accounts form   # 客户必填字段
 rxcordys leads form      # 线索必填字段
 ```
 
+> 完整写入规范(两阶段写入、各模块必填字段、商机全量更新陷阱、批量约束、fieldId 陷阱、线索转化映射)→ 见 [references/write.md](references/write.md)。
+>
 > 某命令的参数细节(必填/默认/类型)见文末「命令」表签名,或跑 `rxcordys <ns> <cmd> --help`;端点速查见 [references/modules.md](references/modules.md)。
 
 ## 输出格式
@@ -213,6 +215,7 @@ rxcordys leads page --json
 | [references/modules.md](references/modules.md) | 模块端点速查(路径/方法) | 需要确认某操作对应哪个端点时 |
 | [references/pagination.md](references/pagination.md) | 分页与筛选深度(操作符 + 字段类型映射) | 构造复杂筛选/排序时(操作符必须用 EQUALS/CONTAINS,非 EQ/LIKE) |
 | [references/output.md](references/output.md) | 输出格式规范(模板 + emoji + 反模式) | 需要确认列表/详情/写入/搜索怎么展示时 |
-| [references/intent.md](references/intent.md) | 模糊指令意图映射(含 L2C 全链路、Customer 360) | 用户说"今天做什么""这周怎么样"等无动词指令时 |
+| [references/write.md](references/write.md) | 写入操作规范(两阶段写入/必填字段/批量约束/转化映射) | 创建/更新/转化前,避免盲写踩坑 |
+| [references/intent.md](references/intent.md) | 模糊指令意图映射(含 L2C 全链路、Customer 360、漏斗分析) | 用户说"今天做什么""这周怎么样"等无动词指令时 |
 | [references/role.md](references/role.md) | 角色适配 + 工作流时间表(晨会/周会/月会) | 需要按用户身份调整展示,或切换团队/全公司数据范围时 |
 | [references/risk.md](references/risk.md) | 风险预警 + KPI 阈值 + L2C 断链检测 | 查询结果展示后扫描异常,或判断严重度时 |

@@ -207,3 +207,63 @@
 | 命中 lead + account | 标注"线索 {名} 可能已转化为该客户" |
 | 命中 contract | 标注"回款进度 {X}%" |
 | 线索+客户+商机同时命中 | 标注"检测到完整链路:线索→客户→商机(¥金额),建议查看客户 360" |
+
+---
+
+## L2C 漏斗分析
+
+用户问转化率/管道/漏斗("漏斗怎么样""转化率""管道金额""下月预测")时,按本节执行。
+
+### 角色 → searchType 映射(算漏斗前先定范围)
+
+| 角色 | searchType | deptIds | 谁的数据 |
+|------|-----------|---------|---------|
+| 销售 | `SELF` | 空 | 自己 |
+| 经理 | `DEPARTMENT` | `util org` 拿的部门 ID(含子部门需递归展开) | 本部门 |
+| 高管/财务 | `ALL` | 空 | 全公司 |
+
+### 漏斗数据采集(各阶段独立统计)
+
+```
+漏斗快照(本月):
+  1. 线索数:rxcordys stats home-lead --payload '{"searchType":"<范围>"}'
+     → thisMonthClue.value(本月新增线索数)
+  2. 商机数+金额:rxcordys stats home-opportunity --payload '{"searchType":"<范围>"}'
+     → thisMonthOpportunity.value(数)+ thisMonthOpportunityAmount.value(金额)
+  3. 赢单数+金额:rxcordys stats home-opportunity --type success --payload '{"searchType":"<范围>"}'
+  4. 进行中商机:rxcordys stats home-opportunity --type underway --payload '{"searchType":"<范围>"}'
+  5. 合同签约额:rxcordys stats stat contract --payload '{"searchType":"<范围>"}'
+     → {amount, averageAmount}
+  6. 回款额:rxcordys stats stat payment-record --payload '{"searchType":"<范围>"}'
+```
+
+> 各阶段是**独立统计**(线索数 ≠ 客户数),完整转化率需关联字段支持。`priorPeriodCompareRate` 字段是环比。
+
+### 漏斗输出格式
+
+```
+📊 L2C 漏斗快照(本月 · {范围})
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔹 线索       {N} 条
+🔹 商机        {N} 条   ¥{金额}(📈 {环比}% vs 上期)
+   ├ 赢单      {N} 条   ¥{金额}
+   └ 进行中    {N} 条   ¥{金额}
+🔹 签约合同    {N} 份   ¥{金额}
+🔹 已回款      {N} 笔   ¥{金额}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💡 各阶段独立统计,完整转化率需关联字段
+```
+
+### 管道预测("下月预测""能签多少")
+
+```
+预测签约额 = 进行中商机金额 × 历史赢单率
+
+  1. rxcordys stats home-opportunity --type underway --payload '{"searchType":"<范围>"}'
+     → 进行中商机总金额(underwayAmount)
+  2. 赢单率 = 赢单数 / (赢单数 + 输单数)(从商机 page 按 stage 统计)
+  3. 预测签约额 = underwayAmount × 赢单率
+  4. 按阶段分组细化(每个阶段 × 该阶段历史转化率)
+```
+
+> 预测是估算,需说明假设(赢单率取历史值)。输出时标注"基于历史赢单率 {X}% 估算"。
