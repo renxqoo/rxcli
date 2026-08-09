@@ -2,7 +2,7 @@
 
 > Agent-Native CLI 框架 + 业务包 —— 用声明式代码让 AI Agent 和人类结构化消费业务/公开数据。
 >
-> 一个框架(`cli-sdk`)+ 多个业务包(CRM / A 股行情),开箱即用。
+> 一个框架(`cli-sdk`)+ 多个业务包(A 股行情 / Cordys CRM / 公司业务),开箱即用。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org/)
@@ -17,7 +17,8 @@
 
 1. **`@renxqoo/agent-data-cli`**(框架)—— Agent-Native CLI 框架。业务包只声明"调哪个接口、字段怎么处理",就获得鉴权、统一输出格式、错误分类、凭证、管道、skill 发现等全套能力。
 2. **`@renxqoo/rxstock`**(业务包)—— A 股股票数据 CLI。行情/K 线/财务/财报三表/板块/龙虎榜/北向/技术指标/估值分位,多源 fallback,完全免费。
-3. **`@renxqoo/cli`**(业务包)—— 通过 OAuth 鉴权中间层访问公司应用(订单/商品/发票/账号)的 CLI。
+3. **`@renxqoo/rxcordys-cli`**(业务包)—— Cordys CRM L2C 全链路 CLI。线索/客户/商机/合同/回款/发票/订单/跟进/审批/统计,静态双 header 鉴权。
+4. **`@renxqoo/cli`**(业务包)—— 通过 OAuth 鉴权中间层访问公司应用(订单/商品/发票/账号)的 CLI。
 
 **核心思想**:把"数据交给 agent 的方式"收敛成框架能力 —— stdout 永远是结构化统一输出格式,stderr 是错误输出,exit code 分类。Agent 可靠解析,人类可读表格,unix 管道自由组合。
 
@@ -29,6 +30,7 @@
 rxcli/
 ├── packages/cli-sdk      @renxqoo/agent-data-cli  框架(鉴权/统一输出格式/错误/凭证/管道/skill)
 ├── apps/a-stock          @renxqoo/rxstock          A 股数据 CLI(公开数据,多源 fallback)
+├── apps/cordys-crm       @renxqoo/rxcordys-cli     Cordys CRM CLI(静态双 header 鉴权)
 └── apps/crm              @renxqoo/cli              公司业务 CLI(OAuth device flow 鉴权)
 ```
 
@@ -36,6 +38,7 @@ rxcli/
 | --- | --- | --- | --- |
 | [`@renxqoo/agent-data-cli`](packages/cli-sdk) | 框架基础包 | — | `npm i @renxqoo/agent-data-cli` |
 | [`@renxqoo/rxstock`](apps/a-stock) | A 股行情/财务/技术指标 | 无(公开数据) | `npx @renxqoo/rxstock quote 600519` |
+| [`@renxqoo/rxcordys-cli`](apps/cordys-crm) | Cordys CRM(线索/客户/商机/合同/审批) | 静态双 header(API Key) | `npx @renxqoo/rxcordys-cli install` |
 | [`@renxqoo/cli`](apps/crm) | 公司业务(订单/商品) | OAuth device flow | `npx @renxqoo/cli install` |
 
 ---
@@ -58,6 +61,15 @@ npx @renxqoo/rxstock kline indicator 600519    # 技术指标(MACD/RSI/KDJ)
 npx @renxqoo/cli install      # 向导:装 skills → 注册 → 登录
 rxcli orders list             # 查询订单
 rxcli products list           # 查询商品
+```
+
+**Cordys CRM(rxcordys,需 API Key):**
+
+```bash
+npx @renxqoo/rxcordys-cli install      # 向导:装 CLI → 装 Skill → 配凭证
+rxcordys accounts page                 # 客户列表
+rxcordys contracts stat                # 合同金额统计
+rxcordys leads add '{"name":"新线索"}' --yes   # 新增线索
 ```
 
 ### 用框架写自己的业务包
@@ -94,15 +106,15 @@ export default defineCli({
 
 ```
 agent / 终端用户
-    │  rxstock quote 600519  /  rxcli orders list
+    │  rxstock quote 600519  /  rxcli orders list  /  rxcordys accounts page
     ▼
-业务包(@renxqoo/rxstock / @renxqoo/cli)
-    │  缓存 + 多源 fallback / 鉴权 + 续期
+业务包(@renxqoo/rxstock / @renxqoo/rxcordys-cli / @renxqoo/cli)
+    │  缓存 + 多源 fallback / 静态密钥鉴权 / OAuth 鉴权 + 续期
     ▼
 @renxqoo/agent-data-cli(框架)
     │  统一输出格式 {ok,data,meta} / 9 类错误 / exit code / 管道 / skill
     ▼
-数据源:公开行情接口(rxstock)/ OAuth 中间层 + 业务网关(rxcli)
+数据源:公开行情接口(rxstock)/ Cordys CRM(rxcordys)/ OAuth 中间层 + 业务网关(rxcli)
 ```
 
 **输出契约**(框架保证):
@@ -127,6 +139,7 @@ rxstock skills read rx-stock         # 读 skill 内容
 
 # 方式二:安装到 Agent 扫描目录(推荐)
 rxstock install                      # 一键装到 30+ AI 工具
+rxcordys install                     # 同上
 rxcli   install                      # 同上
 ```
 
