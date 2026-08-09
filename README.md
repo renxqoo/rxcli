@@ -45,6 +45,24 @@ rxcli/
 
 ## 快速开始
 
+### 安装业务包
+
+三个业务包,按需选装。统一用 `npx <包名> install` 一键完成(装 CLI + 装 Skill + 配凭证),需 Node ≥ 18。
+
+| 业务包 | 命令 | 鉴权 | 前置条件 |
+| --- | --- | --- | --- |
+| **rxstock**(A 股数据) | `npx @renxqoo/rxstock install` | 无(公开数据) | 无,开箱即用 |
+| **rxcordys**(Cordys CRM) | `npx @renxqoo/rxcordys-cli install` | 静态双 header(API Key) | Cordys 管理后台「个人中心 → API Keys」获取密钥对 |
+| **rxcli**(公司业务) | `npx @renxqoo/cli install` | OAuth device flow | 管理员提供的注册令牌(`auth register --token`) |
+
+**一键安装做了什么**(三个包统一):
+
+1. 全局安装 CLI(`npm install -g`)
+2. 安装 Skill 到 `~/.agents/skills/`(AI 工具发现路径)
+3. 配置凭证(rxstock 跳过此步)
+
+> 也可分步:`npm install -g <包名>` → `<bin> skills sync` → 手动配凭证。详见各业务包 README。
+
 ### 用现成的业务包
 
 **A 股数据(rxstock,无需登录):**
