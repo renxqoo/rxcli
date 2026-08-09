@@ -32,7 +32,7 @@ afterEach(() => {
   process.exitCode = undefined;
 });
 
-// 解析 JSON 信封(stderr 错误 / stdout 成功)
+// 解析 JSON 统一输出(stderr 错误 / stdout 成功)
 function parseStdout() {
   return JSON.parse(stdoutBuf);
 }
@@ -45,7 +45,7 @@ function parseStderr() {
 // ============================================================================
 
 describe("S2: defineCli 不传 plugins", () => {
-  it("不带 plugins 跑命令应正常输出信封,不崩(README 入门示例形态)", async () => {
+  it("不带 plugins 跑命令应正常输出统一格式,不崩(README 入门示例形态)", async () => {
     const app = defineCli({
       name: "demo",
       description: "demo app",
@@ -72,7 +72,7 @@ describe("S2: defineCli 不传 plugins", () => {
 // ============================================================================
 
 describe("S4: 未知命令", () => {
-  it("未知命令 → 非 0 exit + stderr 错误信封(不能 exit 0)", async () => {
+  it("未知命令 → 非 0 exit + stderr 错误输出(不能 exit 0)", async () => {
     const app = defineCli({
       name: "demo",
       description: "demo",
@@ -341,7 +341,7 @@ describe("M1: 子命令 -h 显示帮助", () => {
     });
     await app.run(["hello", "-h"]);
     expect(process.exitCode).toBe(0);
-    // 不应是错误信封
+    // 不应是错误输出
     expect(stderrBuf).toBe("");
   });
 });

@@ -1,7 +1,7 @@
 /**
  * @renxqoo/agent-data-cli --no-json 模式的通用文本渲染(给人看)
  *
- * agent-native 默认 JSON 信封(--json / 不传);--no-json 时切到人类可读文本,
+ * agent-native 默认 JSON 统一输出(--json / 不传);--no-json 时切到人类可读文本,
  * 用通用兜底 prettyPrint(命令可选 humanFormat 覆盖)。错误也文本化(prettyError)。
  *
  * prettyPrint 兜底策略(结构识别,不猜业务语义):

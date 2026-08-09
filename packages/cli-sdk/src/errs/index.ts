@@ -2,7 +2,7 @@
  * @renxqoo/agent-data-cli/errs —— 9 类类型化错误 + exit code 映射
  *
  * 设计依据:docs/04-errors.md。
- * 业务包 throw 类型化错误,cli-sdk 捕获后渲染成信封到 stderr(见 envelope.ts)。
+ * 业务包 throw 类型化错误,cli-sdk 捕获后渲染成统一输出格式到 stderr(见 envelope.ts)。
  * 裸 throw new Error(...) 会被兜底成 internal/unknown(exit 5)——所以永远用 errs.*。
  */
 
@@ -265,12 +265,12 @@ export class ConfirmationRequiredError extends CliError {
 }
 
 // ============================================================================
-// BareError:绕过错误信封的唯一例外
+// BareError:绕过错误输出的唯一例外
 // ============================================================================
 
 /**
  * 谓词命令(如 auth check)专用:stdout 已携带完整答案,只想要对应的 exit code,
- * 不渲染 stderr 错误信封。是错误侧信封契约的唯一例外(成功侧对应 skills read)。
+ * 不渲染 stderr 错误输出。是错误侧输出契约的唯一例外(成功侧对应 skills read)。
  * 普通业务命令禁用,正常失败必须 throw 9 类类型化错误。
  */
 export class BareError extends Error {

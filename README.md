@@ -15,11 +15,11 @@
 
 `rxcli` 是一个 monorepo,提供:
 
-1. **`@renxqoo/agent-data-cli`**(框架)—— Agent-Native CLI 框架。业务包只声明"调哪个接口、字段怎么处理",就获得鉴权、信封、错误分类、凭证、管道、skill 发现等全套能力。
+1. **`@renxqoo/agent-data-cli`**(框架)—— Agent-Native CLI 框架。业务包只声明"调哪个接口、字段怎么处理",就获得鉴权、统一输出格式、错误分类、凭证、管道、skill 发现等全套能力。
 2. **`@renxqoo/rxstock`**(业务包)—— A 股股票数据 CLI。行情/K 线/财务/财报三表/板块/龙虎榜/北向/技术指标/估值分位,多源 fallback,完全免费。
 3. **`@renxqoo/cli`**(业务包)—— 通过 OAuth 鉴权中间层访问公司应用(订单/商品/发票/账号)的 CLI。
 
-**核心思想**:把"数据交给 agent 的方式"收敛成框架能力 —— stdout 永远是结构化信封,stderr 是错误信封,exit code 分类。Agent 可靠解析,人类可读表格,unix 管道自由组合。
+**核心思想**:把"数据交给 agent 的方式"收敛成框架能力 —— stdout 永远是结构化统一输出格式,stderr 是错误输出,exit code 分类。Agent 可靠解析,人类可读表格,unix 管道自由组合。
 
 ---
 
@@ -27,7 +27,7 @@
 
 ```
 rxcli/
-├── packages/cli-sdk      @renxqoo/agent-data-cli  框架(鉴权/信封/错误/凭证/管道/skill)
+├── packages/cli-sdk      @renxqoo/agent-data-cli  框架(鉴权/统一输出格式/错误/凭证/管道/skill)
 ├── apps/a-stock          @renxqoo/rxstock          A 股数据 CLI(公开数据,多源 fallback)
 └── apps/crm              @renxqoo/cli              公司业务 CLI(OAuth device flow 鉴权)
 ```
@@ -100,7 +100,7 @@ agent / 终端用户
     │  缓存 + 多源 fallback / 鉴权 + 续期
     ▼
 @renxqoo/agent-data-cli(框架)
-    │  信封 {ok,data,meta} / 9 类错误 / exit code / 管道 / skill
+    │  统一输出格式 {ok,data,meta} / 9 类错误 / exit code / 管道 / skill
     ▼
 数据源:公开行情接口(rxstock)/ OAuth 中间层 + 业务网关(rxcli)
 ```
@@ -109,10 +109,10 @@ agent / 终端用户
 
 | 流 | 内容 | 谁写 |
 | --- | --- | --- |
-| stdout | 成功信封 `{ok:true, data, meta}` | 框架(从业务 `return` 序列化) |
-| stderr | 错误信封 `{ok:false, error:{type, subtype, ...}}` + 日志 | 框架(从 `throw errs.*` 渲染) |
+| stdout | 成功输出 `{ok:true, data, meta}` | 框架(从业务 `return` 序列化) |
+| stderr | 错误输出 `{ok:false, error:{type, subtype, ...}}` + 日志 | 框架(从 `throw errs.*` 渲染) |
 
-**双模输出**:终端(TTY)→ 人类可读表格(自动 CJK 对齐);管道/CI → JSON 信封。`--json` / `--no-json` 强制覆盖。
+**双模输出**:终端(TTY)→ 人类可读表格(自动 CJK 对齐);管道/CI → JSON 统一输出。`--json` / `--no-json` 强制覆盖。
 
 ---
 

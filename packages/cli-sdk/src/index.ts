@@ -3,10 +3,10 @@
  *
  * 本包提供业务包构建 agent 友好 CLI 所需的全部基础服务:
  *   - 请求方法(get/post/...,带鉴权 + 401 自动续期)直接挂 ctx,无 client 层
- *   - 信封:成功/失败的统一输出契约(stdout=数据 / stderr=一切)
+ *   - 统一输出格式:成功/失败的统一输出契约(stdout=数据 / stderr=一切)
  *   - 错误分类:9 类类型化错误 + exit code 映射
  *   - 凭证:provider chain + OAuth device flow,供开发者写 auth Plugin 用(阶段 2)
- *   - 管道:unix 管道支持(stdin 读上游记录 / stdout 吐信封)
+ *   - 管道:unix 管道支持(stdin 读上游记录 / stdout 吐统一输出格式)
  *   - skill:list/read/sync + 命令文档自动生成(阶段 3)
  *
  * 详细设计见 ./docs/ 目录(随包发布)。
@@ -80,7 +80,7 @@ export {
   type Problem,
 } from "./errs/index.js";
 
-// 信封
+// 统一输出格式
 export {
   serializeSuccess,
   serializeError,

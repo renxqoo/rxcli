@@ -77,7 +77,7 @@ export interface CredentialProvider {
   priority?(): number;
   /** null = 没有,chain 继续;非 null = 命中,用它的 token。 */
   resolveToken(pctx: ProviderContext): Promise<TokenResult | null>;
-  /** 可选:推断 identity(user/bot)填信封顶层。 */
+  /** 可选:推断 identity(user/bot)填统一输出格式顶层。 */
   resolveIdentity?(pctx: ProviderContext): Promise<IdentityHint | null>;
 }
 

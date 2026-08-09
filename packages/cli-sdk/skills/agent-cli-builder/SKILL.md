@@ -1,17 +1,17 @@
 ---
 name: agent-cli-builder
-description: 用 @renxqoo/agent-data-cli 框架从零构建 agent-native 命令行数据查询工具(新的 CLI 业务包)——产物是供 AI agent 自服务调用的命令行程序,不是用已有 CLI 查数据。当用户要新建/做一个 CLI 或业务包、把某个后端 API 或内部接口封装成命令行给 AI agent 用、写命令行工具来拉取某接口的数据,或给已有 CLI 增加鉴权、登录、信封、分页、skill 文档等能力时触发。覆盖"做个拉数据的命令"、"给 agent 加个数据接口"、"把这个接口包成/封成命令行"、"写个工具调这个 API"等说法——即使用户没说出 cli / 业务包 / 框架名也要触发。
+description: 用户要从零做一个 CLI / 命令行工具(产物供 AI agent 自服务调用,不是用已有 CLI 查数据)。具体场景:新建 CLI 或业务包、把后端 API / 内部接口封装成命令行给 agent 用、写工具拉取或操作某接口数据、给已有 CLI 加鉴权登录/统一输出/分页/skill 文档能力。触发词覆盖"做个拉数据的命令"、"给 agent 加个接口"、"把接口包成命令行"、"写个工具调这个 API"等——即使没说出 CLI / 框架名也触发。
 ---
 
 # agent-cli-builder
 
-`@renxqoo/agent-data-cli`(下称 **agent-data-cli**)是一个 agent-native CLI 框架。你**只声明**"调哪个后端接口、字段怎么处理",框架就给你请求层、信封、错误分类、参数解析、管道、skill 发现等全套能力。鉴权是**可选**的(公开数据 CLI 不需要,见 `references/auth-patterns.md`)。
+`@renxqoo/agent-data-cli`(下称 **agent-data-cli**)是一个 agent-native CLI 框架。你**只声明**"调哪个后端接口、字段怎么处理",框架就给你请求层、统一输出格式、错误分类、参数解析、管道、skill 发现等全套能力。鉴权是**可选**的(公开数据 CLI 不需要,见 `references/auth-patterns.md`)。
 
 读完这个 skill,你会:
 
 - 知道 agent-data-cli 给了你哪些"白送的"能力
 - 5 分钟内写出一个能跑的无鉴权 CLI(单文件 <30 行)
-- 输出符合 agent 解析的 `{ok,source,data,meta}` 信封
+- 输出符合 agent 解析的 `{ok,source,data,meta}` 统一输出格式
 - 给 agent 写一份 SKILL.md 让它自服务发现
 - 需要登录时,知道去哪读鉴权方案(渐进式披露)
 
@@ -159,12 +159,12 @@ export default app;
 ```bash
 pnpm tsc                # 编译到 dist/
 node dist/index.js list --json
-# {"ok":true,"source":"rx-todos","data":[...]}    ← JSON 信封(给 agent)
+# {"ok":true,"source":"rx-todos","data":[...]}    ← JSON 统一输出(给 agent)
 node dist/index.js list --no-json
 # 表格(给人看)
 ```
 
-**搞定。** 请求层、错误分类、信封、退出码全部白送。
+**搞定。** 请求层、错误分类、统一输出格式、退出码全部白送。
 
 > **需要登录?** 别在这里展开——读 `references/auth-patterns.md`(`defineAuth` 工厂、OAuth split-flow 登录、register、install 向导全在那)。鉴权是可选的进阶能力。
 
@@ -178,7 +178,7 @@ node dist/index.js list --no-json
 │      ↓                                          │
 │ 框架给:                                          │
 │   - 请求层 ctx.get/post/...(鉴权时带 401 续期) │
-│   - 信封:stdout={ok,source,data,meta}/stderr=错误│
+│   - 统一输出格式:stdout={ok,source,data,meta}/stderr=错误│
 │   - 9 类类型化错误 + exit code 映射             │
 │   - 参数解析 + 类型校验 + 默认值                 │
 │   - --json / --no-json 双模输出                 │
@@ -190,9 +190,9 @@ node dist/index.js list --no-json
 
 **契约铁律:**
 
-- JSON/管道模式的 stdout 只有信封 JSON(成功)或 SKILL.md 原文(成功侧的明示例外)
+- JSON/管道模式的 stdout 只有统一输出 JSON(成功)或 SKILL.md 原文(成功侧的明示例外)
 - 人类模式(`--no-json` 或 auto+TTY)的 stdout 是框架渲染的文本
-- stderr 是日志 + 错误信封
+- stderr 是日志 + 错误输出
 - 业务命令**不能**直接 `console.log` 到 stdout(会破坏管道)
 
 ---
@@ -383,12 +383,12 @@ defineCli({
 
 | 内容                                              | 流         | 谁写                             |
 | ------------------------------------------------- | ---------- | -------------------------------- |
-| 成功信封 `{ok:true, source, data, meta}`          | **stdout** | 框架(从你的 `return` 序列化)     |
-| 错误信封 `{ok:false, error:{type, subtype, ...}}` | **stderr** | 框架(从你的 `throw errs.*` 渲染) |
+| 成功输出 `{ok:true, source, data, meta}`          | **stdout** | 框架(从你的 `return` 序列化)     |
+| 错误输出 `{ok:false, error:{type, subtype, ...}}` | **stderr** | 框架(从你的 `throw errs.*` 渲染) |
 | 日志(info/warn/error)                             | stderr     | `ctx.log.info(...)`              |
-| SKILL.md 原文(`skills read` 输出)                 | stdout     | 框架(**明示例外**:不走信封)      |
+| SKILL.md 原文(`skills read` 输出)                 | stdout     | 框架(**明示例外**:不走统一输出格式)      |
 
-> `source` 由 `defineCli.name` 写入，管道下游据此生成稳定的 `PipeRecord.type`。成功信封还可能带可选顶层 `identity: 'user' \| 'bot'`(auth Plugin 填,标明调用者身份)和 `dry_run`(`--dry-run` 时)。业务包通常不用关心——只需 `return { data, meta }`,其余框架补。
+> `source` 由 `defineCli.name` 写入，管道下游据此生成稳定的 `PipeRecord.type`。成功输出还可能带可选顶层 `identity: 'user' \| 'bot'`(auth Plugin 填,标明调用者身份)和 `dry_run`(`--dry-run` 时)。业务包通常不用关心——只需 `return { data, meta }`,其余框架补。
 
 **`--json` / `--no-json`**:默认 `auto`(TTY→文本表格;管道/CI→JSON);`--json` 强制 JSON,`--no-json` 强制文本(被管道时仍 JSON,保护 agent)。
 
@@ -424,6 +424,8 @@ metadata:
 
 > 完整模板、AUTO-GEN 机制、签名规则见 `references/skill-gen.md`。
 
+**CLI 发布前生成 README**(项目入口,给人看;SKILL.md 是给 agent 的)——读 `references/readme-gen.md`,按标准结构(简介/快速开始/功能/命令/输出/开发/决策)生成,别漏「装 Skill」步骤。
+
 ---
 
 ## 8. 测试
@@ -453,7 +455,7 @@ const result = await todosCommands.list.run({ limit: 20 }, ctx);
 7. **手写 SKILL.md 命令表** → 用 `skills gen <name>` 自动生成(语义部分手写)。
 8. **boolean 不带 default 用 `=== false` 判断** → 未传时是 `undefined`。用 `if (args.x)`(见 §3②)。
 9. **配了 `errorOnStatus` 还手写 `if (res.status===404)`** → 死代码(框架已 throw,走不到)。见 §5 模式 2。
-10. **返回 `{}` / `{ data: undefined }`** → 违反稳定信封契约。纯副作用用 `return`，有结果就返回 `{ data }`（空结果用 `data:null`）。
+10. **返回 `{}` / `{ data: undefined }`** → 违反稳定输出契约。纯副作用用 `return`，有结果就返回 `{ data }`（空结果用 `data:null`）。
 11. **把 `skillsSource` 只写进 `defineCli`** → 当前不会触发安装。显式传给 `runInstallWizard({ skillsSource })`。
 
 > **鉴权相关坑**(要登录才看):credentialNamespace 撞名(静默共用凭证)、业务 SKILL.md 教 agent 直接跑 `auth login`(会卡死)——见 §0 命名必查 + `references/auth-patterns.md`。
@@ -466,6 +468,7 @@ const result = await todosCommands.list.run({ limit: 20 }, ctx);
 - **`references/patterns.md`** —— **列表要分页 / 管道下游 / humanFormat 时读**:pagination 续拉、`ctx.pipe` 消费上游、`printTable` 自定义表格
 - `references/plugin-patterns.md` —— 自定义插件(钩子选择、enforce 顺序、onError 链)
 - `references/skill-gen.md` —— SKILL.md 完整模板(含 split-flow 占位)、AUTO-GEN 机制、frontmatter 规范
+- `references/readme-gen.md` —— **生成 README 时读**:标准结构 + 模板(装CLI/装Skill/配凭证)+ 鉴权三分支 + 避坑
 - `references/error-catalog.md` —— 全部 30+ subtype 速查 + errorOnStatus 推荐配置
 - `references/testing.md` —— createTestCtx 全套(mock transport/store/pipe、端到端测试)
 
@@ -481,8 +484,9 @@ const result = await todosCommands.list.run({ limit: 20 }, ctx);
 - [ ] 分页命令填了 `pagination.complete`
 - [ ] `package.json` 的 `files` 含 `["dist", "skills"]`
 - [ ] 跑 `skills gen <name> --init` 生成 SKILL.md 并填了语义部分
+- [ ] 按 `references/readme-gen.md` 生成 README(含安装三步:CLI + Skill + 凭证)
 - [ ] **带鉴权的 CLI**:业务 SKILL.md 含 split-flow 登录指引
 - [ ] **带鉴权的 CLI**:入口处理了 `install` 向导(拦截 `argv[0]==='install'`)
 - [ ] **带鉴权的 CLI**:`defineAuth` 已 `await`(`const auth = await defineAuth(...)`,不是 `defineAuth(...)`)——见 §3① / §9 第 1 条
-- [ ] 没往 stdout 写非信封内容
-- [ ] 端到端测试断言成功信封含 `source: defineCli.name`
+- [ ] 没往 stdout 写非统一输出格式内容
+- [ ] 端到端测试断言成功输出含 `source: defineCli.name`

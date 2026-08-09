@@ -21,8 +21,8 @@
 
 | 命令                                          | 干什么                                              |
 | --------------------------------------------- | --------------------------------------------------- |
-| `my-cli skills list`                          | 列出所有 skill(返回信封)                            |
-| `my-cli skills read <name>`                   | 读 SKILL.md 原文(stdout,**信封契约例外**)           |
+| `my-cli skills list`                          | 列出所有 skill(返回统一输出)                            |
+| `my-cli skills read <name>`                   | 读 SKILL.md 原文(stdout,**输出契约例外**)           |
 | `my-cli skills read <name>/references/foo.md` | 读 reference 文件(带路径穿越校验)                   |
 | `my-cli skills sync`                          | 同步到 `~/.agents/skills/`(主流 agent 工具发现路径) |
 | `my-cli skills gen <name>`                    | 刷新已有 SKILL.md 的命令表(AUTO-GEN 块内)           |

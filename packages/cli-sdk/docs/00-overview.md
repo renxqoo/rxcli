@@ -1,12 +1,12 @@
 # 00 · 架构总览
 
-> 本文档是 rxcli 的设计锚点。所有后续文档(命令使用、SDK 指南、信封、错误、凭证、skill)都以本文档的全局决策为准,实现阶段不允许偏离。
+> 本文档是 rxcli 的设计锚点。所有后续文档(命令使用、SDK 指南、统一输出格式、错误、凭证、skill)都以本文档的全局决策为准,实现阶段不允许偏离。
 
 ---
 
 ## 一句话定位
 
-**`@renxqoo/agent-data-cli` 是一个 agent-native CLI 框架包:业务包依赖它,只用声明"调哪个后端接口、字段怎么处理",就能获得鉴权、脱敏、信封、错误分类、管道组合、skill 发现等全套能力。**
+**`@renxqoo/agent-data-cli` 是一个 agent-native CLI 框架包:业务包依赖它,只用声明"调哪个后端接口、字段怎么处理",就能获得鉴权、脱敏、统一输出格式、错误分类、管道组合、skill 发现等全套能力。**
 
 它解决的核心矛盾是:**后端接口千差万别(REST/GraphQL/RPC、OAuth/API-key/mTLS、各种字段命名),但"把数据交给 agent 的方式"是通用的。** 框架把前者交给业务包,后者收敛成框架能力。
 
@@ -19,8 +19,8 @@
 | 形态       | **monorepo + SDK 框架**:agentdatacli 框架包 + 业务包独立 npm |
 | 业务包接入 | 别人写独立 npm 包,依赖 agentdatacli                          |
 | 编程风格   | **function 风格 + 配置对象声明**(defineCli/defineCommand)    |
-| 输出       | **统一信封**(成功 stdout / 错误 stderr)                      |
-| 错误       | **9 类类型化错误 + exit code 映射 + 结构化信封**             |
+| 输出       | **统一统一输出格式**(成功 stdout / 错误 stderr)                      |
+| 错误       | **9 类类型化错误 + exit code 映射 + 结构化统一输出格式**             |
 | 凭证       | **provider chain**,可扩展任意鉴权方式                        |
 | 管道       | **unix 管道**,传引用+ID,本地过滤交 jq                        |
 | 上百接口   | **拆文件组装**(按业务域 namespaces 聚合)                     |
@@ -35,7 +35,7 @@
 │  agent / 终端用户                                              │
 │  ─ 用 unix 管道组合命令                                         │
 │  ─ 读 skill 自服务发现命令                                      │
-│  ─ 解析 stdout 信封拿数据,看 stderr 信封处理错误               │
+│  ─ 解析 stdout 统一输出格式拿数据,看 stderr 统一输出格式处理错误               │
 ├──────────────────────────────────────────────────────────────┤
 │  业务包(独立 npm,@org/rxcli-xxx)                            │
 │  ─ 写 function 风格命令(defineCommand,带 <Args,Result> 泛型)│
@@ -46,7 +46,7 @@
 ├──────────────────────────────────────────────────────────────┤
 │  @renxqoo/cli-sdk(基础包,本仓维护)                          │
 │  ─ ctx 请求方法(get/post/...,带鉴权 + 401 自动续期)         │
-│  ─ 信封:成功/失败的统一输出契约                                │
+│  ─ 统一输出格式:成功/失败的统一输出契约                                │
 │  ─ 错误分类:9 类 + exit code + 类型化构造器                   │
 │  ─ 认证:auth 是 Plugin,cli-sdk 出基础块(fileStore /        │
 │    defaultProviders / injectAuthHeader / createOn401Hook 等),│
@@ -58,7 +58,7 @@
 └──────────────────────────────────────────────────────────────┘
 ```
 
-**关键边界:cli-sdk 不懂业务,业务包不懂框架细节。** 两者的契约面是 `ctx`(命令运行时上下文)和"信封"。
+**关键边界:cli-sdk 不懂业务,业务包不懂框架细节。** 两者的契约面是 `ctx`(命令运行时上下文)和"统一输出格式"。
 
 ---
 
@@ -69,7 +69,7 @@
 | 参考                          | 借鉴点                                                                                                                 | 为什么                         |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
 | **mmx**(MiniMax CLI, TS)      | client 能力复用、SDK/CLI 共享请求层、凭证解析优先级链、exit code 体系                                                  | 单一后端的 SDK 形态范本        |
-| **lark-cli**(飞书 CLI, Go)    | 结构化错误信封(RFC 7807)、成功信封 + pagination meta、provider chain、skill 系统、stdout/stderr 纪律、命令文档自动生成 | agent-first CLI 框架的治理范本 |
+| **lark-cli**(飞书 CLI, Go)    | 结构化错误输出(RFC 7807)、成功输出 + pagination meta、provider chain、skill 系统、stdout/stderr 纪律、命令文档自动生成 | agent-first CLI 框架的治理范本 |
 | ** rxcli 前版**(本作者前一版) | device flow 登录、401 singleflight refresh、gateway 中间层代理、skill reader                                           | 直接演进基础,迁移而非重发明    |
 
 **注意:借鉴的是模式,不是复制代码。** lark-cli 是 Go,我们是 TS;mmx 是单一后端产品,我们是框架。每个借鉴点都按 TS 框架场景做了改造(详见各专题文档)。
@@ -119,9 +119,9 @@
 | 4   | 请求      | **取消 client 概念**(无 createClient/Client);请求方法 `get/post/...` 全挂 `ctx`;鉴权归 cli-sdk 内部 + auth 插件                                                   | `02-sdk-guide.md`   |
 | 5   | transport | 低层 `ctx.request` + 高层便利方法(`ctx.get` 等);**REST 先行**                                                                                                     | `02-sdk-guide.md`   |
 | 6   | 横切机制  | **vite 式插件**(钩子是 Plugin 接口,defineCli 用 `plugins: []`,不做内联钩子)                                                                                       | `02-sdk-guide.md`   |
-| 7   | 错误      | 类型化错误 + 结构化信封到 stderr + **9 类 exit code**;throw 进 onError 插件链                                                                                     | `04-errors.md`      |
-| 8   | 信封      | 成功也信封 `{ok, data, meta}`;**stdout=数据 / stderr=一切**                                                                                                       | `03-envelopes.md`   |
-| 9   | 分页      | 信封 `meta.pagination` + `complete` + `nextToken`,**agent 自决续拉**                                                                                              | `03-envelopes.md`   |
+| 7   | 错误      | 类型化错误 + 结构化统一输出格式到 stderr + **9 类 exit code**;throw 进 onError 插件链                                                                                     | `04-errors.md`      |
+| 8   | 统一输出格式      | 成功也统一输出格式 `{ok, data, meta}`;**stdout=数据 / stderr=一切**                                                                                                       | `03-envelopes.md`   |
+| 9   | 分页      | 统一输出格式 `meta.pagination` + `complete` + `nextToken`,**agent 自决续拉**                                                                                              | `03-envelopes.md`   |
 | 10  | 认证      | **auth 是 Plugin**,开发者用 cli-sdk 基础块(provider chain / injectAuthHeader / oauth)自己组装;**无封闭工厂**(无 `createAuthPlugin`);取消 `credentials.register()` | `05-credentials.md` |
 | 11  | 管道      | unix 管道;**传引用+ID**;本地过滤交 jq                                                                                                                             | `01-cli-usage.md`   |
 | 12  | 过滤      | `--limit/--offset` 透传后端;`--filter`/选字段**交 jq**                                                                                                            | `01-cli-usage.md`   |
@@ -155,7 +155,7 @@
 | `00-overview.md`    | 所有人           | 架构、分层、决策清单(本文档)                                                              |
 | `01-cli-usage.md`   | 终端用户 / agent | 怎么调用命令、管道、分页、exit code                                                       |
 | `02-sdk-guide.md`   | 业务包开发者     | 怎么写业务包、ctx 接口、**插件系统**、auth 插件、命令三泛型                               |
-| `03-envelopes.md`   | 实现者 / agent   | 成功/错误信封的字段契约                                                                   |
+| `03-envelopes.md`   | 实现者 / agent   | 成功/错误输出的字段契约                                                                   |
 | `04-errors.md`      | 业务包开发者     | 9 类错误、何时 throw、hint、onError 插件链                                                |
 | `05-credentials.md` | 业务包开发者     | **写 auth Plugin**(provider chain / injectAuthHeader / oauth)、provider chain、自定义凭证 |
 | `06-skills.md`      | 业务包开发者     | skill 系统、命令文档自动生成                                                              |
@@ -165,7 +165,7 @@
 ## 实现阶段路线(本次只做第一阶段)
 
 1. **第一阶段(本次)**:仓库脚手架 + 全套设计文档(本目录)
-2. 第二阶段:实现 cli-sdk 代码(types → ctx 请求层 + 认证基础块(provider chain / injectAuthHeader / on401) → 命令框架 + 插件系统 → 输出信封层 → skills → 错误层)
+2. 第二阶段:实现 cli-sdk 代码(types → ctx 请求层 + 认证基础块(provider chain / injectAuthHeader / on401) → 命令框架 + 插件系统 → 输出统一输出层 → skills → 错误层)
 3. 第三阶段:建示例业务包(迁 orders)做端到端验证 + vitest
 4. 第四阶段:`@renxqoo/cli` meta 包(install 向导 + 跨包 skill 聚合 + 插件发现)
 

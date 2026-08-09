@@ -42,7 +42,7 @@ $ rxcli skills read orders
 # 直接吐 SKILL.md 原文到 stdout(agent 读)
 ```
 
-> **`skills read` 是信封契约的明示例外。** stdout 直接吐 Markdown 原文(**非** `{ok,data,meta}` 信封),因为消费方是 agent,直读/管道拼接(类似 `cat`)最自然。这是成功侧信封契约的**唯一**例外(错误侧对应 `BareError`),普通业务命令不得效仿。详见 `03-envelopes.md`。
+> **`skills read` 是输出契约的明示例外。** stdout 直接吐 Markdown 原文(**非** `{ok,data,meta}` 统一输出格式),因为消费方是 agent,直读/管道拼接(类似 `cat`)最自然。这是成功侧输出契约的**唯一**例外(错误侧对应 `BareError`),普通业务命令不得效仿。详见 `03-envelopes.md`。
 
 支持读子文件:`rxcli skills read orders/references/orders-list.md`。带路径穿越校验(拒绝 `..`、绝对路径),对齐 lark-cli 的 `cleanSubPath`。
 

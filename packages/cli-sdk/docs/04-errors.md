@@ -1,12 +1,12 @@
 # 04 · 错误分类与 exit code
 
-> cli-sdk 用 9 类类型化错误 + exit code 映射,把"命令失败"变成 agent 可精确分支的结构化信号。业务包 throw 类型化错误,cli-sdk 统一渲染成错误信封到 stderr。本文档定义 9 个 Category、构造器签名、hint 规范、何时 throw。
+> cli-sdk 用 9 类类型化错误 + exit code 映射,把"命令失败"变成 agent 可精确分支的结构化信号。业务包 throw 类型化错误,cli-sdk 统一渲染成错误输出到 stderr。本文档定义 9 个 Category、构造器签名、hint 规范、何时 throw。
 
 ---
 
 ## 设计原则
 
-1. **业务包只 throw 类型化错误**,不 throw 裸 `Error`。cli-sdk 捕获后渲染成信封(见 `03-envelopes.md`)。**裸 `throw new Error(...)` 会被兜底成 `internal/unknown`(exit 5)**,agent 会误解成 cli-sdk bug——所以永远用 `errs.*`。
+1. **业务包只 throw 类型化错误**,不 throw 裸 `Error`。cli-sdk 捕获后渲染成统一输出格式(见 `03-envelopes.md`)。**裸 `throw new Error(...)` 会被兜底成 `internal/unknown`(exit 5)**,agent 会误解成 cli-sdk bug——所以永远用 `errs.*`。
 2. **exit code 由 Category 决定**,业务包不用自己设 exit code。
 3. **hint 字段是给 agent 的可执行指令**,不是给人看的解释。
 4. **错误 wrap 不可降级**:下层已返回类型化错误时,透传不 re-wrap。
@@ -344,18 +344,18 @@ defineCli({ plugins: [auth, errorNormalizePlugin], ... })
 
 ---
 
-## BareError:绕过错误信封的唯一例外
+## BareError:绕过错误输出的唯一例外
 
 `errs.BareError` **不属于** 9 个 Category,是特殊类型,用于"谓词命令"场景(见 `03-envelopes.md` 的"BareError 例外"):
 
 ```ts
 // 谓词命令:stdout 已有完整答案(如 auth check 的 yes/no JSON),只想要对应的 exit code
-if (!loggedIn) throw new errs.BareError(3); // exit 3,stderr 不渲染错误信封
+if (!loggedIn) throw new errs.BareError(3); // exit 3,stderr 不渲染错误输出
 ```
 
-- **只设 exit code,不渲染 stderr 错误信封**——因为 stdout 已经携带了答案
-- 是错误侧信封契约的**唯一**例外(成功侧例外是 `skills read`,见 `03-envelopes.md`)
-- **普通业务命令禁用**:正常失败必须 throw 9 类类型化错误,让 cli-sdk 渲染信封
+- **只设 exit code,不渲染 stderr 错误输出**——因为 stdout 已经携带了答案
+- 是错误侧输出契约的**唯一**例外(成功侧例外是 `skills read`,见 `03-envelopes.md`)
+- **普通业务命令禁用**:正常失败必须 throw 9 类类型化错误,让 cli-sdk 渲染统一输出
 
 ---
 

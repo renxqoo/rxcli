@@ -59,7 +59,9 @@ interface RequestOptionsInternal extends RequestOptions {
 }
 
 async function doFetch<T>(opts: RequestOptionsInternal): Promise<TransportResponse<T>> {
-  const url = appendQuery((opts.baseUrl ?? "") + opts.path, opts.query);
+  // 绝对 URL(http(s)://)直连,不拼 baseUrl;相对路径才拼
+  const base = /^https?:\/\//i.test(opts.path) ? "" : (opts.baseUrl ?? "");
+  const url = appendQuery(base + opts.path, opts.query);
   const headers: Record<string, string> = { ...opts.headers };
   let body: string | undefined;
   if (opts.body !== undefined && opts.method !== "GET") {

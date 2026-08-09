@@ -18,7 +18,7 @@ agent / 终端用户
     │  rxcli orders list
     ▼
 @renxqoo/cli (本包,业务命令)
-    │  经 OAuth 鉴权 + 信封封装
+    │  经 OAuth 鉴权 + 统一输出格式封装
     ▼
 鉴权中间层 (验 JWT、换 company_token)
     │
@@ -29,7 +29,7 @@ agent / 终端用户
 **特性:**
 
 - 🔐 **OAuth device flow 登录** —— 浏览器扫码授权,token 自动刷新
-- 📦 **结构化输出** —— 默认 JSON 信封(agent 友好);`--no-json` 切人类可读表格
+- 📦 **结构化输出** —— 默认 JSON 统一输出(agent 友好);`--no-json` 切人类可读表格
 - 🚇 **unix 管道** —— `rxcli orders list | jq '...'` 自由组合
 - 📖 **skill 自服务** —— AI agent 读 SKILL.md 自动学会所有命令
 - 🧙 **install 向导** —— `rxcli install` 一键引导(全局安装 + skills + 注册 + 登录)
@@ -116,7 +116,7 @@ rxcli skills gen <name>         # 生成/刷新命令文档
 ### 全局选项
 
 ```bash
---json          强制 JSON 信封输出
+--json          强制 JSON 统一输出输出
 --no-json       强制人类可读文本输出(终端用)
 -h, --help      查看帮助
 -v, --version   查看版本
@@ -159,7 +159,7 @@ AI agent 读 `~/.agents/skills/` 下的 SKILL.md,自动学会所有命令:
 
 ```
 用户:帮我查下最近的订单
-agent: (读 rx-orders skill) → rxcli orders list → 解析信封 → 返回结果
+agent: (读 rx-orders skill) → rxcli orders list → 解析统一输出格式 → 返回结果
 ```
 
 ---
@@ -171,7 +171,7 @@ agent: (读 rx-orders skill) → rxcli orders list → 解析信封 → 返回�
 | 场景         | 默认输出               |
 | ------------ | ---------------------- |
 | 终端(TTY)    | 人类可读文本(自动表格) |
-| 管道/脚本/CI | JSON 信封              |
+| 管道/脚本/CI | JSON 统一输出              |
 
 显式控制:`--json`(强制 JSON)/ `--no-json`(强制文本)。
 

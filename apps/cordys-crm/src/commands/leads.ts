@@ -85,6 +85,8 @@ export const leadsCommands: CommandGroup = defineCommands({
     },
     async run(args, ctx) {
       const body = parseJsonBody(args.data, "<data>");
+      // 字段校验在 dryRun/confirm 之前(dryRun 也要校验必填字段)
+      assertHasField(body, "新增线索", "name");
       if (args.dryRun) return { data: null, meta: { dryRun: true } };
       ensureConfirmed(args.yes, "新增线索", "rxcordys leads add '<json>' --yes");
       const res = await ctx.post(`/${MODULE}/add`, body);

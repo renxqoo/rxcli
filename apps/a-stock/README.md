@@ -34,7 +34,7 @@
 - 🔄 **多源 fallback** —— 任一数据源失败自动回落
 - ⚡ **性能优化** —— 进程内 TTL 缓存(秒级~分钟级)+ singleflight
 - 🔁 **自动重试** —— 网络错误/5xx 自动 2 次指数退避重试
-- 📦 **JSON 信封** —— agent 可直接解析;`--no-json` 切人类可读表格
+- 📦 **JSON 统一输出** —— agent 可直接解析;`--no-json` 切人类可读表格
 - 🚇 **管道友好** —— unix 管道串联,与 jq / ripgrep 等工具组合
 - 📖 **skill 自服务** —— AI agent 读 SKILL.md 自动学会所有命令
 
@@ -58,25 +58,46 @@ agent / 终端用户
 
 ---
 
-## 安装
+## 快速开始
 
-无需全局安装,用 `npx` 即用即跑:
+### 一键安装(推荐)
 
 ```bash
-npx @renxqoo/rxstock <命令>
+npx @renxqoo/rxstock install
 ```
 
-全局安装:
+自动完成两步:① 全局安装 CLI → ② 安装 Skill 到 `~/.agents/skills/`(AI 工具发现路径)。需 Node ≥ 18。无需 API key,开箱即用。
+
+> `npx` 无需预装,跑完即得全局 `rxstock` 命令 + 已就位的 skill。
+
+### 手动安装(分步,等价于一键安装)
+
+如果一键安装某步失败或想单独执行:
+
+**第 1 步:安装 CLI**
 
 ```bash
 npm install -g @renxqoo/rxstock
 ```
 
-### 首次使用(可选)
+安装后跑 `rxstock --help` 确认可用。不想全局装?用 `npx @renxqoo/rxstock <命令>` 临时执行。
+
+**第 2 步:安装 Skill(让 AI 工具发现)**
+
+把 skill 同步到 `~/.agents/skills/`(Claude Code / Cursor / Trae 等 AI 工具的通用发现路径):
 
 ```bash
-npx @renxqoo/rxstock install          # 引导:把 SKILL.md 装载到 ~/.agents/skills/
+rxstock skills sync
 ```
+
+同步后 AI 工具即可在用户提到股票、行情、K 线、财务等关键词时自动触发本 skill。验证:
+
+```bash
+rxstock skills list             # 列出已装的 skill
+ls ~/.agents/skills/rx-stock/   # 确认 skill 文件就位
+```
+
+> 无需凭证配置——rxstock 走公开数据源,开箱即用。
 
 ## 命令一览
 
@@ -216,7 +237,7 @@ rxstock 自动判定市场:
 
 ## 输出模式
 
-### 默认(JSON 信封)
+### 默认(JSON 统一输出)
 
 ```bash
 $ rxstock quote 600519

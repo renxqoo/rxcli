@@ -54,7 +54,7 @@ export interface TransportResponse<T = unknown> {
 }
 
 // ============================================================================
-// 信封(envelope)
+// 统一输出格式(envelope)
 // ============================================================================
 
 /** 分页元信息(命令如实填 complete + nextToken,决策清单 #9)。 */
@@ -90,7 +90,7 @@ export interface CommandResult<T = unknown> {
 // 管道(PipeRecord)
 // ============================================================================
 
-/** 下游 ctx.pipe.in() 读到的每条记录形态。stdout 仍是完整信封;框架把 data 数组逐条包成 PipeRecord。 */
+/** 下游 ctx.pipe.in() 读到的每条记录形态。stdout 仍是完整统一输出格式;框架把 data 数组逐条包成 PipeRecord。 */
 export interface PipeRecord {
   /** 来源业务包命名空间(defineCli.name),下游按它分流。 */
   type: string;
@@ -194,7 +194,7 @@ export interface Plugin<State = Record<string, never>> {
   /** 必填:插件名(日志/溯源)。 */
   name: string;
   /** 可选:执行优先级,省略 = 'normal' 档(三档:pre/normal/post)。 */
-  enforce?: "pre" | "post";
+  enforce?: "pre" | "normal" | "post";
   /**
    * 可选:plugin 贡献的命令,defineCli 自动注入,业务无需手挂。
    *
@@ -266,10 +266,10 @@ export interface DefineCliOptions<State> {
   /** 可选:后端 baseUrl(无 auth 时可直连;有 auth 时由 provider 决定)。 */
   baseUrl?: string;
   /**
-   * 可选:--no-json 文本 / JSON 信封的默认输出格式(用户没传 --json/--no-json 时)。
+   * 可选:--no-json 文本 / JSON 统一输出的默认输出格式(用户没传 --json/--no-json 时)。
    *
    * - `'auto'`(默认,推荐):stdout 是 TTY(人在终端)→ 文本;非 TTY(管道/脚本/CI)→ JSON。两全。
-   * - `'json'`:默认 JSON 信封(agent-native 业务选这个)。
+   * - `'json'`:默认 JSON 统一输出(agent-native 业务选这个)。
    * - `'human'`:默认人类可读文本(面向终端用户的业务选这个)。
    *
    * `--json` / `--no-json` 永远强制覆盖本选项。
@@ -288,6 +288,6 @@ export interface DefineCliOptions<State> {
 export interface App {
   /** 装配名(defineCli.name)。 */
   name: string;
-  /** 解析 argv 并执行匹配的命令(渲染信封到 stdout/stderr + 设 exit code)。 */
+  /** 解析 argv 并执行匹配的命令(渲染统一输出到 stdout/stderr + 设 exit code)。 */
   run(argv: string[]): Promise<void>;
 }

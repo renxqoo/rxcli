@@ -1,8 +1,8 @@
 /**
- * @renxqoo/agent-data-cli —— 信封序列化
+ * @renxqoo/agent-data-cli —— 统一输出序列化
  *
  * 设计依据:docs/03-envelopes.md。
- * 关键决策(case 转换边界):**只转信封骨架字段 camelCase→snake_case,data 原样不动**。
+ * 关键决策(case 转换边界):**只转统一输出骨架字段 camelCase→snake_case,data 原样不动**。
  * 实现策略:手写骨架字段映射表(非通用递归转换)——杜绝误伤 data 里的业务字段。
  *   业务包 run 返回 { data: { userId: 'u1' } } → wire 里仍是 userId(不变成 user_id)。
  *   只有 meta.pagination.nextToken、dryRun、missingScopes 等骨架字段转 snake。
@@ -37,7 +37,7 @@ function transformMeta(meta: Meta): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   if (meta.count !== undefined) out.count = meta.count;
   if (meta.rollback !== undefined) out.rollback = meta.rollback;
-  if (meta.pagination !== undefined) {
+  if (meta.pagination !== undefined && meta.pagination !== null) {
     const p = meta.pagination;
     const pg: Record<string, unknown> = { complete: p.complete };
     if (p.pages !== undefined) pg.pages = p.pages;
@@ -55,11 +55,11 @@ function transformMeta(meta: Meta): Record<string, unknown> {
 }
 
 // ============================================================================
-// 成功信封
+// 成功输出
 // ============================================================================
 
 /**
- * 序列化成功信封到紧凑 JSON 字符串(stdout)。
+ * 序列化成功输出到紧凑 JSON 字符串(stdout)。
  * 结构:{ ok:true, [identity], [source], data, meta, [dry_run], [_notice] }
  * data 原样输出(不转 case);meta 骨架转 snake。
  */
@@ -76,7 +76,7 @@ export function serializeSuccess(data: unknown, meta?: Meta, opts: SerializeOpti
 }
 
 // ============================================================================
-// 错误信封
+// 错误输出
 // ============================================================================
 
 /**
@@ -94,7 +94,7 @@ function transformErrorExtensions(err: CliError): Record<string, unknown> {
 }
 
 /**
- * 序列化错误信封到紧凑 JSON 字符串(stderr)。
+ * 序列化错误输出到紧凑 JSON 字符串(stderr)。
  * 结构:{ ok:false, [identity], error:{ type, subtype, [code], message, [hint], [retryable], [扩展...] } }
  */
 export function serializeError(err: CliError, opts: SerializeOptions = {}): string {

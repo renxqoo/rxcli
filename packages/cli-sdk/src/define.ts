@@ -197,7 +197,7 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
         const { matched, rest } = matchRoute(argv, routed);
 
         if (!matched) {
-          // 无匹配:help / 空 argv → 显示 help(exit 0);其余视为未知命令 → 错误信封(exit 2)
+          // 无匹配:help / 空 argv → 显示 help(exit 0);其余视为未知命令 → 错误输出(exit 2)
           // agent-native CLI 不允许"拼错命令 exit 0"(会被 agent 误判为成功)。
           if (hasFlagBeforeSeparator(argv, "-h", "--help") || argv.length === 0) {
             process.stdout.write(renderHelp(binName, description, routed) + "\n");
@@ -365,6 +365,16 @@ function parseFlags(
     }
 
     if (!t.startsWith("--")) {
+      // 单短氢 flag(如 -x):不是负数(-1/-1.5)、不是单个 - → 报错(未知短 flag)
+      // 负数 / 单个 - 仍当 positional(合法值)
+      if (t.startsWith("-") && t.length > 1 && !isNegativeNumber(t)) {
+        throw new errs.ValidationError({
+          subtype: "invalid_argument",
+          param: t,
+          message: `未知短 flag ${t}(本框架只支持长 flag --xxx)`,
+          hint: `如需传负数值,用 -- 分隔:rxcordys cmd -- ${t}`,
+        });
+      }
       // 非 flag → positional
       positionals.push(t);
       continue;
@@ -658,7 +668,7 @@ async function executeOne<State>(opts: ExecuteOneOptions<State>): Promise<number
   });
   retryRequest = (req) => runBeforeRequest(opts.plugins, ctx, req);
 
-  // runCommand 从 ctx 读 auth 插件填的 _identity(信封顶层 user/bot)
+  // runCommand 从 ctx 读 auth 插件填的 _identity(统一输出格式顶层 user/bot)
   return runCommand<State>({
     spec: opts.spec,
     args: () => {

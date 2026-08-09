@@ -29,7 +29,7 @@ rxcli orders list              # 装进 rxcli 主包后(需额外装 @renxqoo/cl
 
 ### Level 1 — 最简单的查询
 
-默认输出是 **JSON 信封**,给 agent 读:
+默认输出是 **JSON 统一输出**,给 agent 读:
 
 ```bash
 $ rxcli-orders list
@@ -86,13 +86,13 @@ rxcli-orders list \
   | uniq
 ```
 
-**原则:左边 `rxcli` 只管出数据(透传后端 + 信封),右边的过滤/提取/排序全是 unix 工具。** 这是 unix 管道哲学,也是 agent 最熟悉的组合方式。
+**原则:左边 `rxcli` 只管出数据(透传后端 + 统一输出格式),右边的过滤/提取/排序全是 unix 工具。** 这是 unix 管道哲学,也是 agent 最熟悉的组合方式。
 
 > 什么 flag cli-sdk 做、什么交给 jq?判断标准见 `00-overview.md` 的决策清单 #12、#13。
 >
 > - **服务端参数**(影响后端查询):`--limit`/`--offset`/`--status` 等 → cli-sdk 做,因为本地触达不到后端
 > - **本地数据操作**(改 stdout 内容):过滤/选字段/排序 → 交给 jq
-> - **输出格式**(信封序列化):JSON/table → cli-sdk 做,因为它和信封契约绑定
+> - **输出格式**(统一输出序列化):JSON/table → cli-sdk 做,因为它和输出契约绑定
 
 ---
 
@@ -139,7 +139,7 @@ rxcli-orders list --status unpaid \
   | rxcli-notifications send --template overdue
 ```
 
-中间任何一级都可以插 `jq` 做本地处理。**跨业务包也能组合**(orders → customers → notifications),只要它们都遵守信封契约。
+中间任何一级都可以插 `jq` 做本地处理。**跨业务包也能组合**(orders → customers → notifications),只要它们都遵守输出契约。
 
 ### 管道的纪律(为什么不会断)
 
@@ -147,10 +147,10 @@ rxcli-orders list --status unpaid \
 
 | 流         | 内容                                                         | 谁写                            |
 | ---------- | ------------------------------------------------------------ | ------------------------------- |
-| **stdout** | **只有**信封 JSON(成功 `{ok,data,meta}`,空数组也是合法 JSON) | cli-sdk 从 `run` 返回值序列化   |
-| **stderr** | 日志、进度、提示、警告、错误信封                             | cli-sdk 的 `ctx.log` + 错误渲染 |
+| **stdout** | **只有**统一输出 JSON(成功 `{ok,data,meta}`,空数组也是合法 JSON) | cli-sdk 从 `run` 返回值序列化   |
+| **stderr** | 日志、进度、提示、警告、错误输出                             | cli-sdk 的 `ctx.log` + 错误渲染 |
 
-**铁律:业务命令永远不能直接往 stdout 写非信封内容。** 一切非数据输出走 `ctx.log`(stderr)。否则 `rxcli-orders list | jq` 混进一行"加载中..."整个管道就废了。
+**铁律:业务命令永远不能直接往 stdout 写非统一输出格式内容。** 一切非数据输出走 `ctx.log`(stderr)。否则 `rxcli-orders list | jq` 混进一行"加载中..."整个管道就废了。
 
 详见 `03-envelopes.md` 的"stdout/stderr 分配规则"。
 
@@ -158,7 +158,7 @@ rxcli-orders list --status unpaid \
 
 ## 分页:agent 自决续拉
 
-后端数据可能很多,cli-sdk 默认只取一页,但在信封 `meta` 里告诉你**完整性**和**续拉游标**:
+后端数据可能很多,cli-sdk 默认只取一页,但在统一输出格式 `meta` 里告诉你**完整性**和**续拉游标**:
 
 ```bash
 $ rxcli-orders list --limit 30
@@ -195,7 +195,7 @@ rxcli-orders list --limit 30 --page-token abc123
 agent 不知道有哪些命令?直接问 CLI:
 
 ```bash
-# 列出所有 skill(每个业务包自带),返回标准成功信封
+# 列出所有 skill(每个业务包自带),返回标准成功输出
 $ rxcli skills list
 {
   "ok": true,
@@ -211,7 +211,7 @@ $ rxcli skills read orders
 # 直接吐 SKILL.md 原文到 stdout 给 agent 读
 ```
 
-> **`skills read` 是信封契约的明示例外。** 其它所有成功输出都是 `{ok,data,meta}` 信封,唯独 `skills read` 直接吐 Markdown 原文到 stdout——因为消费方是 agent,直读/管道拼接(类似 `cat`)更自然,无需反序列化。类比错误信封侧的 `BareError` 例外(见 `03-envelopes.md`)。**普通业务命令不得效仿**,仍必须 return 信封。
+> **`skills read` 是输出契约的明示例外。** 其它所有成功输出都是 `{ok,data,meta}` 统一输出格式,唯独 `skills read` 直接吐 Markdown 原文到 stdout——因为消费方是 agent,直读/管道拼接(类似 `cat`)更自然,无需反序列化。类比错误输出侧的 `BareError` 例外(见 `03-envelopes.md`)。**普通业务命令不得效仿**,仍必须 return 统一输出格式。
 
 skill 是给 agent 读的 Markdown 指令文档。其中"命令表"部分由 `defineCommands` 自动生成,"何时用/错误处理"由业务专家手写。详见 `06-skills.md`。
 
@@ -232,13 +232,13 @@ agent 靠 exit code 判断命令成败,不用解析 JSON:
 | 6    | 策略拦截(风控/内容安全)                          | 读 error.hint                       |
 | 10   | 需要确认(高风险写入要 --yes)                     | 加 --yes 或让用户确认               |
 
-**关键:错误信封在 stderr,不在 stdout。** 所以 `cmd | jq` 即使命令失败,jq 也不会收到错误 JSON(避免 agent 误把错误当数据处理)。详见 `03-envelopes.md` 和 `04-errors.md`。
+**关键:错误输出在 stderr,不在 stdout。** 所以 `cmd | jq` 即使命令失败,jq 也不会收到错误 JSON(避免 agent 误把错误当数据处理)。详见 `03-envelopes.md` 和 `04-errors.md`。
 
 ---
 
 ## 错误怎么读
 
-命令失败时,stderr 输出结构化错误信封,exit code 非 0:
+命令失败时,stderr 输出结构化错误输出,exit code 非 0:
 
 ```bash
 $ rxcli-orders get o_notexist

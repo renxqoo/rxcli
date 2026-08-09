@@ -2,7 +2,7 @@
  * invoices —— 发票(invoice)模块。
  *
  * 端点:
- *   GET    /invoice/view/list       视图列表(发票无独立 view,走 page)
+ *   GET    /invoice/view/list       视图列表
  *   GET    /invoice/{id}            详情
  *   POST   /invoice/page            分页列表
  *   GET    /invoice/module/form     表单定义
@@ -19,6 +19,17 @@ import { ensureConfirmed, assertHasId } from "./leads.js";
 const MODULE = "invoice";
 
 export const invoicesCommands: CommandGroup = defineCommands({
+  list: defineCommand<{ opts: string }>({
+    name: "list",
+    description: "发票视图列表",
+    args: { opts: { type: "string", desc: "查询参数 JSON" } },
+    async run(args, ctx) {
+      const query = args.opts ? (JSON.parse(args.opts) as Record<string, unknown>) : {};
+      const res = await ctx.get(`/${MODULE}/view/list`, query);
+      return { data: unwrap(res) };
+    },
+  }),
+
   get: defineCommand<{ id: string }>({
     name: "get",
     description: "发票详情",

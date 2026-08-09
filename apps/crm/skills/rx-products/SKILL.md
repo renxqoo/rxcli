@@ -11,7 +11,7 @@ metadata:
 
 # products (v1.1)
 
-**CRITICAL — 开始前 MUST 先用 Read 工具读取 [`../rx-shared/SKILL.md`](../rx-shared/SKILL.md),其中包含输出信封约定、登录、scope、错误处理说明**
+**CRITICAL — 开始前 MUST 先用 Read 工具读取 [`../rx-shared/SKILL.md`](../rx-shared/SKILL.md),其中包含输出统一格式约定、登录、scope、错误处理说明**
 
 ## 命令
 
@@ -44,7 +44,7 @@ rxcli products list --category 电脑外设       # 按分类过滤(精确匹配
 
 ### 输出示例
 
-stdout(信封):
+stdout(统一输出格式):
 
 ```json
 {
@@ -106,7 +106,7 @@ rxcli products get p_002
 | `token_expired`                  | 401  | 登录态失效,`auth login` 重新登录                |
 | `timeout` / `connection_refused` | 4    | 网络/中间层错误,检查 `auth status` 的中间层地址 |
 
-> 信封/错误格式见 rx-shared「输出与信封约定」与「错误处理」。
+> 统一输出格式/错误格式见 rx-shared「输出与统一输出格式约定」与「错误处理」。
 
 ## 深度参考
 

@@ -268,10 +268,10 @@ const errorNormalizePlugin = {
 
 ## 8. BareError 例外(谓词命令)
 
-少数命令(`auth check`)stdout 已携带完整答案(yes/no),只需对应 exit code,不要 stderr 信封:
+少数命令(`auth check`)stdout 已携带完整答案(yes/no),只需对应 exit code,不要 stderr 统一输出格式:
 
 ```ts
-if (!loggedIn) throw new errs.BareError(3); // exit 3,stderr 不渲染信封
+if (!loggedIn) throw new errs.BareError(3); // exit 3,stderr 不渲染统一输出
 ```
 
-`BareError` 是**唯一**绕过错误信封的类型。普通命令禁用。
+`BareError` 是**唯一**绕过错误输出的类型。普通命令禁用。
