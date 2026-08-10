@@ -1,6 +1,6 @@
 {
   "name": "@renxqoo/agent-data-cli",
-  "version": "1.1.6",
+  "version": "1.2.0",
   "description": "Agent-native CLI framework — a command-line framework that lets AI agents consume business data in a structured way (auth, unified output, errors, credentials, pipes, skills)",
   "keywords": [
     "agent",
@@ -26,7 +26,6 @@
   },
   "files": [
     "dist",
-    "docs",
     "README.md",
     "skills"
   ],

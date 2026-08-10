@@ -7,7 +7,7 @@ import { defineCommand } from "../../define.js";
 import { errs } from "../../errs/index.js";
 import type { CommandResult, CommandSpec } from "../../types.js";
 import type { ConfigStore } from "../../credentials/types.js";
-import { registerClient, type OAuthClientConfig, type ClientMetadata } from "../../oauth.js";
+import { registerClient, type ClientMetadata } from "../../oauth.js";
 
 export interface RegisterCommandDeps {
   baseUrl: string;

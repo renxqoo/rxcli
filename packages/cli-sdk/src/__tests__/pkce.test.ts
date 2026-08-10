@@ -12,7 +12,6 @@ import {
   clientCredentialsToken,
   type OAuthClientConfig,
 } from "../oauth.js";
-import { InternalError, APIError } from "../errs/index.js";
 
 const cfg: OAuthClientConfig = {
   baseUrl: "http://auth-server.test",

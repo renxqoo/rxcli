@@ -41,7 +41,6 @@ import { createRegisterCommand } from "./commands/register.js";
 import {
   fileStore,
   resolveWithChain,
-  resolveIdentityWithChain,
   type ConfigStore,
   type ProviderContext,
   type IdentityHint,
@@ -49,6 +48,7 @@ import {
 import type { CredentialProvider } from "../credentials/types.js";
 import { credentialArgsKey } from "../context.js";
 import { resolveAuthConfig, buildProviderChain, buildOn401Handler } from "./helpers.js";
+import { getAuthSession, setAuthSession, updateAuthSessionToken } from "./session.js";
 
 // ============================================================================
 // 工厂入参/出参类型
@@ -132,7 +132,7 @@ export interface DefineAuthOptions {
  */
 export async function defineAuth<State = Record<string, never>>(
   opts: DefineAuthOptions,
-): Promise<Plugin<State> & { _transportConfig?: { on401?: () => Promise<string | null> } }> {
+): Promise<Plugin<State>> {
   // —— 基础配置 ——
   const cmdNs = opts.commandNamespace ?? "auth";
   const credNs = opts.credentialNamespace;
@@ -153,18 +153,14 @@ export async function defineAuth<State = Record<string, never>>(
     poller: opts.poller,
     callbackPort: opts.redirectPort,
   };
-  let currentToken: string | undefined;
-  const on401 = async () => {
-    const refreshed = await buildOn401Handler({
-      flow,
-      oauth,
-      store,
-      namespace: credNs,
-      flowDeps,
-    })();
-    if (refreshed) currentToken = refreshed;
-    return refreshed;
-  };
+  // handler 只创建一次，内部 singleflight map 才能覆盖并发 401。
+  const refresh = buildOn401Handler({
+    flow,
+    oauth,
+    store,
+    namespace: credNs,
+    flowDeps,
+  });
 
   // —— 构造 auth 命令组 ——
   const commands = createAuthCommands({
@@ -185,7 +181,6 @@ export async function defineAuth<State = Record<string, never>>(
   return {
     name: `auth:${credNs}`,
     enforce: "pre",
-    _transportConfig: { on401 },
     provides: { namespaces: { [cmdNs]: commands } },
 
     async beforeCommand(ctx: CommandContext<State>): Promise<void> {
@@ -219,7 +214,10 @@ export async function defineAuth<State = Record<string, never>>(
         save: (ns: string, data: Record<string, unknown>) => store.saveCredentials(ns, data),
         clear: (ns: string) => store.clearCredentials(ns),
       };
-      const identity: IdentityHint | null = await resolveIdentityWithChain(providers, pctx);
+      // identity 必须来自本次实际命中的 provider，不能在临时 API key 命中后回退到磁盘 OAuth 用户。
+      const identity: IdentityHint | null = resolved.provider.resolveIdentity
+        ? await resolved.provider.resolveIdentity(pctx)
+        : null;
       (ctx as unknown as { _identity?: IdentityHint })._identity = identity ?? undefined;
       (ctx.state as Record<string, unknown>).user = identity
         ? {
@@ -227,13 +225,25 @@ export async function defineAuth<State = Record<string, never>>(
             ...(identity.name ? { name: identity.name } : {}),
           }
         : (ctx.state as Record<string, unknown>).user;
-      (ctx as unknown as { _authToken?: string })._authToken = resolved.token.token;
-      currentToken = resolved.token.token;
+      setAuthSession(ctx, {
+        token: resolved.token.token,
+        type: resolved.token.type,
+        source: resolved.token.source,
+        refreshable: resolved.token.refreshable === true,
+      });
     },
 
     async beforeRequest(ctx: CommandContext<State>, req): Promise<void> {
-      const token = currentToken ?? (ctx as unknown as { _authToken?: string })._authToken;
-      if (token) injectAuthHeader(req, token, authStyle);
+      const session = getAuthSession(ctx);
+      if (session) injectAuthHeader(req, session.token, authStyle);
+    },
+
+    async onUnauthorized(ctx: CommandContext<State>): Promise<string | null | undefined> {
+      const session = getAuthSession(ctx);
+      if (!session?.refreshable) return undefined;
+      const refreshed = await refresh();
+      if (refreshed) updateAuthSessionToken(ctx, refreshed);
+      return refreshed;
     },
   };
 }

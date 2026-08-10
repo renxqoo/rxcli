@@ -45,11 +45,10 @@ export const authCodeFlow: AuthFlow = {
 
     deps.log?.info(`\nOpening browser for login:\n  ${authUrl}\n`);
     const browser = deps.browser ?? defaultBrowserOpener();
-    await browser.open(authUrl);
-
-    // 4. 等待回调
+    // 4. 打开浏览器并等待回调。两步共享同一个资源边界，任一步失败都关闭监听。
     let result;
     try {
+      await browser.open(authUrl);
       result = await handle.result;
     } finally {
       handle.close();

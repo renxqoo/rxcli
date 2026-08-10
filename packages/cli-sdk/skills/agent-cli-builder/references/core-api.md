@@ -36,10 +36,10 @@ Keep only scripts that actually run, typically `build`, `typecheck`, `test`, and
 ## 2. Command definitions
 
 ```ts
-import { defineCommand, defineCommands, errs } from "@renxqoo/agent-data-cli";
+import { defineCommandFromArgs, defineCommands, errs } from "@renxqoo/agent-data-cli";
 
 export const todoCommands = defineCommands({
-  list: defineCommand({
+  list: defineCommandFromArgs({
     name: "list",
     description: "List todos",
     args: {
@@ -73,6 +73,8 @@ Argument rules:
 | boolean without default | Resolves to `undefined` when omitted                                  |
 
 A required positional cannot follow an optional positional. Assembly validates schema shape; the command still validates ranges, enums, and cross-argument rules.
+
+Use `defineCommandFromArgs` when the schema is the source of truth: required/default fields are inferred as present and all others as optional. Use `defineCommand<ExactArgs, Result>` when values need narrower unions or domain types. `json`, `api-key`, `help`, and `version` are framework-reserved names and cannot be redeclared by a business command. Framework flags may appear before or after the command route.
 
 ## 3. CLI assembly and entry point
 

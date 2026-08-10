@@ -12,7 +12,12 @@
  * 注:发票无全局搜索路径;通过 contracts/accounts 的 invoice-stat 获取统计。
  */
 
-import { defineCommands, defineCommand, type CommandGroup } from "@renxqoo/agent-data-cli";
+import {
+  defineCommands,
+  defineCommand,
+  type CommandGroup,
+  defineCommandFromArgs,
+} from "@renxqoo/agent-data-cli";
 import { unwrap, buildPagePayload, pagedMeta, parseJsonBody, type PagedData } from "../envelope.js";
 import { ensureConfirmed, assertHasId } from "./leads.js";
 
@@ -51,7 +56,7 @@ export const invoicesCommands: CommandGroup = defineCommands({
     },
   }),
 
-  form: defineCommand({
+  form: defineCommandFromArgs({
     name: "form",
     description: "发票表单字段定义",
     args: {},

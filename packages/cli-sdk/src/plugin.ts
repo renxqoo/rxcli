@@ -2,7 +2,7 @@
  * @renxqoo/agent-data-cli —— 插件编排(vite 式)
  *
  * 设计依据:docs/02-sdk-guide.md "插件系统"。
- * 5 个钩子(beforeCommand/beforeRequest/afterRequest/beforeOutput/onError)
+ * 6 个钩子(beforeCommand/beforeRequest/afterRequest/onUnauthorized/beforeOutput/onError)
  * + enforce 三档(pre/normal/post)+ onError 链式。
  */
 
@@ -48,7 +48,7 @@ function withHook<State, K extends keyof Plugin<State>>(
 /**
  * beforeCommand:命令 run 前,填 state。无返回值。
  *
- * 精确豁免:plugin 自己贡献的命令(由 _ownedRoutes 标记)跳该 plugin 自身的 beforeCommand,
+ * 精确豁免:plugin 自己贡献的命令(由 App-local ownership map 标记)跳自身 beforeCommand,
  * 不跳别的 plugin。比 spec.internal 的"全跳"更细 —— auth 的 login 命令豁免 auth plugin 的
  * "必须登录"校验,但日志/审计 plugin 照跑。
  *
@@ -62,7 +62,7 @@ export async function runBeforeCommand<State>(
 ): Promise<void> {
   for (const p of withHook(plugins, "beforeCommand")) {
     // 精确豁免:plugin 自己的命令跳自己的 beforeCommand(不跳别的 plugin)
-    if (route && isOwnedRoute(ownedRoutes?.get(p) ?? p._ownedRoutes, route)) continue;
+    if (route && isOwnedRoute(ownedRoutes?.get(p), route)) continue;
     await p.beforeCommand!(ctx);
   }
 }
@@ -93,6 +93,21 @@ export async function runAfterRequest<State>(
   for (const p of withHook(plugins, "afterRequest")) {
     await p.afterRequest!(ctx, res);
   }
+}
+
+/**
+ * 401 续期链。第一个明确返回 string/null 的插件负责本次 401；undefined 继续寻找下一个。
+ */
+export async function runOnUnauthorized<State>(
+  plugins: Plugin<State>[],
+  ctx: CommandContext<State>,
+  req: RequestOptions,
+): Promise<string | null | undefined> {
+  for (const plugin of withHook(plugins, "onUnauthorized")) {
+    const result = await plugin.onUnauthorized!(ctx, req);
+    if (result !== undefined) return result;
+  }
+  return undefined;
 }
 
 /**
@@ -137,9 +152,8 @@ export async function runOnError<State>(
   for (const p of withHook(plugins, "onError")) {
     try {
       current = await p.onError!(ctx, current);
-    } catch (hookError) {
-      // 一个错误钩子失效不应阻断后续审计/脱敏钩子。
-      current = hookError;
+    } catch {
+      // 错误观察器失效不能覆盖原始业务错误；后续观察器仍继续处理 current。
     }
     // undefined = 吞掉;但继续跑后续插件(它们可能重新抛出)
   }

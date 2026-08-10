@@ -9,7 +9,6 @@ import { createTestCtx } from "../test-utils.js";
 import { defineCommand, defineCli } from "../define.js";
 import { runCommand } from "../pipeline.js";
 import { createTransport } from "../request.js";
-import { APIError } from "../errs/index.js";
 
 // mock global fetch
 beforeEach(() => {

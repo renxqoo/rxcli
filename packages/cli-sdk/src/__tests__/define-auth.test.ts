@@ -39,13 +39,13 @@ describe("defineAuth: 工厂形态", () => {
     expect(plugin.provides?.namespaces?.auth).toBeUndefined();
   });
 
-  it("plugin 有 _transportConfig.on401(供 executeOne 查找)", async () => {
+  it("plugin 通过公开 onUnauthorized hook 提供 401 恢复", async () => {
     const plugin = await defineAuth({
       credentialNamespace: "crm",
       baseUrl: "http://test",
       store: memoryStore(),
     });
-    expect(plugin._transportConfig?.on401).toBeTypeOf("function");
+    expect(plugin.onUnauthorized).toBeTypeOf("function");
   });
 });
 
@@ -63,8 +63,8 @@ describe("S3: register 凭据回读(config.json → oauth.clientId)", () => {
       baseUrl: "http://test",
       store,
     });
-    // _transportConfig.on401 内部用 oauth(clientId 已回填);间接验证通过不报错
-    expect(plugin._transportConfig?.on401).toBeDefined();
+    // 工厂成功完成配置解析，并公开标准的未授权恢复 hook。
+    expect(plugin.onUnauthorized).toBeDefined();
   });
 
   it("显式传 clientId/clientSecret 优先(不被 config.json 覆盖)", async () => {
@@ -86,7 +86,7 @@ describe("S3: register 凭据回读(config.json → oauth.clientId)", () => {
     });
     const ctx = createTestCtx();
     const cmds = plugin.provides!.namespaces!.auth!;
-    await cmds.login.run({ wait: false, json: true }, ctx);
+    await cmds.login.run({ wait: false }, ctx);
     const calledCfg = spy.mock.calls[0]![0];
     expect(calledCfg.clientId).toBe("from_opt");
     spy.mockRestore();
@@ -108,7 +108,7 @@ describe("S3: register 凭据回读(config.json → oauth.clientId)", () => {
     });
     const ctx = createTestCtx();
     const cmds = plugin.provides!.namespaces!.auth!;
-    await cmds.login.run({ wait: false, json: true }, ctx);
+    await cmds.login.run({ wait: false }, ctx);
     const calledCfg = spy.mock.calls[0]![0];
     expect(calledCfg.clientId).toBe("");
     spy.mockRestore();
@@ -144,7 +144,7 @@ describe("scope 透传(业务自定,空=不带)", () => {
       });
     const ctx = createTestCtx();
     const cmds = plugin.provides!.namespaces!.auth!;
-    await cmds.login.run({ wait: false, json: true }, ctx);
+    await cmds.login.run({ wait: false }, ctx);
     expect(captured[0]).toBe("company.api offline_access");
     spy.mockRestore();
   });
@@ -171,7 +171,7 @@ describe("scope 透传(业务自定,空=不带)", () => {
       });
     const ctx = createTestCtx();
     const cmds = plugin.provides!.namespaces!.auth!;
-    await cmds.login.run({ wait: false, json: true }, ctx);
+    await cmds.login.run({ wait: false }, ctx);
     expect(captured[0]).toBeUndefined();
     spy.mockRestore();
   });

@@ -5,10 +5,15 @@
  * 美化打印用框架兜底(--no-json 自动表格)。
  */
 
-import { defineCommands, defineCommand, errs } from "@renxqoo/agent-data-cli";
+import {
+  defineCommands,
+  defineCommand,
+  errs,
+  defineCommandFromArgs,
+} from "@renxqoo/agent-data-cli";
 
 export const productsCommands = defineCommands({
-  list: defineCommand({
+  list: defineCommandFromArgs({
     name: "list",
     description: "查询商品列表",
     args: { category: { type: "string", desc: "按分类精确过滤,如:电脑外设" } },

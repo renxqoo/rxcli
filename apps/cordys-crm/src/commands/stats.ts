@@ -17,7 +17,13 @@
  * HomeStatisticBaseSearchRequest:{ searchType: ALL|SELF|DEPARTMENT, deptIds[], timeField, userField, priorPeriodEnable }
  */
 
-import { defineCommands, defineCommand, errs, type CommandGroup } from "@renxqoo/agent-data-cli";
+import {
+  defineCommands,
+  defineCommand,
+  errs,
+  type CommandGroup,
+  defineCommandFromArgs,
+} from "@renxqoo/agent-data-cli";
 import { unwrap, parseJsonBody } from "../envelope.js";
 
 /** 模块金额统计支持的模块。 */
@@ -95,7 +101,7 @@ export const statsCommands: CommandGroup = defineCommands({
   }),
 
   /** 部门权限树(首页统计用)。 */
-  "dept-tree": defineCommand({
+  "dept-tree": defineCommandFromArgs({
     name: "dept-tree",
     description: "查询当前用户可见的部门权限树",
     args: {},

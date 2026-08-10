@@ -15,6 +15,7 @@
 
 import {
   defineCommand,
+  defineCommandFromArgs,
   defineCommands,
   errs,
   fileStore,
@@ -88,7 +89,7 @@ const authCommands = defineCommands({
   }),
 
   /** status:显示当前凭证来源(env / file / 未配置)。 */
-  status: defineCommand({
+  status: defineCommandFromArgs({
     name: "status",
     description: "显示当前凭证来源(环境变量 / 凭证文件 / 未配置)",
     args: {},
@@ -131,7 +132,7 @@ const authCommands = defineCommands({
   }),
 
   /** logout:清除凭证文件(直接用 store,不依赖 ctx.credentials)。 */
-  logout: defineCommand({
+  logout: defineCommandFromArgs({
     name: "logout",
     description: "清除已保存的凭证文件(不影响环境变量)",
     args: {},

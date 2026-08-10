@@ -14,15 +14,26 @@ import { ValidationError } from "./errs/index.js";
 /** flag 在 argv 中出现但没有值；由路由解析器传给 schema 边界。 */
 export const MISSING_FLAG_VALUE = Symbol("missing-flag-value");
 
-/** 从 spec 推导出的参数解析结果类型(简单命令够用;复杂命令用 interface 显式声明泛型)。 */
+type ParsedArgValue<Spec extends ArgsSpec[string]> = Spec["type"] extends "array"
+  ? string[]
+  : Spec["type"] extends "number"
+    ? number
+    : Spec["type"] extends "boolean"
+      ? boolean
+      : string;
+
+type PresentArgKeys<S extends ArgsSpec> = {
+  [K in keyof S]-?: S[K] extends { required: true } | { default: unknown } ? K : never;
+}[keyof S];
+
+/**
+ * 从 schema 推导运行时结果：required/default 字段必定存在，其余字段保持可选。
+ * 这与 parseArgs 的真实行为一致，避免把未传的可选参数误标成必有值。
+ */
 export type ParsedArgs<S extends ArgsSpec> = {
-  [K in keyof S]: S[K]["type"] extends "array"
-    ? string[]
-    : S[K]["type"] extends "number"
-      ? number
-      : S[K]["type"] extends "boolean"
-        ? boolean
-        : string;
+  [K in PresentArgKeys<S>]: ParsedArgValue<S[K]>;
+} & {
+  [K in Exclude<keyof S, PresentArgKeys<S>>]?: ParsedArgValue<S[K]>;
 };
 
 /**

@@ -71,15 +71,23 @@ export function createContext<State>(opts: CreateContextOptions<State>): Command
     } catch (err) {
       // transport 抛错:构造合成错误响应(status=0 标记失败)喂给 afterRequest,然后重新抛。
       // 审计插件可通过 status===0 识别这是一次失败请求。
-      await runAfterRequest(plugins, ctx, {
+      await runAfterRequestSafely({
         status: 0,
         data: undefined as T,
         headers: {},
       });
       throw err;
     }
-    await runAfterRequest(plugins, ctx, res);
+    await runAfterRequestSafely(res);
     return res;
+  }
+
+  async function runAfterRequestSafely<T>(res: TransportResponse<T>): Promise<void> {
+    try {
+      await runAfterRequest(plugins, ctx, res);
+    } catch (err) {
+      log.warn(`afterRequest hook failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   const ctx: CommandContext<State> = {

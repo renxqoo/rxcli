@@ -25,6 +25,7 @@ import { type SkillTarget } from "./targets.js";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { DefineCliOptions } from "../types.js";
+import { ConfigError } from "../errs/index.js";
 
 /**
  * 创建内置 skills 命令组(注入 defineCli 的 namespaces.skills)。
@@ -105,6 +106,15 @@ export function createBuiltinSkillsCommands(
         const written = targets.filter((t) => t.ok);
         const skipped = targets.filter((t) => t.skipped);
         const failed = targets.filter((t) => !t.ok && !t.skipped);
+        if (failed.length > 0) {
+          throw new ConfigError({
+            subtype: "skill_sync_failed",
+            message: `failed to sync skills to ${failed.length} target(s)`,
+            hint: failed
+              .map((target) => `${target.key} (${target.dir}): ${target.error ?? "unknown error"}`)
+              .join("; "),
+          });
+        }
         return {
           data: {
             synced: count,

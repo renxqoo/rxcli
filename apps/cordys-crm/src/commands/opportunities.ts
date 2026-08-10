@@ -17,7 +17,12 @@
  *   POST   /opportunity/quotation/update   报价单更新(还需 id + approvalStatus,建议先 get 再合并)
  */
 
-import { defineCommands, defineCommand, type CommandGroup } from "@renxqoo/agent-data-cli";
+import {
+  defineCommands,
+  defineCommand,
+  type CommandGroup,
+  defineCommandFromArgs,
+} from "@renxqoo/agent-data-cli";
 import { unwrap, buildPagePayload, pagedMeta, parseJsonBody, type PagedData } from "../envelope.js";
 import { ensureConfirmed, assertHasId, assertHasField } from "./leads.js";
 
@@ -67,7 +72,7 @@ export const opportunitiesCommands: CommandGroup = defineCommands({
     },
   }),
 
-  form: defineCommand({
+  form: defineCommandFromArgs({
     name: "form",
     description: "商机表单字段定义(写入前必读)",
     args: {},
@@ -142,7 +147,7 @@ export const opportunitiesCommands: CommandGroup = defineCommands({
     },
   }),
 
-  "quotation-form": defineCommand({
+  "quotation-form": defineCommandFromArgs({
     name: "quotation-form",
     description: "报价单表单字段定义(含 moduleFields/moduleFormConfigDTO 配置)",
     args: {},

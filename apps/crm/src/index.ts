@@ -8,7 +8,7 @@
  *   - skill 直接复用 v1(已搬到 skills/)
  */
 
-import { defineCli, defineAuth, envBearerProvider } from "@renxqoo/agent-data-cli";
+import { defineCli, defineAuth } from "@renxqoo/agent-data-cli";
 import { AUTH_BASE_URL, API_BASE_URL, SKILLS_DIR } from "./config.js";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";

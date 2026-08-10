@@ -1,4 +1,4 @@
-# CI —— 跨平台(ubuntu/macos/windows)× Node(18/20/22)矩阵
+# CI —— 跨平台(ubuntu/macos/windows)× Node(20/22)矩阵
 # 编排关键:apps 依赖 cli-sdk 的 dist 编译产物,故必须先 build 再 typecheck/test。
 name: CI
 
@@ -13,6 +13,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # version changelog gate —— 版本 PR 必须有对应的正式 changelog 条目
+  # ---------------------------------------------------------------------------
+  changelog:
+    name: Version changelog
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: node scripts/check-version-changelog.mjs "${{ github.event.pull_request.base.sha }}"
+
   # ---------------------------------------------------------------------------
   # lint —— 单 job(oxlint 极快,无需矩阵),typecheck+test 前先跑
   # ---------------------------------------------------------------------------

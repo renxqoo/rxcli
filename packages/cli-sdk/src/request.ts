@@ -171,8 +171,8 @@ function applyRefreshedToken(headers: Record<string, string>, token: string): vo
 // Transport
 // ============================================================================
 
-/** 401 hook:由业务包自写的 auth Plugin 通过 _transportConfig.on401 注入(refresh + singleflight)。返回新 token 则重试。 */
-export type On401Hook = () => Promise<string | null | undefined>;
+/** string=刷新成功并重试；null=刷新失败；undefined=当前凭证不支持刷新。 */
+export type On401Hook = (req: RequestOptions) => Promise<string | null | undefined>;
 
 export interface Transport {
   get<T = unknown>(path: string, query?: Record<string, unknown>): Promise<TransportResponse<T>>;
@@ -204,10 +204,10 @@ export function createTransport(opts: CreateTransportOptions = {}): Transport {
 
     const first = await doFetch<T>(merged);
 
-    // 401 处理:on401 hook 返回新 token → 重试一次;返回 null/undefined(refresh 失败)
-    // → 抛 AuthenticationError(token_expired),不能透传 401 body 当成功数据(H4)。
+    // 401 处理:string → 重试一次；null → 刷新失败；undefined → 当前凭证不支持刷新，
+    // 继续走普通 401 分类，而不是把 API key / 临时 bearer 错判为 refresh token 失效。
     if (first.status === 401 && opts.on401) {
-      const newToken = await opts.on401();
+      const newToken = await opts.on401(merged);
       if (newToken) {
         const retryOpts: RequestOptionsInternal = {
           ...merged,
@@ -227,13 +227,14 @@ export function createTransport(opts: CreateTransportOptions = {}): Transport {
         }
         return checkErrorOnStatus(retried);
       }
-      // refresh 失败(无 refreshToken / refresh 失效):token 已失效,需重新登录
-      throw new AuthenticationError({
-        subtype: "token_expired",
-        code: 401,
-        message: "Authentication expired (token expired or refresh failed)",
-        hint: "run `rxcli auth login` to log in again",
-      });
+      if (newToken === null) {
+        throw new AuthenticationError({
+          subtype: "token_expired",
+          code: 401,
+          message: "Authentication expired (token expired or refresh failed)",
+          hint: "run `rxcli auth login` to log in again",
+        });
+      }
     }
 
     if (first.status === 401) {

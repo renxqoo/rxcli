@@ -5,10 +5,15 @@
  * v1 的 printGatewayJson 固定 GET → v2 用 ctx.get;美化打印用框架兜底(--no-json 自动表格)。
  */
 
-import { defineCommands, defineCommand, errs } from "@renxqoo/agent-data-cli";
+import {
+  defineCommands,
+  defineCommand,
+  errs,
+  defineCommandFromArgs,
+} from "@renxqoo/agent-data-cli";
 
 export const ordersCommands = defineCommands({
-  list: defineCommand({
+  list: defineCommandFromArgs({
     name: "list",
     description: "查询订单列表(仅本人订单)",
     args: { limit: { type: "number", desc: "返回数量上限" } },

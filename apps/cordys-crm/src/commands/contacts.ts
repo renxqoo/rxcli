@@ -12,7 +12,12 @@
  *   POST   /account/contact/batch/update    批量更新
  */
 
-import { defineCommands, defineCommand, type CommandGroup } from "@renxqoo/agent-data-cli";
+import {
+  defineCommands,
+  defineCommand,
+  type CommandGroup,
+  defineCommandFromArgs,
+} from "@renxqoo/agent-data-cli";
 import { unwrap, buildPagePayload, pagedMeta, parseJsonBody, type PagedData } from "../envelope.js";
 import { ensureConfirmed, assertHasId, assertHasField } from "./leads.js";
 
@@ -62,7 +67,7 @@ export const contactsCommands: CommandGroup = defineCommands({
     },
   }),
 
-  form: defineCommand({
+  form: defineCommandFromArgs({
     name: "form",
     description: "联系人表单字段定义",
     args: {},

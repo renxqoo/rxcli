@@ -9,13 +9,14 @@
 3. 插件提供命令与独立发布
 4. 安全调试与常见错误
 
-## 1. 5 个钩子 + 何时用
+## 1. 6 个钩子 + 何时用
 
 | 钩子            | 何时触发               | 能改什么                                      | 典型用途                            |
 | --------------- | ---------------------- | --------------------------------------------- | ----------------------------------- |
 | `beforeCommand` | 命令 run 前(填 state)  | `ctx.state`、可 throw 中止                    | auth 填 user、参数预处理            |
 | `beforeRequest` | 每次 `ctx.get/post` 前 | `req`(method/path/query/body/headers/timeout) | 加 header、HMAC 签名、注入 tenantId |
 | `afterRequest`  | 每次请求返回后         | `res` 只读,主要用于副作用                     | 审计、metric、请求日志              |
+| `onUnauthorized` | 请求返回 401 后        | 返回新 token / null / undefined               | 上下文隔离的凭证续期                |
 | `beforeOutput`  | run 返回后、序列化前   | 返回新 `data`(StructuredData)                 | 脱敏、删内部字段、改字段名          |
 | `onError`       | 任何钩子或 run 抛错时  | 返回新 error / 透传 / undefined               | 错误归一化、脱敏、重试              |
 
@@ -144,7 +145,7 @@ const errorNormalizePlugin = {
 };
 ```
 
-**onError 是链式的**:每个插件都跑一遍,返回值传给下一个。某个 `onError` 自己抛错时，框架把该异常作为当前错误并继续后续 hook，保证审计/脱敏插件不会被跳过。返回 `undefined` = **吞掉错误**(命令变成功)——这是危险操作,慎用。
+**onError 是链式的**:每个插件都跑一遍,返回值传给下一个。某个 `onError` 自己抛错时，框架保留最近一次有效的业务错误并继续后续 hook，避免观察性插件掩盖根因。返回 `undefined` = **吞掉错误**(命令变成功)——这是危险操作,慎用。`afterRequest` 同样是观察性 hook：失败只记 warning，不会替换请求错误或把成功请求变成失败。
 
 ---
 
@@ -232,5 +233,5 @@ const debugPlugin = {
 3. **`beforeOutput` 返回 string** —— TS 编译会拦(StructuredData 类型排除 string),但运行时报错更糟。
 4. **onError 返回 undefined** —— 错误被吞掉,exit 0,agent 误以为成功。**只有"这是正常分支"才用**。
 5. **plugin 之间共享 state 字段没声明** —— `defineCli<State>` 没声明,ctx.state.X = Y 编译报错。
-6. **`_ownedRoutes` 手写** —— 业务开发者**不写**；route ownership 是框架的 App-local 内部状态。
+6. **自行实现 route ownership** —— 使用 `provides`；ownership 是框架的 App-local 内部状态，不属于公开 Plugin 字段。
 7. **调试日志输出请求或响应体** —— 可能泄露 token 和业务数据；只记录最小元数据并脱敏。

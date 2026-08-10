@@ -13,7 +13,6 @@ import {
   getUserInfo,
   type OAuthClientConfig,
   type PollResult,
-  type ClientMetadata,
 } from "../../oauth.js";
 import type { AuthFlow, FlowType, FlowDeps } from "../../flows/types.js";
 import { SplitFlowSignal } from "../../flows/device.js";
@@ -78,7 +77,6 @@ export function createLoginCommand(deps: LoginCommandDeps): CommandSpec {
     description: `Log in via the middleware (OAuth ${flow.type.replace("_", " ")} flow)`,
     args: {
       wait: { type: "boolean", desc: "Block and poll (default; --no-wait returns immediately)" },
-      json: { type: "boolean", desc: "Output JSON (with --no-wait, for agent split-flow)" },
       "device-code": {
         type: "string",
         desc: "Complete login with an existing device_code (device flow split-flow step 2)",
@@ -125,23 +123,20 @@ export function createLoginCommand(deps: LoginCommandDeps): CommandSpec {
       } catch (e) {
         // device flow --no-wait:flow 抛 SplitFlowSignal,框架捕获后返回 JSON/url
         if (e instanceof SplitFlowSignal) {
-          if (args.json) {
-            return {
-              data: {
-                device_code: e.deviceCode,
-                user_code: e.userCode,
-                verification_url: e.verificationUrl,
-                verification_uri_complete: e.verificationUriComplete,
-                verification_uri: e.verificationUri,
-                expires_in: e.expiresIn,
-                interval: e.interval,
-              },
-            };
-          }
           ctx.log.info(
             `\nPlease complete login in your browser:\n  ${e.verificationUrl}\n  user code: ${e.userCode}\n\ndevice_code: ${e.deviceCode}\n(not polling. After authorizing, run: ${cmdNs} login --device-code ${e.deviceCode})`,
           );
-          return { data: { device_code: e.deviceCode, verification_url: e.verificationUrl } };
+          return {
+            data: {
+              device_code: e.deviceCode,
+              user_code: e.userCode,
+              verification_url: e.verificationUrl,
+              verification_uri_complete: e.verificationUriComplete,
+              verification_uri: e.verificationUri,
+              expires_in: e.expiresIn,
+              interval: e.interval,
+            },
+          };
         }
         throw e;
       }

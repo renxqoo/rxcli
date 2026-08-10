@@ -5,10 +5,8 @@
  * 功能:
  *   1. 自动发现 workspace 里的公开包(packages/* + apps/*),跳过 private 包
  *   2. 发布顺序:无内部依赖的包先(@renxqoo/agent-data-cli),依赖它的包后
- *   3. 每个包发布前查 npm 远程最新版本:
- *      - 远程版本 < 本地版本 → 直接用本地版本发布(正常发新版)
- *      - 远程版本 = 本地版本 → 本地版本 patch +1(同版本号重复发布)
- *      - 远程版本 > 本地版本 → 警告并用远程版本 patch +1(本地落后于远程)
+ *   3. 每个包发布前校验 CHANGELOG 正式版本条目，并查询 npm 远程最新版本。
+ *      本地版本必须高于远程版本；发布流程不再临时改 package.json 或自动 bump。
  *   4. 先 pnpm build,再 npm publish(npm 会自动把 workspace:* 替换为真实版本号)
  *
  * 用法:
@@ -24,7 +22,7 @@
  */
 
 import { execSync } from "node:child_process";
-import { readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as readline from "node:readline";
@@ -78,11 +76,19 @@ function compareVersions(a, b) {
   return 0;
 }
 
-/** 版本号 patch +1:"1.2.3" → "1.2.4" */
-function bumpPatch(version) {
-  const parts = version.replace(/^v/, "").split(".").map(Number);
-  parts[2] = (parts[2] ?? 0) + 1;
-  return parts.join(".");
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** 发布必须对应经过 PR 审查的正式 changelog 条目，不能只留在 Unreleased。 */
+function hasReleaseChangelog(name, version) {
+  const path = join(ROOT, "CHANGELOG.md");
+  if (!existsSync(path)) return false;
+  const changelog = readFileSync(path, "utf8");
+  return new RegExp(
+    `^## \\[${escapeRegExp(name)}@${escapeRegExp(version)}\\] - \\d{4}-\\d{2}-\\d{2}$`,
+    "m",
+  ).test(changelog);
 }
 
 // ─── 发现包 ─────────────────────────────────────────────────────────────
@@ -225,11 +231,17 @@ async function main() {
     console.log("─".repeat(50));
     console.log(`📦 ${pkg.name}`);
 
-    // 查远程版本决定发布版本号
+    if (!hasReleaseChangelog(pkg.name, pkg.version)) {
+      console.error(
+        `   ❌ CHANGELOG.md 缺少正式条目: ## [${pkg.name}@${pkg.version}] - YYYY-MM-DD`,
+      );
+      results.push({ name: pkg.name, version: pkg.version, ok: false });
+      continue;
+    }
+
+    // 版本必须在 PR 中显式更新；发布过程不修改工作树。
     const remoteVer = getRemoteVersion(pkg.name);
     const localVer = pkg.version;
-    let publishVer = localVer;
-    let needBump = false;
 
     if (remoteVer === null) {
       console.log(`   First publish (not on registry) → ${localVer}`);
@@ -237,32 +249,13 @@ async function main() {
       const cmp = compareVersions(localVer, remoteVer);
       if (cmp > 0) {
         console.log(`   Local ${localVer} > remote ${remoteVer} → publish local version`);
-      } else if (cmp === 0) {
-        publishVer = bumpPatch(localVer);
-        needBump = true;
-        console.log(`   Local ${localVer} = remote ${remoteVer} → patch+1 → ${publishVer}`);
       } else {
-        publishVer = bumpPatch(remoteVer);
-        needBump = true;
-        console.log(
-          `   ⚠️  Local ${localVer} < remote ${remoteVer} → use remote patch+1 → ${publishVer}`,
+        console.error(
+          `   ❌ Local ${localVer} is not newer than remote ${remoteVer}. ` +
+            "Submit a version + CHANGELOG PR before publishing.",
         );
-      }
-    }
-
-    // 备份原始 package.json(发布后恢复,不污染 monorepo 源文件)
-    const pkgJsonPath = join(pkg.dir, "package.json");
-    const originalPkgJson = readFileSync(pkgJsonPath, "utf8");
-
-    // 如需 bump,写回 package.json
-    if (needBump) {
-      if (DRY_RUN) {
-        console.log(`   [dry-run] version would become ${publishVer}`);
-      } else {
-        const pkgJson = JSON.parse(originalPkgJson);
-        pkgJson.version = publishVer;
-        writeFileSync(pkgJsonPath, JSON.stringify(pkgJson, null, 2) + "\n");
-        console.log(`   ✓ version updated: ${localVer} → ${publishVer}`);
+        results.push({ name: pkg.name, version: localVer, ok: false });
+        continue;
       }
     }
 
@@ -271,16 +264,11 @@ async function main() {
     const publishCmd = `pnpm publish --access public --no-git-checks${DRY_RUN ? " --dry-run" : ""}${otpFlag}`;
     try {
       runInherit(publishCmd, pkg.dir);
-      console.log(`   ✅ ${pkg.name}@${publishVer} published`);
-      results.push({ name: pkg.name, version: publishVer, ok: true });
+      console.log(`   ✅ ${pkg.name}@${localVer} published`);
+      results.push({ name: pkg.name, version: localVer, ok: true });
     } catch {
-      console.error(`   ❌ ${pkg.name}@${publishVer} failed`);
-      results.push({ name: pkg.name, version: publishVer, ok: false });
-    } finally {
-      // 恢复原始 package.json
-      if (!DRY_RUN) {
-        writeFileSync(pkgJsonPath, originalPkgJson);
-      }
+      console.error(`   ❌ ${pkg.name}@${localVer} failed`);
+      results.push({ name: pkg.name, version: localVer, ok: false });
     }
   }
 

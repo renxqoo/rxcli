@@ -13,10 +13,13 @@
  * 本读取器负责扫描、列举、读取,带路径穿越校验(cleanSubPath)。
  */
 
-import { readFileSync, readdirSync, statSync, existsSync, realpathSync, mkdirSync } from "node:fs";
-import { join, sep, normalize } from "node:path";
+import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
+import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { NotFoundError, InternalError } from "../errs/index.js";
+import { assertExistingPathInside, cleanSubPath, validateSkillName } from "./path-guard.js";
+
+export { cleanSubPath, prepareSkillDir, validateSkillName } from "./path-guard.js";
 
 // ============================================================================
 // 类型
@@ -46,8 +49,10 @@ export function listSkills(skillsRoot: string): SkillInfo[] {
   for (const e of entries) {
     const full = join(skillsRoot, e);
     if (!statSync(full).isDirectory()) continue;
+    assertExistingPathInside(skillsRoot, full, `skill "${e}"`);
     const skillMd = join(full, "SKILL.md");
     if (!existsSync(skillMd)) continue;
+    assertExistingPathInside(full, skillMd, `SKILL.md in skill "${e}"`);
     const { description, version, metadata } = parseFrontmatter(skillMd);
     const info: SkillInfo = { name: e, description };
     if (version) info.version = version;
@@ -77,14 +82,17 @@ export function listPath(skillsRoot: string, arg: string): { entries: DirEntry[]
         message: `path "${sub}" is a file, not a directory; use 'rxcli skills read ${name}/${cleaned}' to read it`,
       });
     }
+    assertExistingPathInside(join(skillsRoot, name), subFull, `path in skill "${name}"`);
   }
-  const entries = readdirSync(join(skillsRoot, dir));
+  const listedDir = join(skillsRoot, dir);
+  const entries = readdirSync(listedDir);
   return {
     entries: entries
-      .map((e) => ({
-        path: `${dir}/${e}`,
-        is_dir: statSync(join(skillsRoot, dir, e)).isDirectory(),
-      }))
+      .map((e) => {
+        const entry = join(listedDir, e);
+        assertExistingPathInside(join(skillsRoot, name), entry, `path in skill "${name}"`);
+        return { path: `${dir}/${e}`, is_dir: statSync(entry).isDirectory() };
+      })
       .sort((a, b) => a.path.localeCompare(b.path)),
     listed: dir,
   };
@@ -97,6 +105,7 @@ export function readSkill(skillsRoot: string, name: string): Buffer {
   if (!existsSync(p)) {
     throw new NotFoundError(`skill "${name}" has no SKILL.md`);
   }
+  assertInsideSkill(skillsRoot, name, p);
   return readFileSync(p);
 }
 
@@ -143,75 +152,11 @@ function ensureSkill(skillsRoot: string, name: string): void {
       `unknown skill "${name}". run 'rxcli skills list' to see available skills`,
     );
   }
-  assertInside(realpathSync(skillsRoot), realpathSync(full), `skill "${name}"`);
-}
-
-/** 校验可用于新建目录的 skill 名；禁止把名称当路径。 */
-export function validateSkillName(name: string): void {
-  if (!name || /[\\/]/.test(name) || name === "." || name === ".." || name.includes("\0")) {
-    throw new NotFoundError(
-      `unknown skill "${name}". run 'rxcli skills list' to see available skills`,
-    );
-  }
-}
-
-/** 为 gen 准备一个物理上仍位于 skillsRoot 内的目录，拒绝 symlink 逃逸。 */
-export function prepareSkillDir(skillsRoot: string, name: string): string {
-  validateSkillName(name);
-  mkdirSync(skillsRoot, { recursive: true });
-  const root = realpathSync(skillsRoot);
-  const candidate = join(skillsRoot, name);
-  if (!existsSync(candidate)) mkdirSync(candidate);
-  const resolved = realpathSync(candidate);
-  assertInside(root, resolved, `skill "${name}"`);
-  return resolved;
+  assertExistingPathInside(skillsRoot, full, `skill "${name}"`);
 }
 
 function assertInsideSkill(skillsRoot: string, name: string, candidate: string): void {
-  const skillRoot = realpathSync(join(skillsRoot, name));
-  assertInside(skillRoot, realpathSync(candidate), `path in skill "${name}"`);
-}
-
-function assertInside(parent: string, candidate: string, label: string): void {
-  if (candidate !== parent && !candidate.startsWith(parent + sep)) {
-    throw new InternalError({
-      subtype: "contract_violation",
-      message: `${label} resolves outside its allowed directory`,
-    });
-  }
-}
-
-/**
- * 清理相对路径,拒绝绝对路径和 ".." 穿越(对齐 lark-cli cleanSubPath)。
- * 这是 skill 系统的安全边界,CLI 参数来自不可信的 agent,所有文件 IO 前必须校验。
- */
-export function cleanSubPath(relpath: string): string {
-  if (!relpath) {
-    throw new InternalError({
-      subtype: "contract_violation",
-      message: `invalid path: must be a relative path without '..'`,
-    });
-  }
-  // 拒绝绝对路径(POSIX 和 Windows)
-  if (relpath.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(relpath)) {
-    throw new InternalError({
-      subtype: "contract_violation",
-      message: `invalid path "${relpath}": must be a relative path without '..'`,
-    });
-  }
-  const cleaned = normalize(relpath).split(sep).join("/");
-  if (
-    cleaned === "." ||
-    cleaned === ".." ||
-    cleaned.startsWith("../") ||
-    cleaned.startsWith("..\\")
-  ) {
-    throw new InternalError({
-      subtype: "contract_violation",
-      message: `invalid path "${relpath}": must be a relative path without '..'`,
-    });
-  }
-  return cleaned;
+  assertExistingPathInside(join(skillsRoot, name), candidate, `path in skill "${name}"`);
 }
 
 // ============================================================================

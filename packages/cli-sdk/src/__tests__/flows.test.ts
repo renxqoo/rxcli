@@ -5,6 +5,30 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+// Module mocks are intentionally top-level:Vitest hoists them before imports/tests.
+const callbackRef = vi.hoisted(() => ({
+  code: "ac_test" as string | null,
+  error: null as string | null,
+  state: "test-state" as string | null,
+}));
+vi.mock("../infra/callback-server.js", () => ({
+  waitForCallback: vi.fn(async () => ({
+    redirectUri: "http://127.0.0.1:9999/callback",
+    result: Promise.resolve({
+      get code() {
+        return callbackRef.code;
+      },
+      get error() {
+        return callbackRef.error;
+      },
+      get state() {
+        return callbackRef.state;
+      },
+    }),
+    close: vi.fn(),
+  })),
+}));
+
 let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   fetchMock = vi.fn();
@@ -65,30 +89,6 @@ describe("device flow", () => {
 });
 
 describe("authorization_code flow", () => {
-  // 可控的回调结果(每个 test 切换)
-  const callbackRef = vi.hoisted(() => ({
-    code: "ac_test" as string | null,
-    error: null as string | null,
-    state: "test-state" as string | null,
-  }));
-  vi.mock("../infra/callback-server.js", () => ({
-    waitForCallback: vi.fn(async () => ({
-      redirectUri: "http://127.0.0.1:9999/callback",
-      result: Promise.resolve({
-        get code() {
-          return callbackRef.code;
-        },
-        get error() {
-          return callbackRef.error;
-        },
-        get state() {
-          return callbackRef.state;
-        },
-      }),
-      close: vi.fn(),
-    })),
-  }));
-
   it("login:PKCE → 浏览器 → 回调 code → 换 token", async () => {
     callbackRef.code = "ac_test";
     callbackRef.error = null;
