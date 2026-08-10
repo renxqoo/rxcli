@@ -20,8 +20,6 @@ npm install @renxqoo/agent-data-cli@latest
 mkdir -p src/commands
 ```
 
-`package.json` 确认 `bin` 名(= 用户终端敲的命令名):
-
 `src/commands/todos.ts`:
 
 ```ts
@@ -64,7 +62,7 @@ import { defineCli } from "@renxqoo/agent-data-cli";
 import { todosCommands } from "./commands/todos.js";
 
 const app = defineCli({
-  name: "rx-todos",          // 命名空间(与 §2 一致)
+  name: "rx-todos",          // 命名空间(PipeRecord.type、skill 标识、help 显示)
   binName: "rx-todos",       // 终端命令名(建议显式声明;不填则从 package.json bin 自动探测)
   description: "通过 CLI 查询和管理待办",
   baseUrl: process.env.TODOS_API ?? "https://api.example.com",
@@ -103,37 +101,36 @@ node dist/index.js list --no-json   # 表格(给人看)
 
 需要逐条向用户确认的问题:
 
-1. **用什么技术栈?**
-   - 默认:TypeScript + vitest(测试)+ oxlint(lint)+ oxfmt(格式化)
-   - 用户指定了别的(jest/eslint/prettier 等)则用用户的
-
-2. **查什么数据 / 调哪个后端 API?**
+1. **查什么数据 / 调哪个后端 API?**
    - 默认:无
    - 何时追问:没给 baseUrl 或数据源时必问
 
-3. **命令名叫什么?**
+2. **命令名叫什么?**
    - 默认:给 `rx-<域>` 建议
    - 何时追问:见下命名检查,有冲突风险时必问
 
-4. **需要登录吗?**
+3. **需要登录吗?**
    - 默认:先无鉴权
    - 何时追问:涉及敏感/私有数据才追问;需登录则走 `references/auth-patterns.md`
 
-5. **数据要分页吗?**
+4. **数据要分页吗?**
    - 默认:不分页
    - 何时追问:列表可能很大(>100 条)才追问
 
-6. **单域还是多域?**
+5. **单域还是多域?**
    - 默认:单域(`commands`)
    - 何时追问:有多个不相关资源类型(orders + products)才追问
 
-7. **后端响应/分页字段长啥样?**
+6. **后端响应/分页字段长啥样?**
    - 默认:无
    - 何时追问:给了 API 但没给响应体结构时必问,列 2-3 个候选问;不要靠猜写全兼容(见 `references/patterns.md` §1)
 
-8. **用什么语言?**(SKILL.md/错误信息/注释)
+7. **用什么语言?**(SKILL.md/错误信息/注释)
    - 默认:和用户提问的语言保持一致
    - 命令名/字段名/API path 始终用英文(程序接口)
+
+8. **用什么技术栈?**
+   - 默认:TypeScript + vitest(测试)+ oxlint(lint)+ oxfmt(格式化)
 
 > 框架**没有命名冲突检测**——两个 CLI 用同一个 `credentialNamespace` 会**静默共享凭证文件**,bin 名撞了 npm 全局安装会互相覆盖。
 
@@ -403,6 +400,7 @@ const result = await todosCommands.list.run({ limit: 20 }, ctx);
 **通用(所有 CLI):**
 
 - [ ] 主要命令用 `createTestCtx` 测过(见 §8)
+- [ ] 测试用例完善:覆盖正常路径 + 错误路径(参数缺失/类型错/边界值)
 - [ ] 跑 `skills gen <name> --init` 生成 SKILL.md 并填了语义部分(见 §7)
 - [ ] **SKILL.md description 触发质量**:覆盖用户多种说法(不止命令名)、划清边界防误触发(见 `references/skill-gen.md` §4)
 - [ ] 按 `references/readme-gen.md` 生成 README(含安装步骤)
