@@ -15,25 +15,12 @@ description: 用 @renxqoo/agent-data-cli 框架构建 agent-native CLI 的 skill
 
 ```bash
 mkdir rx-todos && cd rx-todos
-pnpm init
-pnpm add @renxqoo/agent-data-cli
+npm init -y
+npm install @renxqoo/agent-data-cli@latest
 mkdir -p src/commands
 ```
 
-`package.json`(注意 `bin` 名要和你在 §2 确定的一致):
-
-```json
-{
-  "name": "rx-todos",
-  "version": "1.0.0",
-  "type": "module",
-  "bin": { "rx-todos": "./dist/index.js" },
-  "main": "./dist/index.js",
-  "files": ["dist", "skills"],
-  "scripts": { "build": "tsc" },
-  "dependencies": { "@renxqoo/agent-data-cli": "^1.0.0" }
-}
-```
+`package.json` 确认 `bin` 名(= 用户终端敲的命令名):
 
 `src/commands/todos.ts`:
 
@@ -60,7 +47,6 @@ export const todosCommands = defineCommands({
     args: { id: { type: "string", required: true, positional: true, desc: "待办 ID" } },
     async run({ id }, ctx) {
       const res = await ctx.patch(`/todos/${id}`, { done: true });
-      // 404 未配进 errorOnStatus → 在此手写 if 才可达(若已配则框架提前 throw,见 §5 模式 2)
       if (res.status === 404) throw new errs.NotFoundError(`待办 ${id} 不存在`);
       return { data: res.data };
     },
@@ -100,7 +86,7 @@ export default app;
 ```
 
 ```bash
-pnpm tsc
+npx tsc
 node dist/index.js list --json      # {"ok":true,"source":"rx-todos","data":[...]}   ← 给 agent
 node dist/index.js list --no-json   # 表格(给人看)
 ```
@@ -111,41 +97,43 @@ node dist/index.js list --no-json   # 表格(给人看)
 
 ---
 
-## 2. 动手前:问清 7 点 + 查命名
+## 2. 动手前:问清 8 点 + 查命名
 
 用户说"做个 CLI"但信息不全时,先问清再写代码。**行为决策**(auth / 分页)默认选最简单方案;**事实信息**(后端字段、分页约定、语言)不可猜测,须向用户确认——猜错会埋隐性 bug。
 
 需要逐条向用户确认的问题:
 
-1. **查什么数据 / 调哪个后端 API?**
+1. **用什么技术栈?**
+   - 默认:TypeScript + vitest(测试)+ oxlint(lint)+ oxfmt(格式化)
+   - 用户指定了别的(jest/eslint/prettier 等)则用用户的
+
+2. **查什么数据 / 调哪个后端 API?**
    - 默认:无
    - 何时追问:没给 baseUrl 或数据源时必问
 
-2. **命令名叫什么?**
+3. **命令名叫什么?**
    - 默认:给 `rx-<域>` 建议
    - 何时追问:见下命名检查,有冲突风险时必问
 
-3. **需要登录吗?**
+4. **需要登录吗?**
    - 默认:先无鉴权
    - 何时追问:涉及敏感/私有数据才追问;需登录则走 `references/auth-patterns.md`
 
-4. **数据要分页吗?**
+5. **数据要分页吗?**
    - 默认:不分页
    - 何时追问:列表可能很大(>100 条)才追问
 
-5. **单域还是多域?**
+6. **单域还是多域?**
    - 默认:单域(`commands`)
    - 何时追问:有多个不相关资源类型(orders + products)才追问
 
-6. **后端响应/分页字段长啥样?**
+7. **后端响应/分页字段长啥样?**
    - 默认:无
    - 何时追问:给了 API 但没给响应体结构时必问,列 2-3 个候选问;不要靠猜写全兼容(见 `references/patterns.md` §1)
 
-7. **用什么语言?**(SKILL.md/错误信息/注释)
+8. **用什么语言?**(SKILL.md/错误信息/注释)
    - 默认:和用户提问的语言保持一致
    - 命令名/字段名/API path 始终用英文(程序接口)
-
-### 命名检查(框架不查,你自己查)
 
 > 框架**没有命名冲突检测**——两个 CLI 用同一个 `credentialNamespace` 会**静默共享凭证文件**,bin 名撞了 npm 全局安装会互相覆盖。
 
@@ -188,12 +176,7 @@ defineCli({
 > `defineAuth` 是 `async` 函数,必须 `await`:`const auth = await defineAuth({...})`。
 > 缺 `await` 时 `plugins:[Promise]`,`beforeCommand` 不执行,鉴权失效,且无报错。详见 `references/auth-patterns.md`。
 
-> **defineAuth 新选项**(详见 `references/auth-patterns.md`):
-> - `scopeFromMetadata: true` — 动态从服务端 metadata 读 scope,不在代码里写死
-> - `bearerToken: process.env.XX_BEARER_TOKEN` — sandbox/CI 一行注入预签发 JWT
-> - `flow: "device" | "authorization_code" | "client_credentials"` — 多鉴权流程
-> - `clientMetadata: { client_name: "..." }` — RFC 7591 注册时声明
-> - `providers: [...]` — 自定义 provider chain
+> **defineAuth 高级选项**(动态 scope、bearerToken 注入、多鉴权流程、自定义 provider 等)见 `references/auth-patterns.md`。
 
 ### ② `defineCommand(spec)` —— 声明单个命令
 
@@ -237,9 +220,8 @@ interface CommandContext<State> {
 
 ```ts
 import { errs } from "@renxqoo/agent-data-cli";
-throw new errs.ValidationError({ subtype: "invalid_argument", param: "--limit", message: "必须为正数", hint: "使用 --limit 30" });
-throw new errs.NotFoundError(`订单 ${id} 不存在`); // 404 快捷写法
-throw new errs.PermissionError({ subtype: "missing_scope", missingScopes: ["orders:read"], message: "...", hint: "..." });
+throw new errs.ValidationError({ subtype: "invalid_argument", param: "--limit", message: "必须为正数" });
+throw new errs.NotFoundError(`订单 ${id} 不存在`); // NotFoundError = APIError({subtype:'not_found'}) 快捷写法
 ```
 
 | Category         | Exit | 何时用                             |
@@ -328,6 +310,8 @@ defineCli({
 
 ## 6. 输出契约 —— 给 agent 看的 stdout/stderr
 
+**业务命令禁止直接 `console.log` 到 stdout**——会破坏管道。输出数据用 `return { data }`,输出日志用 `ctx.log.info(...)`(写 stderr)。框架自动处理:
+
 | 内容                                              | 流         | 谁写                             |
 | ------------------------------------------------- | ---------- | -------------------------------- |
 | 成功输出 `{ok:true, source, data, meta}`          | **stdout** | 框架(从你的 `return` 序列化)     |
@@ -335,12 +319,8 @@ defineCli({
 | 日志(info/warn/error)                             | stderr     | `ctx.log.info(...)`              |
 | SKILL.md 原文(`skills read` 输出)                 | stdout     | 框架(**例外**:不走统一输出格式)      |
 
-**契约要点:**
-
-- **业务命令禁止直接 `console.log` 到 stdout**——会破坏管道。输出数据用 `return { data }`,输出日志用 `ctx.log.info(...)`(写 stderr)。
-- `source` 由 `defineCli.name` 写入,管道下游据此生成稳定的 `PipeRecord.type`。成功输出还可能带可选顶层 `identity: 'user' | 'bot'`(auth Plugin 填)和 `dry_run`(`--dry-run` 时)。业务包通常不用关心——只需 `return { data, meta }`,其余框架补。
 - **`--json` / `--no-json`**:默认 `auto`(TTY→文本表格;管道/CI→JSON);`--json` 强制 JSON,`--no-json` 强制文本(被管道时仍 JSON,保护 agent)。
-- **exit code**:业务包**不设**——框架按错误 category 自动设(0 成功;1 api;2 validation;3 auth/permission/config;4 network;5 internal;6 policy;10 confirmation)。
+- **exit code**:业务包**不设**——框架按错误 category 自动设(见 §3④ 表)。
 
 ---
 
@@ -403,30 +383,32 @@ const result = await todosCommands.list.run({ limit: 20 }, ctx);
 
 ---
 
-## 10. 进阶(读 references,按需)
+## 10. 进阶 references 索引
 
-- **`references/auth-patterns.md`** —— **需要登录时读**:`defineAuth` 工厂、register、split-flow 登录、install 向导、凭证路径隔离(90% 场景)
-- **`references/custom-auth-plugin.md`** —— **HMAC/mTLS/自定义 provider 时读**:手写 auth Plugin 骨架、provider chain、签名插件、401 续期(10% 场景)
-- **`references/patterns.md`** —— **列表要分页 / 管道下游 / humanFormat 时读**:pagination 续拉、`ctx.pipe` 消费上游、`printTable` 自定义表格
-- `references/plugin-patterns.md` —— 自定义插件(钩子选择、enforce 顺序、onError 链)
-- `references/skill-gen.md` —— SKILL.md 完整模板(含 split-flow 占位)、AUTO-GEN 机制、frontmatter 规范、**与官方 skill-creator 规范对齐(§11)**
-- `references/readme-gen.md` —— **生成 README 时读**:标准结构 + 模板(装CLI/装Skill/配凭证)+ 鉴权三分支 + 避坑
-- `references/error-catalog.md` —— 全部 30+ subtype 速查 + errorOnStatus 推荐配置
-- `references/testing.md` —— createTestCtx 完整用法(mock transport/store/pipe、端到端测试)、**真实任务评估第 3 层(skill-creator 集成,§9)**
+| 何时读 | 文件 |
+| ------ | ---- |
+| 需要登录 | `references/auth-patterns.md`(defineAuth / split-flow / register / install) |
+| HMAC/mTLS/自定义 provider | `references/custom-auth-plugin.md` |
+| 分页 / 管道下游 / humanFormat | `references/patterns.md` |
+| 自定义插件(钩子/enforce/onError) | `references/plugin-patterns.md` |
+| 生成 SKILL.md | `references/skill-gen.md`(模板 / AUTO-GEN / frontmatter 规范) |
+| 生成 README | `references/readme-gen.md`(结构 / 模板 / 鉴权三分支) |
+| 全部 30+ subtype 速查 | `references/error-catalog.md` |
+| 测试(createTestCtx / 端到端) | `references/testing.md` |
 
 ---
 
 ## 11. 完成清单
 
-- [ ] §2 命名检查通过(bin / credentialNamespace / apps 目录都不撞)
-- [ ] `pnpm build` 编译通过
-- [ ] 主要命令用 `createTestCtx` 测过
-- [ ] 每个 `args` 都填了 `desc`
-- [ ] 用了 `errs.*` 而非裸 Error
-- [ ] `package.json` 的 `files` 含 `["dist", "skills"]`
-- [ ] 跑 `skills gen <name> --init` 生成 SKILL.md 并填了语义部分
-- [ ] **SKILL.md description 触发质量**:覆盖用户多种说法(不止命令名)、划清边界防误触发、明确鼓励触发(见 `references/skill-gen.md` §4)
+**通用(所有 CLI):**
+
+- [ ] 主要命令用 `createTestCtx` 测过(见 §8)
+- [ ] 跑 `skills gen <name> --init` 生成 SKILL.md 并填了语义部分(见 §7)
+- [ ] **SKILL.md description 触发质量**:覆盖用户多种说法(不止命令名)、划清边界防误触发(见 `references/skill-gen.md` §4)
 - [ ] 按 `references/readme-gen.md` 生成 README(含安装步骤)
-- [ ] **带鉴权的 CLI**:业务 SKILL.md 含 split-flow 登录指引;入口处理了 `install` 向导(拦截 `argv[0]==='install'`);`defineAuth` 已 `await`(见 §3①)
-- [ ] 没往 stdout 写非统一输出格式内容
-- [ ] 发布前至少跑过一轮 skill-creator 真实任务评估(见 `references/testing.md` §9)
+- [ ] 发布前至少跑过一轮真实任务评估(见 `references/testing.md`)
+
+**带鉴权的 CLI 追加:**
+
+- [ ] 业务 SKILL.md 含 split-flow 登录指引(见 `references/skill-gen.md`)
+- [ ] 入口处理了 `install` 向导(拦截 `argv[0]==='install'`)
