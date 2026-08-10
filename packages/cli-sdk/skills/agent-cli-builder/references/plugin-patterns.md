@@ -87,7 +87,7 @@ const auditPlugin = {
   name: "audit",
   async afterRequest(ctx, res) {
     if (res.status >= 400) {
-      // 上报 / 写日志(走 stderr,绝不污染 stdout)
+      // 上报 / 写日志(走 stderr,不污染 stdout)
       ctx.log.warn(`${res.status} ${ctx.state.requestPath}`);
     }
   },

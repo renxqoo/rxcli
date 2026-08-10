@@ -22,7 +22,7 @@ import {
   type Plugin,
   type TransportResponse,
 } from "@renxqoo/agent-data-cli";
-import { CREDENTIAL_NAMESPACE, RXCLI_DIR } from "./config.js";
+import { CREDENTIAL_NAMESPACE, RXCLI_DIR, isBaseUrlConfigured } from "./config.js";
 
 /** 运行时凭证(accessKey + secretKey)。 */
 export interface CordysCredentials {
@@ -117,11 +117,14 @@ const authCommands = defineCommands({
             [ENV_ACCESS_KEY]: Boolean(process.env[ENV_ACCESS_KEY]),
             [ENV_SECRET_KEY]: Boolean(process.env[ENV_SECRET_KEY]),
           },
+          domainConfigured: isBaseUrlConfigured,
         },
         meta: {
-          hint: configured
-            ? undefined
-            : "Not configured: run `rxcordys auth login --accessKey X --secretKey Y` or set environment variables",
+          hint: !isBaseUrlConfigured
+            ? "Cordys CRM domain not set: set CORDYS_CRM_DOMAIN environment variable to your Cordys CRM address (private deployment, no default)"
+            : configured
+              ? undefined
+              : "Not configured: run `rxcordys auth login --accessKey X --secretKey Y` or set environment variables",
         },
       };
     },
@@ -154,6 +157,14 @@ export function createCordysAuth(): Plugin<RxCordysState> {
      * 缺凭证抛 AuthenticationError(no_credentials)——login/status/logout 自身被豁免。
      */
     async beforeCommand(ctx: CommandContext<RxCordysState>) {
+      // 0. 后端地址必须配置(Cordys 是私有部署,无内置默认域名)
+      if (!isBaseUrlConfigured) {
+        throw new errs.AuthenticationError({
+          subtype: "no_credentials",
+          message: "Cordys CRM domain not configured",
+          hint: "Set CORDYS_CRM_DOMAIN environment variable to your Cordys CRM address (e.g. https://crm.your-company.com). Cordys is a private deployment — there is no default public endpoint.",
+        });
+      }
       // 1. 环境变量优先(CI / 临时覆盖)
       const envCreds = readFromEnv();
       if (envCreds) {

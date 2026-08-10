@@ -74,10 +74,17 @@ export function fileProvider(): CredentialProvider {
           source: `file:${pctx.namespace}.json#apiKey`,
         };
       }
-      // 也支持直接 token 字段(bearer 场景但非 OAuth 流程)
+      // 也支持直接 token 字段(bearer 场景但非 OAuth 流程,如手工注入的 JWT)
       const token = creds.token;
-      // OAuth 凭证交给 oauthProvider，避免在这里提前命中后丢失 refresh/expires 元数据。
-      if (creds.authMethod !== "oauth" && typeof token === "string" && token) {
+      // OAuth 凭证(有 refreshToken 或 authMethod 是已知 OAuth 流程)交给 oauthProvider，
+      // 避免在这里提前命中后丢失 refresh/expires 元数据。
+      // 无 authMethod 且无 refreshToken = 原始 bearer 注入(不是 OAuth),fileProvider 直接返回。
+      const oauthMethods = new Set(["oauth", "device", "authorization_code", "client_credentials"]);
+      const hasRefreshToken = typeof creds.refreshToken === "string" && creds.refreshToken;
+      const isOAuthFlow =
+        hasRefreshToken ||
+        (typeof creds.authMethod === "string" && oauthMethods.has(creds.authMethod));
+      if (!isOAuthFlow && typeof token === "string" && token) {
         return {
           token,
           type: "bearer",
@@ -132,9 +139,32 @@ export function oauthProvider(): CredentialProvider {
   };
 }
 
-/** 默认 4 个 provider,按 priority 升序。 */
+/**
+ * envBearerProvider(priority 6):从 $<NS>_BEARER_TOKEN 环境变量取 Bearer JWT。
+ *
+ * sandbox/CI 场景:admin 预签发 token 注入环境变量,agent 直接用。
+ * 优先级介于 env api-key(5)和 file(10)之间。
+ */
+export function envBearerProvider(): CredentialProvider {
+  return {
+    name: () => "env-bearer",
+    priority: () => 6,
+    async resolveToken(pctx: ProviderContext): Promise<TokenResult | null> {
+      const envName = `${pctx.namespace.toUpperCase().replace(/-/g, "_")}_BEARER_TOKEN`;
+      const token = pctx.env[envName];
+      if (typeof token !== "string" || !token) return null;
+      return {
+        token,
+        type: "bearer",
+        source: `env:${envName}`,
+      };
+    },
+  };
+}
+
+/** 默认 provider chain,按 priority 升序。 */
 export function defaultProviders(): CredentialProvider[] {
-  return [flagProvider(), envProvider(), fileProvider(), oauthProvider()];
+  return [flagProvider(), envProvider(), envBearerProvider(), fileProvider(), oauthProvider()];
 }
 
 // ============================================================================

@@ -32,12 +32,29 @@ export {
   revokeToken,
   registerClient,
   createOn401Hook,
+  generateCodeVerifier,
+  computeCodeChallenge,
+  buildAuthorizeUrl,
+  exchangeCodeForToken,
+  clientCredentialsToken,
   type DeviceAuthInfo,
   type TokenInfo,
   type UserInfo,
   type OAuthClientConfig,
   type PollResult,
+  type ClientMetadata,
+  type RegisteredClient,
+  fetchScopesFromMetadata,
 } from "./oauth.js";
+
+// 多流程鉴权(L3 策略层 + L2 基础设施)
+export { type AuthFlow, type FlowType, type FlowDeps } from "./flows/types.js";
+export { defaultBrowserOpener, type BrowserOpener } from "./infra/browser.js";
+export {
+  waitForCallback,
+  type CallbackResult,
+  type CallbackHandle,
+} from "./infra/callback-server.js";
 
 // 凭证基础能力(供开发者写 auth Plugin 用:provider chain + store)
 export {
@@ -46,6 +63,7 @@ export {
   defaultProviders,
   flagProvider,
   envProvider,
+  envBearerProvider,
   fileProvider,
   oauthProvider,
   resolveWithChain,
@@ -149,7 +167,7 @@ export { runInstallWizard, type InstallWizardOptions } from "./install-wizard.js
 export { detectBizPackage, type BizPackageInfo } from "./define.js";
 
 // OAuth 鉴权工厂(plugin.provides 自动注入 login/status/logout/register 命令)
-export { defineAuth, type DefineAuthOptions, pollAndPersist } from "./auth/index.js";
+export { defineAuth, type DefineAuthOptions } from "./auth/index.js";
 
 // 测试工具(createTestCtx,供业务包 mock ctx 用)
 export { createTestCtx, type MockRequest, type CreateTestCtxOptions } from "./test-utils.js";

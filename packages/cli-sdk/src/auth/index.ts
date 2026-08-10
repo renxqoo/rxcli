@@ -21,40 +21,34 @@
 
 import { homedir } from "node:os";
 import { join } from "node:path";
-import * as readline from "node:readline/promises";
-import { stdin, stdout } from "node:process";
-import type {
-  Plugin,
-  CommandGroup,
-  CommandContext,
-  CommandResult,
-  CredentialsApi,
-} from "../types.js";
-import { defineCommand } from "../define.js";
-import { errs, AuthenticationError } from "../errs/index.js";
+import type { Plugin, CommandGroup, CommandContext, CredentialsApi } from "../types.js";
+import { AuthenticationError } from "../errs/index.js";
 import {
   injectAuthHeader,
-  deviceAuthorization,
-  pollDeviceToken,
-  getUserInfo,
-  revokeToken,
-  registerClient,
-  createOn401Hook,
-  type AuthStyle,
+  type ClientMetadata,
   type OAuthClientConfig,
   type PollResult,
+  type AuthStyle,
 } from "../oauth.js";
+import { deviceFlow } from "../flows/device.js";
+import { authCodeFlow } from "../flows/authCode.js";
+import { clientCredentialsFlow } from "../flows/clientCredentials.js";
+import type { AuthFlow, FlowType, FlowDeps } from "../flows/types.js";
+import { createLoginCommand } from "./commands/login.js";
+import { createStatusCommand } from "./commands/status.js";
+import { createLogoutCommand } from "./commands/logout.js";
+import { createRegisterCommand } from "./commands/register.js";
 import {
   fileStore,
-  defaultProviders,
   resolveWithChain,
   resolveIdentityWithChain,
   type ConfigStore,
   type ProviderContext,
   type IdentityHint,
 } from "../credentials/index.js";
-import type { StoredOAuthCredentials } from "../credentials/types.js";
+import type { CredentialProvider } from "../credentials/types.js";
 import { credentialArgsKey } from "../context.js";
+import { resolveAuthConfig, buildProviderChain, buildOn401Handler } from "./helpers.js";
 
 // ============================================================================
 // 工厂入参/出参类型
@@ -87,6 +81,43 @@ export interface DefineAuthOptions {
    * 让 M3 RFC 8628 轮询测试能 mock pollDeviceToken。
    */
   poller?: (oauth: OAuthClientConfig, deviceCode: string) => Promise<PollResult>;
+
+  /**
+   * 鉴权流程。默认 "device"。
+   * - "device":设备授权流程(RFC 8628,CLI/无头设备)
+   * - "authorization_code":授权码 + PKCE(RFC 6749 §4.1 + RFC 7636,Web/App)
+   * - "client_credentials":客户端凭证(RFC 6749 §4.4,机器对机器)
+   */
+  flow?: FlowType;
+
+  /**
+   * RFC 7591 client_metadata(注册时声明)。
+   * client_name 是各 app 自声明(如 "crm"、"webapp")。
+   */
+  clientMetadata?: ClientMetadata;
+
+  /** authorization_code flow:本地回调端口(不传=随机)。 */
+  redirectPort?: number;
+
+  /**
+   * 预注入的 Bearer token(sandbox/CI 场景,admin issue-token 返回的 JWT)。
+   * 设了就直接用(priority=0,最高优先),跳过 provider chain + login。
+   * 最简注入:defineAuth({ bearerToken: process.env.CRM_BEARER_TOKEN })
+   */
+  bearerToken?: string;
+
+  /**
+   * 自定义 provider chain。不传 = defaultProviders()。
+   * 业务 app 可自定义 token 来源(如环境变量、文件、secret manager)。
+   */
+  providers?: CredentialProvider[];
+
+  /**
+   * 动态 scope:从服务端 metadata 端点(.well-known/oauth-authorization-server)
+   * 读 scopes_supported,用全集请求。CLI 不写死 scope,服务端加减 scope 不用发新版。
+   * 设了 true 就忽略 scope 参数(运行时动态获取)。
+   */
+  scopeFromMetadata?: boolean;
 }
 
 // ============================================================================
@@ -102,34 +133,40 @@ export interface DefineAuthOptions {
 export async function defineAuth<State = Record<string, never>>(
   opts: DefineAuthOptions,
 ): Promise<Plugin<State> & { _transportConfig?: { on401?: () => Promise<string | null> } }> {
+  // —— 基础配置 ——
   const cmdNs = opts.commandNamespace ?? "auth";
   const credNs = opts.credentialNamespace;
   const store = opts.store ?? fileStore({ dir: join(homedir(), ".rxcli") });
-  const authStyle = opts.authStyle ?? "bearer";
 
-  // env→config.json 回填 clientId/clientSecret(原 createAuthConfig 的 S3 逻辑)
-  let clientId = opts.clientId ?? process.env.RXCLI_CLIENT_ID ?? "";
-  let clientSecret = opts.clientSecret ?? process.env.RXCLI_CLIENT_SECRET ?? "";
-  if (!clientId || !clientSecret) {
-    try {
-      const config = (await store.loadConfig()) as { clientId?: string; clientSecret?: string };
-      if (!clientId && config.clientId) clientId = config.clientId;
-      if (!clientSecret && config.clientSecret) clientSecret = config.clientSecret;
-    } catch {
-      /* config.json 读失败:保持空,向后兼容 */
-    }
-  }
-  const oauth: OAuthClientConfig = { baseUrl: opts.baseUrl, clientId, clientSecret };
-  const providers = defaultProviders();
-  const refreshOn401 = createOn401Hook({ cfg: oauth, store, namespace: credNs });
+  // —— ① 解析 client 凭证(env → config.json → 空)——
+  const { oauth, authStyle } = await resolveAuthConfig(opts, store);
+
+  // —— ② 构造 provider chain ——
+  const providers = buildProviderChain(opts);
+
+  // —— ③ 选 flow + 构造 on401 handler ——
+  const flowType = opts.flow ?? "device";
+  const flow = resolveFlow(flowType);
+  const flowDeps: FlowDeps = {
+    cfg: oauth,
+    scope: opts.scope,
+    poller: opts.poller,
+    callbackPort: opts.redirectPort,
+  };
   let currentToken: string | undefined;
   const on401 = async () => {
-    const refreshed = await refreshOn401();
+    const refreshed = await buildOn401Handler({
+      flow,
+      oauth,
+      store,
+      namespace: credNs,
+      flowDeps,
+    })();
     if (refreshed) currentToken = refreshed;
     return refreshed;
   };
 
-  // —— 构造 auth 命令组(login/status/logout/register)——
+  // —— 构造 auth 命令组 ——
   const commands = createAuthCommands({
     oauth,
     store,
@@ -137,10 +174,14 @@ export async function defineAuth<State = Record<string, never>>(
     commandNamespace: cmdNs,
     scope: opts.scope,
     baseUrl: opts.baseUrl,
+    flow,
+    clientMetadata: opts.clientMetadata,
+    redirectPort: opts.redirectPort,
     poller: opts.poller,
+    scopeFromMetadata: opts.scopeFromMetadata,
   });
 
-  // —— 返回 plugin:钩子(beforeCommand 注入 token / beforeRequest 注入 header)+ 命令 ——
+  // —— 返回 plugin ——
   return {
     name: `auth:${credNs}`,
     enforce: "pre",
@@ -157,17 +198,13 @@ export async function defineAuth<State = Record<string, never>>(
         args: { apiKey: credentialArgs?.apiKey },
         env: process.env,
       };
-
       const resolved = await resolveWithChain(providers, pctx);
-      if (!resolved) {
+      if (!resolved)
         throw new AuthenticationError({
           subtype: "no_credentials",
           message: `${credNs} is not logged in`,
           hint: `run \`${cmdNs} login\` to log in`,
         });
-      }
-
-      // 填 ctx.credentials(store 包装)
       (ctx as { credentials: CredentialsApi }).credentials = {
         get: async (ns: string) => {
           const c = await store.loadCredentials(ns);
@@ -182,11 +219,8 @@ export async function defineAuth<State = Record<string, never>>(
         save: (ns: string, data: Record<string, unknown>) => store.saveCredentials(ns, data),
         clear: (ns: string) => store.clearCredentials(ns),
       };
-
-      // identity(统一输出格式顶层 user/bot 用);业务权限不本地预检,交服务端 403(对齐 v1)
       const identity: IdentityHint | null = await resolveIdentityWithChain(providers, pctx);
       (ctx as unknown as { _identity?: IdentityHint })._identity = identity ?? undefined;
-      // 若业务 State 声明了 user 字段,填进去(统一输出格式顶层展示)
       (ctx.state as Record<string, unknown>).user = identity
         ? {
             ...(identity.userId ? { userId: identity.userId } : {}),
@@ -215,250 +249,64 @@ interface AuthCommandOpts {
   commandNamespace: string;
   scope?: string;
   baseUrl: string;
+  /** 鉴权流程策略。 */
+  flow: AuthFlow;
+  /** RFC 7591 client_metadata(register 用)。 */
+  clientMetadata?: ClientMetadata;
+  /** authorization_code flow 回调端口。 */
+  redirectPort?: number;
   /** 测试用:注入轮询函数。 */
   poller?: (oauth: OAuthClientConfig, deviceCode: string) => Promise<PollResult>;
+  /** 动态 scope:从 metadata 读 scopes_supported。 */
+  scopeFromMetadata?: boolean;
+}
+
+/**
+ * 根据 flow 类型选策略(参数传入,非全局 registry)。
+ */
+function resolveFlow(type: FlowType): AuthFlow {
+  switch (type) {
+    case "device":
+      return deviceFlow;
+    case "authorization_code":
+      return authCodeFlow;
+    case "client_credentials":
+      return clientCredentialsFlow;
+  }
 }
 
 function createAuthCommands(o: AuthCommandOpts): CommandGroup {
-  const { oauth, store, scope, baseUrl } = o;
   const credNs = o.credentialNamespace;
   const cmdNs = o.commandNamespace;
 
   return {
-    // —— 登录(device flow 三分支)——
-    login: defineCommand<any, unknown>({
-      name: "login",
-      description: "Log in via the middleware (OAuth device flow)",
-      // 不标 internal:靠 plugin 精确豁免(_ownedRoutes 自动跳自身 beforeCommand)
-      args: {
-        wait: { type: "boolean", desc: "Block and poll (default; --no-wait returns immediately)" },
-        json: { type: "boolean", desc: "Output JSON (with --no-wait, for agent split-flow)" },
-        "device-code": {
-          type: "string",
-          desc: "Complete login with an existing device_code (split-flow step 2)",
-        },
-      },
-      async run(args, ctx): Promise<CommandResult> {
-        // 分支二:split-flow 第二步 —— 用已有 device_code 轮询
-        const deviceCode = args["device-code"] as string | undefined;
-        if (deviceCode) {
-          return pollAndPersist(ctx, oauth, store, credNs, deviceCode, 15 * 60, 5000, o.poller);
-        }
-
-        // 申请设备码(scope 业务自定,空=不带)
-        const info = await deviceAuthorization(oauth, scope);
-
-        // 分支一:--no-wait → 立即返回 device_code + URL,不轮询
-        const noWait = args.wait === false;
-        if (noWait) {
-          const verificationUrl = info.verification_uri_complete ?? info.verification_uri;
-          if (args.json) {
-            return {
-              data: {
-                device_code: info.device_code,
-                user_code: info.user_code,
-                verification_url: verificationUrl,
-                verification_uri_complete: info.verification_uri_complete,
-                verification_uri: info.verification_uri,
-                expires_in: info.expires_in,
-                interval: info.interval,
-              },
-            };
-          }
-          ctx.log.info(
-            `\nPlease complete login in your browser:\n  ${verificationUrl}\n  user code: ${info.user_code}\n\ndevice_code: ${info.device_code}\n(not polling. After authorizing, run: ${cmdNs} login --device-code ${info.device_code})`,
-          );
-          return { data: { device_code: info.device_code, verification_url: verificationUrl } };
-        }
-
-        // 默认分支:阻塞轮询(人类用)
-        const verificationUrl = info.verification_uri_complete ?? info.verification_uri;
-        ctx.log.info(
-          `\nPlease complete login in your browser:\n  ${verificationUrl}\n  user code: ${info.user_code}\n\nWaiting for login to complete...`,
-        );
-        // 用服务端返回的 interval 作为轮询间隔(RFC 8628)
-        return pollAndPersist(
-          ctx,
-          oauth,
-          store,
-          credNs,
-          info.device_code,
-          info.expires_in,
-          info.interval * 1000,
-          o.poller,
-        );
-      },
+    login: createLoginCommand({
+      oauth: o.oauth,
+      store: o.store,
+      credentialNamespace: credNs,
+      commandNamespace: cmdNs,
+      scope: o.scope,
+      flow: o.flow,
+      redirectPort: o.redirectPort,
+      poller: o.poller,
+      scopeFromMetadata: o.scopeFromMetadata,
     }),
-
-    // —— 状态 ——
-    status: defineCommand<any, unknown>({
-      name: "status",
-      description: "Show current login status",
-      async run(_args, ctx): Promise<CommandResult> {
-        const creds = (await store.loadCredentials(
-          credNs,
-        )) as Partial<StoredOAuthCredentials> | null;
-        if (!creds?.token) {
-          ctx.log.info(`Not logged in. Run \`${cmdNs} login\` to log in.`);
-          return { data: { loggedIn: false } };
-        }
-        try {
-          const user = await getUserInfo(oauth, creds.token);
-          const expired = creds.expiresAt ? Date.now() >= creds.expiresAt : false;
-          ctx.log.info(
-            `Logged in: ${user.name} (${user.open_id})\nMiddleware: ${oauth.baseUrl}\ntoken ${expired ? "expired (will auto-refresh on next call)" : "valid"}`,
-          );
-          return { data: { loggedIn: true, user: { id: user.open_id, name: user.name }, expired } };
-        } catch (err) {
-          if (!(err instanceof AuthenticationError)) throw err;
-          ctx.log.info("Authentication expired. Please log in again.");
-          throw new errs.AuthenticationError({
-            subtype: "token_expired",
-            message: "Authentication expired",
-            hint: `run \`${cmdNs} login\` to log in again`,
-          });
-        }
-      },
+    status: createStatusCommand({
+      oauth: o.oauth,
+      store: o.store,
+      credentialNamespace: credNs,
+      commandNamespace: cmdNs,
     }),
-
-    // —— 登出 ——
-    logout: defineCommand<any, unknown>({
-      name: "logout",
-      description: "Log out (revoke session + clear local credentials)",
-      async run(_args, ctx): Promise<CommandResult> {
-        const creds = (await store.loadCredentials(
-          credNs,
-        )) as Partial<StoredOAuthCredentials> | null;
-        if (creds?.token) {
-          try {
-            await revokeToken(oauth, creds.token);
-          } catch {
-            /* 离线/服务不可用仍清本地 */
-          }
-        }
-        await store.clearCredentials(credNs);
-        ctx.log.info("Logged out.");
-        return { data: { loggedOut: true } };
-      },
+    logout: createLogoutCommand({
+      oauth: o.oauth,
+      store: o.store,
+      credentialNamespace: credNs,
     }),
-
-    // —— 注册:用注册令牌换独立 clientId/clientSecret ——
-    register: defineCommand<any, unknown>({
-      name: "register",
-      description:
-        "Register this machine's CLI client (exchange a registration token for standalone credentials)",
-      args: {
-        token: { type: "string", desc: "Registration token (interactive prompt if omitted)" },
-      },
-      async run(args, ctx): Promise<CommandResult> {
-        let token = args.token as string | undefined;
-        if (!token) {
-          if (!stdin.isTTY) {
-            throw new errs.ValidationError({
-              subtype: "missing_required",
-              param: "--token",
-              message: "--token is required in a non-interactive environment",
-              hint: `run \`${cmdNs} register --token <registration-token>\``,
-            });
-          }
-          const rl = readline.createInterface({ input: stdin, output: stdout });
-          try {
-            token = (await rl.question("Please enter the registration token: ")).trim();
-          } finally {
-            rl.close();
-          }
-        }
-        if (!token) {
-          throw new errs.ValidationError({
-            subtype: "missing_required",
-            param: "--token",
-            message: "No token entered",
-          });
-        }
-
-        const { clientId, clientSecret } = await registerClient(baseUrl, token);
-        const config = (await store.loadConfig()) as Record<string, unknown>;
-        config.clientId = clientId;
-        config.clientSecret = clientSecret;
-        await store.saveConfig(config);
-
-        ctx.log.info(`\n✓ Registered successfully. clientId=${clientId}`);
-        return { data: { registered: true, clientId } };
-      },
+    register: createRegisterCommand({
+      baseUrl: o.baseUrl,
+      store: o.store,
+      commandNamespace: cmdNs,
+      clientMetadata: o.clientMetadata,
     }),
   };
-}
-
-// ============================================================================
-// 轮询 + 落盘(pollAndPersist + persistLogin 实现)
-// ============================================================================
-
-/**
- * 轮询 device token 直到拿到/超时/失败,成功则查身份 + 落盘。
- *
- * RFC 8628:
- *   - 起始用服务端 device_authorization 返回的 interval(不再固定 3000ms)
- *   - 收到 slow_down 时,interval 增加 5 秒(§3.2)
- */
-export async function pollAndPersist(
-  ctx: CommandContext,
-  oauth: OAuthClientConfig,
-  store: ConfigStore,
-  namespace: string,
-  deviceCode: string,
-  ttlSec: number,
-  /** 起始轮询间隔(ms),来自服务端 interval。默认 5000(RFC 8628 推荐兜底)。 */
-  intervalMs = 5000,
-  /** 测试用:注入轮询函数。默认真实 pollDeviceToken。 */
-  poller: (oauth: OAuthClientConfig, deviceCode: string) => Promise<PollResult> = pollDeviceToken,
-): Promise<CommandResult> {
-  let interval = intervalMs;
-  const deadline = Date.now() + ttlSec * 1000;
-  while (Date.now() < deadline) {
-    const remaining = deadline - Date.now();
-    await sleep(Math.min(interval, remaining));
-    if (Date.now() >= deadline) break;
-    const r = await poller(oauth, deviceCode);
-    if (r.status === "ok") {
-      // 查身份 → 落盘
-      const base: StoredOAuthCredentials = {
-        token: r.token.access_token,
-        refreshToken: r.token.refresh_token ?? "",
-        expiresAt: Date.now() + r.token.expires_in * 1000,
-        scopes: r.token.scope?.split(/\s+/).filter(Boolean) ?? [],
-        storedAt: Date.now(),
-        authMethod: "oauth",
-      };
-      try {
-        const user = await getUserInfo(oauth, r.token.access_token);
-        base.user = { userId: user.open_id, name: user.name };
-        await store.saveCredentials(namespace, base as unknown as Record<string, unknown>);
-        ctx.log.info(`\n✓ Login successful: ${user.name} (${user.open_id})`);
-        return { data: { loggedIn: true, user: { id: user.open_id, name: user.name } } };
-      } catch {
-        await store.saveCredentials(namespace, base as unknown as Record<string, unknown>);
-        ctx.log.info("\n✓ Login successful (could not fetch user info)");
-        return { data: { loggedIn: true } };
-      }
-    }
-    if (r.status === "slow_down") {
-      // RFC 8628 §3.2 —— slow_down 时 interval 增加 5 秒
-      interval += 5000;
-      continue;
-    }
-    if (r.status === "pending") continue;
-    // error
-    throw new errs.AuthenticationError({
-      subtype: "token_revoked",
-      message: `Login failed: ${r.message}`,
-    });
-  }
-  throw new errs.AuthenticationError({
-    subtype: "token_expired",
-    message: "Login timed out, please retry",
-  });
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
 }

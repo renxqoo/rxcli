@@ -20,6 +20,7 @@ export { fileStore, memoryStore, type FileStoreOptions } from "./config-store.js
 export {
   flagProvider,
   envProvider,
+  envBearerProvider,
   fileProvider,
   oauthProvider,
   defaultProviders,

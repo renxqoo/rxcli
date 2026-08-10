@@ -1,6 +1,6 @@
 # 模式进阶:分页 / 管道 / humanFormat
 
-> 主 SKILL.md §5 只留了高频模式(多域 namespaces、errorOnStatus)。这里放进阶写法——**需要时才读**:
+> 主 SKILL.md §5 只留了常用模式(多域 namespaces、errorOnStatus)。这里放进阶写法——**需要时才读**:
 >
 > - 命令返回大列表,要给 agent 续拉能力 → §1 分页
 > - 下游命令消费上游命令输出(`a list | b generate`)→ §2 管道下游
@@ -22,7 +22,7 @@ list: defineCommand({
       meta: {
         count: res.data.items.length,
         pagination: {
-          complete: !res.data.hasMore,         // ★ agent 靠它判断是否续拉
+          complete: !res.data.hasMore,         // agent 靠它判断是否续拉
           pages: 1,
           items: res.data.items.length,
           nextToken: res.data.hasMore ? res.data.nextCursor : undefined,
@@ -81,7 +81,7 @@ generate: defineCommand({
 interface PipeRecord {
   type: string; // 上游成功输出的 source(通常是 defineCli.name),下游按它分流
   id?: string; // 稳定标识
-  data: unknown; // payload(已过 beforeOutput 转换)
+  data?: unknown; // payload(已过 beforeOutput 转换)
   meta?: Record<string, unknown>;
 }
 ```

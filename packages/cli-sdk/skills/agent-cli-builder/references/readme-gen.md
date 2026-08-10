@@ -13,10 +13,10 @@
 | ① 简介 | 一句话定位 + 基于什么框架 | `defineCli.description` + `package.json` |
 | ② 快速开始 | 装 CLI → 装 Skill → 配凭证(三步) | `package.json` name/bin + `skills sync` + 鉴权方式(见 §3) |
 | ③ 功能 | 模块表格(每 namespace 一行) | `defineCli` 的 `namespaces` |
-| ④ 常用命令 | 5-8 个高频示例 | 从命令表挑最高频操作 |
+| ④ 常用命令 | 5-8 个常用示例 | 从命令表挑常用操作 |
 | ⑤ 输出契约 | 统一输出格式格式 `{ok,source,data,meta}` | 框架标准(固定) |
 | ⑥ 开发 | build / test / typecheck | `package.json.scripts` |
-| ⑦ 技术决策 | 鉴权方式、命名约定等 | auth 实现 + §0 命名检查 |
+| ⑦ 技术决策 | 鉴权方式、命名约定等 | auth 实现 + §2 命名检查 |
 
 > 不要漏节。尤其 ②「装 Skill」最常漏——用户装了 CLI 但 AI 工具读不到 skill 就不会触发。
 
@@ -78,7 +78,7 @@ npm install -g {{包名}}
 
 ```bash
 {{bin 名}} {{namespace}} {{cmd}} --json    # {{用途}}
-... (5-8 个高频示例)
+... (5-8 个常用示例)
 ```
 
 加 `--dryRun` 仅校验不提交;完整命令见 `{{bin 名}} --help`。
@@ -111,7 +111,7 @@ Skill 文档:`skills/{{skill 名}}/SKILL.md`。
 
 ### 类型 A:无鉴权(公开 API / 内网)
 
-没有第 3 步。README 的快速开始只有两步(装 CLI + 装 Skill)。简介里注明"无需鉴权,开箱即用"。
+没有第 3 步。README 的快速开始只有两步(装 CLI + 装 Skill)。简介里注明"无需鉴权,直接可用"。
 
 ### 类型 B:OAuth 鉴权(defineAuth 工厂)
 
@@ -162,20 +162,20 @@ export {{PREFIX}}_SECRET_KEY=<SK>
 | ③ | `<bin> auth register` | 注册(OAuth CLI 才有,静态密钥跳过) |
 | ④ | `<bin> auth login` | 登录授权(OAuth:浏览器;静态密钥:存 key) |
 
-**README 写法**:一键安装作为首选,手动三步作为备选(等价)。这样用户一条命令搞定,出问题能分步排查。
+**README 写法**:一键安装作为首选,手动三步作为备选(等价)。用户可一条命令完成安装,出问题时可分步排查。
 
 > 静态密钥 CLI 的向导步骤③④ 不完全适配(register 是 OAuth 概念),但这两步失败不阻断——①② 会正常完成。README 里注明即可。
 
 ---
 
-## 5. 避坑(基于实战)
+## 5. 避坑(基于实践)
 
-1. **🔥 别漏「装 Skill」步骤** —— 用户 `npm install -g` 装了 CLI,但没跑 `skills sync`,AI 工具读不到 skill → 不触发。README 的快速开始必须含这一步。
+1. **勿漏「装 Skill」步骤** —— 用户 `npm install -g` 装了 CLI,但未跑 `skills sync`,AI 工具读不到 skill → 不触发。README 的快速开始必须含这一步。
 
-2. **包名 / bin / skill 目录 / namespace 要一致** —— 对应主 SKILL.md §0 命名检查。README 里把这四个名字列清楚(技术决策节),避免文档和代码漂移。
+2. **包名 / bin / skill 目录 / namespace 要一致** —— 对应主 SKILL.md §2 命名检查。README 里将这四个名字列清楚(技术决策节),避免文档和代码漂移。
 
-3. **README 和 SKILL.md 的安装步骤要同步** —— README 给人看(可交互),SKILL.md 给 agent 看(split-flow 非阻塞)。内容对齐但写法不同。
+3. **README 和 SKILL.md 的安装步骤需同步** —— README 给人看(可交互),SKILL.md 给 agent 看(split-flow 非阻塞)。内容对齐但写法不同。
 
-4. **常用命令别超过 8 个** —— 挑最高频的(列表/详情/搜索/统计/新增),其余指向 `--help`。太多反而让用户抓不住重点。
+4. **常用命令不超过 8 个** —— 挑常用的(列表/详情/搜索/统计/新增),其余指向 `--help`。过多会导致用户难以抓住重点。
 
-5. **技术决策节记录"为什么这么做"** —— 比如"手写 auth plugin 而非 defineAuth,因为框架 injectAuthHeader 只支持单 header"。这些决策在 README 里一句话带过,给后续维护者/读者交代关键取舍。
+5. **技术决策节记录"为什么这么做"** —— 例如"手写 auth plugin 而非 defineAuth,因为框架 injectAuthHeader 只支持单 header"。这些决策在 README 里一句话带过,给后续维护者/读者交代关键取舍。
