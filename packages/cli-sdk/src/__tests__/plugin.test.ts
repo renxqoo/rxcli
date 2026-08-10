@@ -118,7 +118,7 @@ describe("plugin: onError 链式", () => {
     expect(result).toBeUndefined();
   });
 
-  it("一个 onError 抛错后仍继续执行后续 hook", async () => {
+  it("一个 onError 抛错后仍继续执行后续 hook,且保留原始错误", async () => {
     const seen: unknown[] = [];
     const broken: Plugin = {
       name: "broken",
@@ -135,7 +135,7 @@ describe("plugin: onError 链式", () => {
     };
     const result = await runOnError([broken, audit], makeCtx(), new Error("original"));
     expect(seen[0]).toBeInstanceOf(Error);
-    expect((seen[0] as Error).message).toBe("hook crashed");
+    expect((seen[0] as Error).message).toBe("original");
     expect(result).toBe(seen[0]);
   });
 });

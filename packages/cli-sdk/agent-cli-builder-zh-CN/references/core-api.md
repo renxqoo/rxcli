@@ -36,10 +36,10 @@
 ## 2. 命令定义
 
 ```ts
-import { defineCommand, defineCommands, errs } from "@renxqoo/agent-data-cli";
+import { defineCommandFromArgs, defineCommands, errs } from "@renxqoo/agent-data-cli";
 
 export const todoCommands = defineCommands({
-  list: defineCommand({
+  list: defineCommandFromArgs({
     name: "list",
     description: "查询待办列表",
     args: {
@@ -73,6 +73,8 @@ export const todoCommands = defineCommands({
 | boolean 无 default | 未传时为 `undefined`                          |
 
 必填 positional 不能放在可选 positional 后面。参数 schema 在装配期校验，但数值范围、枚举和跨参数关系仍由命令验证。
+
+schema 是类型来源时使用 `defineCommandFromArgs`：`required`/`default` 字段推导为必有，其余字段推导为可选。需要字面量联合或领域类型时使用 `defineCommand<ExactArgs, Result>`。`json`、`api-key`、`help`、`version` 是框架保留参数，业务命令不能重复声明；框架参数可放在命令路径前或后。
 
 ## 3. CLI 装配与入口
 

@@ -84,51 +84,21 @@ describe("BUG-R1: --version 在命令之后不应触发全局版本输出", () =
 });
 
 // ============================================================================
-// BUG-R2 [P1]: 命令声明自己的 api-key 参数时,--api-key 被框架吞掉
-// 根因: define.ts:230-231 无条件 delete options["api-key"],不检查命令是否声明同名 arg
+// BUG-R2 [P1]: 框架参数和业务参数同名时语义不确定
+// 新契约:api-key/json/help/version 由框架独占,定义命令时立即报错。
 // ============================================================================
-describe("BUG-R2: 命令声明 api-key 参数时应能收到 --api-key 值", () => {
-  it("命令 args 含 api-key(string)→ --api-key sk1 应透传到 run", async () => {
-    let captured: Record<string, unknown> | undefined;
-    const app = defineCli({
-      name: "x",
-      description: "x",
-      defaultFormat: "json",
-      commands: {
-        get: defineCommand({
-          name: "get",
-          description: "g",
-          args: { "api-key": { type: "string" } },
-          async run(a) {
-            captured = a;
-            return { data: a };
-          },
-        }),
-      },
-    });
-    const r = await captureRun(app, ["get", "--api-key", "sk1"]);
-    expect(captured?.["api-key"]).toBe("sk1");
-    expect(r.code).toBe(0);
-  });
-
-  it("命令 args 含 api-key(required)→ --api-key sk1 不应报 missing_required", async () => {
-    const app = defineCli({
-      name: "x",
-      description: "x",
-      defaultFormat: "json",
-      commands: {
-        get: defineCommand({
-          name: "get",
-          description: "g",
-          args: { "api-key": { type: "string", required: true } },
-          async run(a) {
-            return { data: a };
-          },
-        }),
-      },
-    });
-    const r = await captureRun(app, ["get", "--api-key", "sk1"]);
-    expect(r.code).toBe(0);
+describe("BUG-R2: 框架保留参数不能由业务命令重新声明", () => {
+  it.each(["api-key", "json", "help", "version"])("拒绝保留参数 %s", (name) => {
+    expect(() =>
+      defineCommand({
+        name: "get",
+        description: "g",
+        args: { [name]: { type: "string" } },
+        async run() {
+          return { data: null };
+        },
+      }),
+    ).toThrow(`argument ${name} is reserved by the CLI framework`);
   });
 });
 
@@ -166,12 +136,12 @@ describe("BUG-R7: semverLessThan 对非版本字符串应返回 false", () => {
 // 根因: define.ts:306-310 matchRoute 只收 argv 头部连续非 flag token
 // ============================================================================
 describe("BUG-R9: --json 在命令名之前不应被判为未知命令", () => {
-  it("`--json list` 应执行 list 并输出 JSON", async () => {
+  it("`--json list` 应覆盖 human 默认格式并输出 JSON", async () => {
     let ran = false;
     const app = defineCli({
       name: "x",
       description: "x",
-      defaultFormat: "json",
+      defaultFormat: "human",
       commands: {
         list: defineCommand({
           name: "list",
@@ -186,6 +156,7 @@ describe("BUG-R9: --json 在命令名之前不应被判为未知命令", () => {
     const r = await captureRun(app, ["--json", "list"]);
     expect(ran).toBe(true);
     expect(r.code).toBe(0);
+    expect(JSON.parse(r.out)).toMatchObject({ ok: true, data: { ok: 1 } });
   });
 });
 

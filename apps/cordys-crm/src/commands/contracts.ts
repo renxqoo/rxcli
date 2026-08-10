@@ -26,7 +26,12 @@
  *   GET    /contract/invoice/statistic/{id} 合同发票统计
  */
 
-import { defineCommands, defineCommand, type CommandGroup } from "@renxqoo/agent-data-cli";
+import {
+  defineCommands,
+  defineCommand,
+  type CommandGroup,
+  defineCommandFromArgs,
+} from "@renxqoo/agent-data-cli";
 import { unwrap, buildPagePayload, pagedMeta, parseJsonBody, type PagedData } from "../envelope.js";
 import { ensureConfirmed, assertHasId } from "./leads.js";
 
@@ -76,7 +81,7 @@ export const contractsCommands: CommandGroup = defineCommands({
     },
   }),
 
-  form: defineCommand({
+  form: defineCommandFromArgs({
     name: "form",
     description: "合同表单字段定义",
     args: {},
@@ -173,7 +178,7 @@ export const contractsCommands: CommandGroup = defineCommands({
     },
   }),
 
-  "payment-plan-form": defineCommand({
+  "payment-plan-form": defineCommandFromArgs({
     name: "payment-plan-form",
     description: "回款计划表单字段定义",
     args: {},
@@ -260,7 +265,7 @@ export const contractsCommands: CommandGroup = defineCommands({
     },
   }),
 
-  "payment-record-form": defineCommand({
+  "payment-record-form": defineCommandFromArgs({
     name: "payment-record-form",
     description: "回款记录表单字段定义",
     args: {},
@@ -337,7 +342,7 @@ export const contractsCommands: CommandGroup = defineCommands({
     },
   }),
 
-  "business-title-form": defineCommand({
+  "business-title-form": defineCommandFromArgs({
     name: "business-title-form",
     description: "工商抬头表单字段定义",
     args: {},

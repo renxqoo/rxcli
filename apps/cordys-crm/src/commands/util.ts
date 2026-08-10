@@ -9,11 +9,17 @@
  *   — raw:通用透传(相对路径拼 baseUrl,绝对 URL 直连)—
  */
 
-import { defineCommands, defineCommand, errs, type CommandGroup } from "@renxqoo/agent-data-cli";
+import {
+  defineCommands,
+  defineCommand,
+  errs,
+  type CommandGroup,
+  defineCommandFromArgs,
+} from "@renxqoo/agent-data-cli";
 import { unwrap, buildPagePayload, pagedMeta, parseJsonBody, type PagedData } from "../envelope.js";
 
 /** whoami 命令(独立导出,供 index.ts 顶层快捷引用,避免索引访问 undefined)。 */
-export const whoamiCommand = defineCommand({
+export const whoamiCommand = defineCommandFromArgs({
   name: "whoami",
   description: "查询当前用户信息(兼验证凭证是否有效)",
   args: {},
@@ -28,7 +34,7 @@ export const utilCommands: CommandGroup = defineCommands({
   whoami: whoamiCommand,
 
   /** verify:验证凭证(同 whoami 端点,语义化命名)。 */
-  verify: defineCommand({
+  verify: defineCommandFromArgs({
     name: "verify",
     description: "验证当前凭证是否有效(返回用户信息)",
     args: {},
@@ -39,7 +45,7 @@ export const utilCommands: CommandGroup = defineCommands({
   }),
 
   /** org:部门组织树。 */
-  org: defineCommand({
+  org: defineCommandFromArgs({
     name: "org",
     description: "查询部门组织树",
     args: {},

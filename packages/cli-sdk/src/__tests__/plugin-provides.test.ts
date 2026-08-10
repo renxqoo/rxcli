@@ -148,6 +148,6 @@ describe("plugin.provides: route ownership", () => {
     const app = defineCli({ name: "demo", description: "d", plugins: [p], commands: {} });
     await app.run(["auth", "login"]);
     expect(guardCalls).toBe(0);
-    expect(p._ownedRoutes).toBeUndefined();
+    expect(p).not.toHaveProperty("_ownedRoutes");
   });
 });

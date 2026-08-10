@@ -1,6 +1,6 @@
 # 05 · 凭证与认证(auth 是 Plugin)
 
-> cli-sdk 的认证**不是封闭的工厂**——**没有 `createAuthPlugin`**。auth 就是一个普通的 `Plugin`:开发者用 cli-sdk 导出的基础块(provider chain / injectAuthHeader / oauth)自己写 `beforeCommand` + `beforeRequest` 组装。本文档定义这套组装方式、provider chain 的内部机制、provider 接口、凭证存储、首次引导。`apps/crm/src/auth.ts` 的 `createCrmAuth` 是一个完整参考实现。
+> 标准 OAuth、Bearer、API key 和 Basic 认证优先使用 `defineAuth`。只有 HMAC、mTLS 或复合协议才手写 Plugin；自定义实现使用公开的上下文 auth session 与 `onUnauthorized`，不得依赖私有字段或闭包 token。
 
 ---
 
@@ -26,7 +26,8 @@
 | `resolveWithChain(providers, pctx)`                                                                                                                           | 跑 chain 取 `TokenResult`(命中即停)                                            |
 | `resolveIdentityWithChain(providers, pctx)`                                                                                                                   | 跑 chain 取 `IdentityHint`(统一输出格式顶层 user/bot)                                  |
 | `injectAuthHeader(req, token, style)`                                                                                                                         | 按 authStyle(`bearer`/`x-api-key`/`basic`)注入 header                          |
-| `createOn401Hook({cfg, store, namespace})`                                                                                                                    | 401 singleflight refresh hook(返回的函数挂 Plugin 的 `_transportConfig.on401`) |
+| `createOn401Hook({cfg, store, namespace})`                                                                                                                    | 401 singleflight refresh 原语(由公开 `onUnauthorized` hook 调用)              |
+| `setAuthSession/getAuthSession/updateAuthSessionToken`                                                                                                        | 绑定到 `CommandContext` 的并发隔离认证会话                                    |
 | `deviceAuthorization` / `pollDeviceToken` / `refreshAccessToken` / `getUserInfo` / `revokeToken` / `registerClient`                                           | OAuth device flow 端点                                                         |
 | 类型:`Plugin` / `CredentialsApi` / `CommandContext` / `ProviderContext` / `TokenResult` / `IdentityHint` / `ConfigStore` / `CredentialProvider` / `AuthStyle` | —                                                                              |
 
@@ -45,8 +46,11 @@ import {
   type ProviderContext,
   fileStore,
   defaultProviders,
+  getAuthSession,
   resolveWithChain,
   resolveIdentityWithChain,
+  setAuthSession,
+  updateAuthSessionToken,
   injectAuthHeader,
   createOn401Hook,
   AuthenticationError,
@@ -56,7 +60,7 @@ export function createCrmAuth<State extends { user?: unknown }>(opts: {
   namespace: string;
   authStyle?: "bearer" | "x-api-key" | "basic";
   oauth?: { baseUrl: string; clientId: string; clientSecret: string };
-}): Plugin<State> & { _transportConfig?: { on401?: () => Promise<string | null> } } {
+}): Plugin<State> {
   const store = fileStore({ dir }); // dir 必填,业务包声明(如 ~/.rxcli)
   const providers = defaultProviders();
   const authStyle = opts.authStyle ?? "bearer";
@@ -67,8 +71,6 @@ export function createCrmAuth<State extends { user?: unknown }>(opts: {
   return {
     name: `auth:${opts.namespace}`,
     enforce: "pre",
-    _transportConfig: on401 ? { on401 } : undefined, // ★ 挂这里请求层才会用
-
     async beforeCommand(ctx: CommandContext<State>) {
       const pctx: ProviderContext = {
         namespace: opts.namespace,
@@ -85,12 +87,25 @@ export function createCrmAuth<State extends { user?: unknown }>(opts: {
         });
       // ② 包装 store 成 ctx.credentials;③ 注入 scopes;④ 取 identity 填 state.user
       // ⑤ 缓存 token 供 beforeRequest 用
-      (ctx as any)._authToken = resolved.token.token;
+      setAuthSession(ctx, {
+        token: resolved.token.token,
+        type: resolved.token.type,
+        source: resolved.token.source,
+        refreshable: resolved.token.refreshable === true,
+      });
     },
 
     async beforeRequest(ctx, req) {
-      const token = (ctx as any)._authToken;
-      if (token) injectAuthHeader(req, token, authStyle);
+      const session = getAuthSession(ctx);
+      if (session) injectAuthHeader(req, session.token, authStyle);
+    },
+
+    async onUnauthorized(ctx) {
+      const session = getAuthSession(ctx);
+      if (!on401 || !session?.refreshable) return undefined;
+      const token = await on401();
+      if (token) updateAuthSessionToken(ctx, token);
+      return token;
     },
   };
 }
@@ -102,12 +117,12 @@ export function createCrmAuth<State extends { user?: unknown }>(opts: {
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `beforeCommand`          | 跑 provider chain 取 token;包装 `store` 成 `ctx.credentials`;调 `ctx.auth._setScopes` 注入 scopes;跑 `resolveIdentityWithChain` 填 identity + `ctx.state.user`;缓存 token |
 | `beforeRequest`          | 用 `injectAuthHeader(req, token, authStyle)` 按 authStyle 注入 header                                                                                                     |
-| `_transportConfig.on401` | `createOn401Hook(...)` 返回的 hook 挂这里;cli-sdk 请求层遇到 401 时调它,singleflight refresh 后自动重试                                                                   |
+| `onUnauthorized`        | 公开 hook 调 `createOn401Hook(...)`;成功后更新上下文 auth session，框架 singleflight refresh 后自动重试                                                               |
 
 **关键纪律:**
 
 - 认证用 `beforeCommand` + `beforeRequest` 两个标准钩子,不发明新机制。
-- token 缓存挂 `ctx`(`_authToken`)而非闭包变量,避免并发命令间串。
+- token 使用 `setAuthSession/getAuthSession` 绑定到 `CommandContext`，避免并发命令间串。
 - 401 refresh 是请求层(框架)的能力,但**执行能力**(怎么 refresh、怎么落盘)由 auth Plugin 通过 `on401` 提供。没挂 `on401` 的 auth Plugin 不支持 401 自动续期。
 - 业务包可完全不参考 `createCrmAuth` 骨架自己写——只要遵守 `Plugin` 接口和上面的契约。
 
@@ -373,7 +388,7 @@ $ rxcli-orders list --verbose 2>&1 | grep -i auth
 
 | 鉴权方式                    | 怎么写 auth Plugin                                                          | 业务包要做什么                               |
 | --------------------------- | --------------------------------------------------------------------------- | -------------------------------------------- |
-| OAuth(rxcli 中间层)         | authStyle `'bearer'` + `createOn401Hook`(给 `_transportConfig.on401`)       | 复用 `createCrmAuth` 骨架,默认 provider 覆盖 |
+| OAuth(rxcli 中间层)         | `defineAuth`；自定义时用 auth session + 公开 `onUnauthorized`               | 优先使用框架工厂                             |
 | Bearer token                | 同上(去掉 on401)                                                            | 同上                                         |
 | API key(`X-Api-Key` header) | authStyle `'x-api-key'`                                                     | 同上,默认 provider 覆盖                      |
 | Basic Auth                  | authStyle `'basic'`                                                         | provider 存 user/pass                        |

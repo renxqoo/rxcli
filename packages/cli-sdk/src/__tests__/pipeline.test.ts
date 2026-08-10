@@ -180,7 +180,7 @@ describe("pipeline: onError 插件链(错误归一化)", () => {
     expect(env.data).toBeNull();
   });
 
-  it("onError hook 自己抛错时仍返回结构化错误,而不是让 runCommand reject", async () => {
+  it("onError hook 自己抛错时保留原始结构化错误", async () => {
     const brokenHook: Plugin = {
       name: "broken-error-hook",
       async onError() {
@@ -195,11 +195,10 @@ describe("pipeline: onError 插件链(错误归一化)", () => {
       plugins: [brokenHook],
     });
 
-    expect(code).toBe(5);
+    expect(code).toBe(1);
     expect(JSON.parse(stderrBuf).error).toMatchObject({
-      type: "internal",
-      subtype: "unknown",
-      message: "hook crashed",
+      type: "api",
+      subtype: "not_found",
     });
   });
 });
@@ -320,7 +319,7 @@ describe("internal 命令跳过 beforeCommand", () => {
 });
 
 describe("精确豁免:plugin 自己的命令跳自己的 beforeCommand(route 传入时)", () => {
-  it("plugin A 贡献 cmd → 跑 cmd 时 A 的 beforeCommand 不跑(route 命中 _ownedRoutes)", async () => {
+  it("plugin A 贡献 cmd → 跑 cmd 时 A 的 beforeCommand 不跑(route 命中 ownership map)", async () => {
     let beforeA = false;
     const ownedCmd = defineCommand({
       name: "login",
@@ -331,7 +330,6 @@ describe("精确豁免:plugin 自己的命令跳自己的 beforeCommand(route �
     });
     const pluginA: Plugin = {
       name: "A",
-      _ownedRoutes: [["login"]],
       async beforeCommand() {
         beforeA = true;
       },
@@ -343,6 +341,7 @@ describe("精确豁免:plugin 自己的命令跳自己的 beforeCommand(route �
       ctx,
       plugins: [pluginA],
       route: ["login"],
+      ownedRoutes: new Map([[pluginA, [["login"]]]]),
     });
     expect(code).toBe(0);
     expect(beforeA).toBe(false); // route 命中 _ownedRoutes → 豁免 A 自身
@@ -360,7 +359,6 @@ describe("精确豁免:plugin 自己的命令跳自己的 beforeCommand(route �
     });
     const pluginA: Plugin = {
       name: "A",
-      _ownedRoutes: [["login"]],
       async beforeCommand() {
         beforeA = true;
       },
@@ -378,6 +376,7 @@ describe("精确豁免:plugin 自己的命令跳自己的 beforeCommand(route �
       ctx,
       plugins: [pluginA, pluginB],
       route: ["login"],
+      ownedRoutes: new Map([[pluginA, [["login"]]]]),
     });
     expect(beforeA).toBe(false); // A 是 owner → 豁免
     expect(beforeB).toBe(true); // B 不是 owner → 照跑
@@ -394,13 +393,18 @@ describe("精确豁免:plugin 自己的命令跳自己的 beforeCommand(route �
     });
     const pluginA: Plugin = {
       name: "A",
-      _ownedRoutes: [["login"]],
       async beforeCommand() {
         beforeA = true;
       },
     };
     const ctx = createTestCtx();
-    await runCommand({ spec: cmd, args: {}, ctx, plugins: [pluginA] }); // 不传 route
+    await runCommand({
+      spec: cmd,
+      args: {},
+      ctx,
+      plugins: [pluginA],
+      ownedRoutes: new Map([[pluginA, [["login"]]]]),
+    }); // 不传 route
     expect(beforeA).toBe(true); // 无 route = 不豁免
   });
 
@@ -415,7 +419,6 @@ describe("精确豁免:plugin 自己的命令跳自己的 beforeCommand(route �
     });
     const pluginA: Plugin = {
       name: "A",
-      _ownedRoutes: [["auth", "login"]],
       async beforeCommand() {
         beforeA = true;
       },
@@ -427,6 +430,7 @@ describe("精确豁免:plugin 自己的命令跳自己的 beforeCommand(route �
       ctx,
       plugins: [pluginA],
       route: ["auth", "login"],
+      ownedRoutes: new Map([[pluginA, [["auth", "login"]]]]),
     });
     expect(beforeA).toBe(false); // 两段路径都匹配 → 豁免
   });

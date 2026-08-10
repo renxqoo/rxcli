@@ -12,7 +12,7 @@ Use this only when `defineAuth` cannot express the protocol, such as HMAC, mTLS,
 
 ## 1. Auth plugin skeleton
 
-An auth plugin normally resolves a token in `beforeCommand`, injects it in `beforeRequest`, and optionally exposes `_transportConfig.on401` for one refresh and retry.
+An auth plugin resolves a token in `beforeCommand`, stores it in the context-bound auth session, injects it in `beforeRequest`, and may implement the public `onUnauthorized` hook for one refresh and retry. Never keep a request token in a plugin closure: one plugin instance serves concurrent `App.run()` calls.
 
 ```ts
 import { homedir } from "node:os";
@@ -22,9 +22,11 @@ import {
   createOn401Hook,
   defaultProviders,
   fileStore,
+  getAuthSession,
   injectAuthHeader,
-  resolveIdentityWithChain,
   resolveWithChain,
+  setAuthSession,
+  updateAuthSessionToken,
   type CommandContext,
   type Plugin,
   type ProviderContext,
@@ -34,28 +36,17 @@ export function createCustomAuth<State extends { user?: unknown }>(options: {
   namespace: string;
   authStyle?: "bearer" | "x-api-key" | "basic";
   oauth?: { baseUrl: string; clientId: string; clientSecret: string };
-}): Plugin<State> & { _transportConfig?: { on401?: () => Promise<string | null> } } {
+}): Plugin<State> {
   const store = fileStore({ dir: join(homedir(), ".my-cli") });
   const providers = defaultProviders();
   const authStyle = options.authStyle ?? "bearer";
-  let currentToken: string | undefined;
-
   const refresh = options.oauth
     ? createOn401Hook({ cfg: options.oauth, store, namespace: options.namespace })
-    : undefined;
-  const on401 = refresh
-    ? async () => {
-        const token = await refresh();
-        if (token) currentToken = token;
-        return token;
-      }
     : undefined;
 
   return {
     name: `auth:${options.namespace}`,
     enforce: "pre",
-    _transportConfig: on401 ? { on401 } : undefined,
-
     async beforeCommand(ctx: CommandContext<State>) {
       const providerContext: ProviderContext = {
         namespace: options.namespace,
@@ -79,7 +70,9 @@ export function createCustomAuth<State extends { user?: unknown }>(options: {
         clear: (namespace) => store.clearCredentials(namespace),
       };
 
-      const identity = await resolveIdentityWithChain(providers, providerContext);
+      const identity = resolved.provider.resolveIdentity
+        ? await resolved.provider.resolveIdentity(providerContext)
+        : null;
       if (identity) {
         (ctx as unknown as { _identity?: typeof identity })._identity = identity;
         (ctx.state as Record<string, unknown>).user = {
@@ -88,19 +81,31 @@ export function createCustomAuth<State extends { user?: unknown }>(options: {
         };
       }
 
-      (ctx as unknown as { _authToken?: string })._authToken = resolved.token.token;
-      currentToken = resolved.token.token;
+      setAuthSession(ctx, {
+        token: resolved.token.token,
+        type: resolved.token.type,
+        source: resolved.token.source,
+        refreshable: resolved.token.refreshable === true,
+      });
     },
 
     async beforeRequest(ctx, request) {
-      const token = currentToken ?? (ctx as unknown as { _authToken?: string })._authToken;
-      if (token) injectAuthHeader(request, token, authStyle);
+      const session = getAuthSession(ctx);
+      if (session) injectAuthHeader(request, session.token, authStyle);
+    },
+
+    async onUnauthorized(ctx) {
+      const session = getAuthSession(ctx);
+      if (!refresh || !session?.refreshable) return undefined;
+      const token = await refresh();
+      if (token) updateAuthSessionToken(ctx, token);
+      return token;
     },
   };
 }
 ```
 
-The refresh wrapper must update the token used by `beforeRequest`; retry logic reruns request hooks, and an old token would otherwise overwrite the refreshed header.
+`undefined` from `onUnauthorized` means that this credential is not refreshable and preserves ordinary 401 classification. `null` means refresh was attempted and failed. A string updates the retry credential. The session helper is keyed by `CommandContext`, so concurrent invocations cannot overwrite one another.
 
 ## 2. Plugin-owned login commands
 
@@ -205,7 +210,7 @@ Treat canonicalization, timestamp, nonce, encoding, and header order as protocol
 
 ## 5. 401 refresh behavior
 
-With `_transportConfig.on401` configured, the transport:
+With `onUnauthorized` configured, the transport:
 
 1. Receives 401 and runs the refresh hook.
 2. Reuses one in-flight refresh for concurrent requests when the underlying hook supports singleflight.
@@ -213,4 +218,4 @@ With `_transportConfig.on401` configured, the transport:
 4. Applies the token, reruns all `beforeRequest` hooks, and retries once.
 5. Throws `AuthenticationError(token_expired)` if refresh fails or the retry is still 401.
 
-The custom wrapper must keep `currentToken` synchronized so rerun hooks do not restore the expired token. Re-signing plugins must recompute timestamps, nonces, and signatures on retry. Business commands should not implement a second 401 retry loop.
+The plugin must update its context-bound session before retry hooks run. Re-signing plugins must recompute timestamps, nonces, and signatures on retry. Business commands should not implement a second 401 retry loop.

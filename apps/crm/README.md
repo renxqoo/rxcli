@@ -96,7 +96,7 @@ Verify: `rxcli auth status` shows you are logged in.
 
 ```bash
 # orders
-rxcli orders list [--limit N]          # list orders (your own only)
+rxcli orders list [--limit N] [--cursor TOKEN]  # list orders or continue from nextToken
 rxcli orders get <id>                  # get a single order's details
 
 # products
@@ -156,8 +156,8 @@ o_1002  u_alice  shipped   58.5  CNY
 ### Agent fetches data (JSON)
 
 ```bash
-$ rxcli orders list
-{"ok":true,"identity":"user","data":{"orders":[{"id":"o_1001","status":"paid","total":199},...]}}
+$ rxcli orders list --limit 1
+{"ok":true,"identity":"user","data":{"orders":[{"id":"o_1001","status":"paid","total":199}]},"meta":{"count":1,"pagination":{"complete":false,"items":1,"nextToken":"o_1001"}}}
 ```
 
 ### Pipeline composition
@@ -279,7 +279,13 @@ import { defineCli, defineAuth } from "@renxqoo/agent-data-cli";
 const auth = await defineAuth({
   credentialNamespace: "crm",
   baseUrl: AUTH_BASE_URL,
-  scope: "company.api offline_access",
+  scope: "company.api orders:read products:read invoices:read admin offline_access",
+  clientMetadata: {
+    client_name: "crm",
+    grant_types: ["urn:ietf:params:oauth:grant-type:device_code", "refresh_token"],
+    scope: "company.api orders:read products:read invoices:read admin offline_access",
+    token_endpoint_auth_method: "client_secret_basic",
+  },
 });
 
 export default defineCli({

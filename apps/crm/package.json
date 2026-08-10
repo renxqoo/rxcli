@@ -1,6 +1,6 @@
 {
   "name": "@renxqoo/cli",
-  "version": "1.1.4",
+  "version": "1.2.0",
   "description": "rxcli — a CLI for agents to access company business data (orders, products, invoices, accounts), built on @renxqoo/agent-data-cli",
   "keywords": [
     "agent",

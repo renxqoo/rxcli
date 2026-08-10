@@ -219,15 +219,17 @@ export interface Plugin<State = Record<string, never>> {
     /** 贡献顶层命令(挂顶层 → rxcli <cmd>)。 */
     commands?: CommandGroup;
   };
-  /**
-   * 框架内部用:本 plugin 贡献的 route(每条 = 命令路径段)。
-   * defineCli 收集 provides 时自动填充;用于精确豁免(plugin 自己的命令跳自己的 beforeCommand)。
-   * 业务开发者不写。
-   */
-  _ownedRoutes?: string[][];
   beforeCommand?(ctx: CommandContext<State>): Promise<void>;
   beforeRequest?(ctx: CommandContext<State>, req: RequestOptions): Promise<void>;
   afterRequest?(ctx: CommandContext<State>, res: TransportResponse): Promise<void>;
+  /**
+   * 收到 401 时尝试续期。string=新 token 并重试；null=已尝试但失败；undefined=本插件不适用。
+   * 续期状态必须绑定 ctx，禁止放在可复用 plugin 的闭包里。
+   */
+  onUnauthorized?(
+    ctx: CommandContext<State>,
+    req: RequestOptions,
+  ): Promise<string | null | undefined>;
   beforeOutput?(ctx: CommandContext<State>, data: unknown): Promise<StructuredData>;
   onError?(ctx: CommandContext<State>, err: unknown): Promise<unknown | void>;
 }

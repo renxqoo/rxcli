@@ -99,7 +99,7 @@ export function fileProvider(): CredentialProvider {
 
 /**
  * oauthProvider(priority 20):从 <namespace>.json 的 OAuth token(含 refresh)取。
- * OAuth 流程(rxcli 中间层)。token 过期时由 auth Plugin 的 _transportConfig.on401(createOn401Hook)触发 refresh。
+ * OAuth 流程(rxcli 中间层)。token 过期时由 auth Plugin 的公开 onUnauthorized hook 触发 refresh。
  *
  * 注意:oauthProvider 只负责"取已有 token";refresh 逻辑在 oauth.ts 的 singleflight。
  */
@@ -123,6 +123,7 @@ export function oauthProvider(): CredentialProvider {
         ...(scopes ? { scopes } : {}),
         ...(expiresAt ? { expiresAt } : {}),
         ...(typeof refreshToken === "string" && refreshToken ? { refreshToken } : {}),
+        refreshable: true,
       };
       return result;
     },

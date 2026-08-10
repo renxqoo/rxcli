@@ -1,6 +1,6 @@
 {
   "name": "@renxqoo/rxopen-cli",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "rxopen — an open-data CLI built on @renxqoo/agent-data-cli, wrapping all public APIs of the vikiboss/60s open-source project (news, trending, weather, fuel prices, lunar calendar, translate, QR code, 60+ endpoints)",
   "keywords": [
     "agent",

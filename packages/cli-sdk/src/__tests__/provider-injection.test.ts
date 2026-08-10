@@ -1,7 +1,7 @@
 /**
  * envBearerProvider + bearerToken 注入 + providers 自定义 测试。
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { envBearerProvider } from "../credentials/providers.js";
 import { defineAuth } from "../auth/index.js";
 import { memoryStore } from "../credentials/config-store.js";

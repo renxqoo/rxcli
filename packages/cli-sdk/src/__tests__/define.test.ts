@@ -3,8 +3,8 @@
  *
  * 这是原先最大的覆盖缺口(define.ts 此前零测试),集中验证 S2/S4/H1/H5/M1/M2/M9/M10。
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { defineCli, defineCommand, errs } from "../index.js";
+import { describe, it, expect, expectTypeOf, vi, beforeEach, afterEach } from "vitest";
+import { defineCli, defineCommand, defineCommandFromArgs, errs } from "../index.js";
 import type { CommandSpec } from "../types.js";
 
 // 捕获 stdout/stderr + exitCode
@@ -39,6 +39,26 @@ function parseStdout() {
 function parseStderr() {
   return JSON.parse(stderrBuf.trim());
 }
+
+describe("schema-first command typing", () => {
+  it("keeps optional flags optional and required/default flags present", () => {
+    defineCommandFromArgs({
+      name: "typed",
+      description: "typed",
+      args: {
+        query: { type: "string" },
+        limit: { type: "number", default: 20 },
+        id: { type: "string", required: true },
+      },
+      async run(args) {
+        expectTypeOf(args.query).toEqualTypeOf<string | undefined>();
+        expectTypeOf(args.limit).toEqualTypeOf<number>();
+        expectTypeOf(args.id).toEqualTypeOf<string>();
+        return { data: args };
+      },
+    });
+  });
+});
 
 // ============================================================================
 // S2: defineCli 不传 plugins 时不应崩溃

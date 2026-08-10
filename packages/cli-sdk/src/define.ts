@@ -22,6 +22,7 @@ import type {
   Plugin,
   ArgsSpec,
 } from "./types.js";
+import type { ParsedArgs } from "./args.js";
 import { createTransport } from "./request.js";
 import { createContext } from "./context.js";
 import { createPipeReader, emptyPipe } from "./pipe.js";
@@ -31,7 +32,15 @@ import { serializeError } from "./envelope.js";
 import { toCliError, exitCodeOf, errs, SUBTYPE_REGISTRY } from "./errs/index.js";
 import { createBuiltinSkillsCommands } from "./skills/builtin.js";
 import { qrcodeCommand } from "./qrcode.js";
-import { runBeforeRequest } from "./plugin.js";
+import { runBeforeRequest, runOnUnauthorized } from "./plugin.js";
+import {
+  RESERVED_FRAMEWORK_ARGS,
+  hasCommandHelp,
+  matchRoute,
+  parseCommandFlags,
+  parseFrameworkArgs,
+  type RoutedCommand,
+} from "./cli-argv.js";
 
 // ============================================================================
 // defineCommand / defineCommands(identity + 运行时校验)
@@ -51,6 +60,16 @@ export function defineCommand<Args = any, Result = unknown>(
   return spec;
 }
 
+/**
+ * Schema-first command definition. Use this when the schema itself is the source of truth;
+ * optionality and scalar types are inferred from `args` without a handwritten interface.
+ */
+export function defineCommandFromArgs<const Schema extends ArgsSpec, Result = unknown>(
+  spec: Omit<CommandSpec<ParsedArgs<Schema>, Result>, "args"> & { args: Schema },
+): CommandSpec<ParsedArgs<Schema>, Result> {
+  return defineCommand<ParsedArgs<Schema>, Result>(spec);
+}
+
 /** 声明命令组(key=命令名)。identity 函数。 */
 export function defineCommands(group: CommandGroup): CommandGroup {
   for (const [key, cmd] of Object.entries(group)) {
@@ -65,6 +84,11 @@ export function defineCommands(group: CommandGroup): CommandGroup {
 function validateArgsSpec(commandName: string, spec: ArgsSpec | undefined): void {
   let sawOptionalPositional = false;
   for (const [name, arg] of Object.entries(spec ?? {})) {
+    if (RESERVED_FRAMEWORK_ARGS.has(name)) {
+      throw new Error(
+        `defineCommand(${commandName}): argument ${name} is reserved by the CLI framework`,
+      );
+    }
     if (arg.required && arg.default !== undefined) {
       throw new Error(
         `defineCommand(${commandName}): argument ${name} cannot declare both required and default`,
@@ -119,7 +143,7 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
 
   // —— 命令合并:plugin.provides(默认值) + defineCli 显式声明(业务赢) ——
   // 规则:同 namespace 不同命令 → 合并;同 namespace 同命令 → defineCli 覆盖 plugin。
-  // plugin 贡献的命令记录到 p._ownedRoutes(pipeline 据此精确豁免该 plugin 的 beforeCommand)。
+  // plugin 贡献的命令记录在 App-local ownership map，避免修改可复用 plugin 实例。
   const mergedNamespaces: Record<string, CommandGroup> = {};
   const mergedCommands: CommandGroup = {};
 
@@ -160,7 +184,6 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
   const commands = mergedCommands;
 
   // 收集所有命令(扁平化成"完整命令路径" → CommandSpec),供路由匹配
-  type RoutedCommand = { route: string[]; spec: CommandSpec };
   const routed: RoutedCommand[] = [];
   for (const [cmdName, spec] of Object.entries(commands)) {
     routed.push({ route: [cmdName], spec });
@@ -202,19 +225,11 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
       try {
         // —— 路由:匹配最长 route ——
         // matchRoute 会跳过顶层 flag(--json/--no-json 等),使 `bin --json list` 也能路由到 list。
-        const { matched, rest } = matchRoute(argv, routed);
-
-        // 顶层 flag 区 = argv 开头的连续 flag(--开头 或 -x),直到首个非 flag token(命令名/位置参数)。
-        // --version/-v、顶层 --help/-h 只在这个区出现才算全局动作;
-        // 出现在命令名之后则交给命令解析(未知 flag 报错 / 命令自处理)。
-        const leadingFlags: string[] = [];
-        for (const t of argv) {
-          if (!t.startsWith("-")) break;
-          leadingFlags.push(t);
-        }
+        const frameworkArgs = parseFrameworkArgs(argv);
+        const { matched, rest } = matchRoute(frameworkArgs.commandArgv, routed);
 
         // —— 顶层 flag:--version / -v(只在命令名之前才触发)——
-        if (hasFlagBeforeSeparator(leadingFlags, "-v", "--version")) {
+        if (frameworkArgs.leadingVersion) {
           process.stdout.write(`${binName}/${detectVersion()}\n`);
           process.exitCode = 0;
           return;
@@ -223,7 +238,7 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
         if (!matched) {
           // 无匹配:help / 空 argv → 显示 help(exit 0);其余视为未知命令 → 错误输出(exit 2)
           // agent-native CLI 不允许"拼错命令 exit 0"(会被 agent 误判为成功)。
-          if (hasFlagBeforeSeparator(leadingFlags, "-h", "--help") || argv.length === 0) {
+          if (frameworkArgs.leadingHelp || frameworkArgs.commandArgv.length === 0) {
             process.stdout.write(renderHelp(binName, description, routed) + "\n");
             process.exitCode = 0;
           } else {
@@ -237,24 +252,14 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
         }
 
         // 匹配到命令:若用户显式要帮助(-h/--help),显示该命令帮助而非执行
-        if (hasFlagBeforeSeparator(rest, "-h", "--help")) {
+        if (hasCommandHelp(rest)) {
           process.stdout.write(renderCommandHelp(binName, matched) + "\n");
           process.exitCode = 0;
           return;
         }
 
         // 解析剩余 token(分离 positional + flag,正确配对 flag-value)
-        const { options, positionals } = parseFlags(rest, matched.spec.args);
-
-        // 提取全局 flag json(--no-json→false / --json→true / 不传→undefined)
-        // 从 rawOptions 剔除:json 是框架 flag,不进命令 args
-        const jsonFlag = options.json;
-        if (!matched.spec.args?.json) delete options.json;
-        // --api-key 是框架级一次性凭证 —— 仅当命令未声明 api-key arg 时才归框架(给 plugin provider chain);
-        // 命令声明了自己的 api-key 时,它就是普通命令 arg,不剔除、不进 pluginArgs。
-        const commandOwnsApiKey = !!matched.spec.args?.["api-key"];
-        const apiKeyFlag = commandOwnsApiKey ? undefined : options["api-key"];
-        if (!commandOwnsApiKey) delete options["api-key"];
+        const { options, positionals } = parseCommandFlags(rest, matched.spec.args);
         // 输出格式决策(优先级:显式 flag > defaultFormat > 管道保护):
         //   --json       → JSON(强制)
         //   --no-json    → 文本(强制,但管道保护:stdin 非 TTY 时仍 JSON)
@@ -263,9 +268,9 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
         //   不传 + human → 文本(管道保护同上)
         const stdinIsPipe = !process.stdin.isTTY;
         let humanReadable: boolean;
-        if (jsonFlag === true) {
+        if (frameworkArgs.format === "json") {
           humanReadable = false;
-        } else if (jsonFlag === false) {
+        } else if (frameworkArgs.format === "human") {
           humanReadable = !stdinIsPipe;
         } else if (defaultFormat === "human") {
           humanReadable = !stdinIsPipe;
@@ -287,7 +292,8 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
           baseUrl,
           route: matched.route,
           humanReadable,
-          pluginArgs: apiKeyFlag === undefined ? undefined : { apiKey: apiKeyFlag },
+          pluginArgs:
+            frameworkArgs.apiKey === undefined ? undefined : { apiKey: frameworkArgs.apiKey },
           ownedRoutes,
         });
         process.exitCode = exitCode;
@@ -305,189 +311,6 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
   };
 
   return app;
-}
-
-// ============================================================================
-// 路由匹配 + flag 解析
-// ============================================================================
-
-interface MatchResult {
-  matched: { route: string[]; spec: CommandSpec } | null;
-  /** route 之后的剩余 token(原样,含 positional + flag,未分离)。 */
-  rest: string[];
-}
-
-/**
- * 顶层全局 flag:出现在任何命令 token 之前时具有框架级语义。
- *   --json / --no-json : 输出格式(路由匹配时跳过,使 `bin --json list` 能路由)
- *   --version / -v     : 版本(只在 argv 头部连续 flag 区触发)
- *   --help / -h        : 帮助(只在 argv 头部连续 flag 区触发)
- * 路由匹配时跳过这些 flag,使 `bin --json list` 能路由到 list。
- */
-const TOP_LEVEL_FLAGS = new Set(["--json", "--no-json", "--version", "-v", "--help", "-h"]);
-
-/**
- * 从 argv 头部取连续非 flag token 匹配最长 route。
- * 跳过前导的顶层 flag(--json/--no-json 等),其余 - 开头 token 视为命令专属 flag,终止路由匹配。
- * 只剥离 route 部分,剩余 token 原样返回(交给 parseFlags 分离 positional/flag,保留 flag-value 配对)。
- * 例:argv=['--json','list','--limit','1'] → matched route=['list'],rest=['--limit','1']
- */
-function matchRoute(
-  argv: string[],
-  routed: Array<{ route: string[]; spec: CommandSpec }>,
-): MatchResult {
-  const sorted = [...routed].sort((a, b) => b.route.length - a.route.length);
-
-  // 收集头部 token:跳过顶层 flag,其余 - 开头 token 终止(route 段是连续非 flag 的)。
-  const headTokens: string[] = [];
-  for (const t of argv) {
-    if (TOP_LEVEL_FLAGS.has(t)) continue;
-    if (t.startsWith("-")) break;
-    headTokens.push(t);
-  }
-
-  for (const r of sorted) {
-    const routeLen = r.route.length;
-    if (headTokens.length >= routeLen && r.route.every((seg, j) => headTokens[j] === seg)) {
-      // route 占据 headTokens 前 routeLen 个;argv 中对应区段 = 跳过的顶层 flag + route 段
-      let taken = 0;
-      let end = 0;
-      for (let k = 0; k < argv.length && taken < routeLen; k++) {
-        const t = argv[k]!;
-        if (TOP_LEVEL_FLAGS.has(t)) continue;
-        if (t.startsWith("-")) break;
-        taken++;
-        end = k + 1;
-      }
-      return { matched: r, rest: argv.slice(end) };
-    }
-  }
-  return { matched: null, rest: [] };
-}
-
-/**
- * 解析剩余 token 数组:分离 positional + flag,正确配对 flag-value。
- * 处理:
- *   - --key value / --key=value / --bool(无值)
- *   - --no-<bool>(boolean 取反:H1,如 --no-wait → wait=false)
- *   - 负数 flag 值(M2:--limit -1 → limit=-1,而非把 -1 当 positional)
- *   - -- 分隔符(M10:-- 之后的 token 全部视为 positional,即使以 - 开头)
- *
- * boolean flag(在 argsSpec 声明 type:boolean)不消费下一个 token。
- */
-function parseFlags(
-  tokens: string[],
-  argsSpec: ArgsSpec | undefined,
-): { options: Record<string, unknown>; positionals: string[] } {
-  const options: Record<string, unknown> = {};
-  const positionals: string[] = [];
-  // json 是框架级全局 flag(同 help/version):--no-json 文本输出 / --json 强制 JSON
-  const booleanKeys = new Set<string>(["help", "version", "json"]);
-  // 需要 value 的 flag(number/string/array):它们的下一个 token 即使以 - 开头(负数)也视为值
-  const valueKeys = new Set<string>();
-  const arrayKeys = new Set<string>();
-  // --api-key 是框架级一次性凭证 flag —— 但仅当命令未声明同名 arg 时才归框架;
-  // 命令声明了自己的 api-key 参数时,它就是普通命令 arg,原样透传。
-  if (!argsSpec || !("api-key" in argsSpec)) valueKeys.add("api-key");
-  if (argsSpec) {
-    for (const [k, s] of Object.entries(argsSpec)) {
-      if (s.type === "boolean") booleanKeys.add(k);
-      else {
-        valueKeys.add(k);
-        if (s.type === "array") arrayKeys.add(k);
-      }
-    }
-  }
-
-  let onlyPositionals = false; // 遇到 -- 后置位
-  for (let i = 0; i < tokens.length; i++) {
-    const t = tokens[i]!;
-
-    // M10:-- 分隔符,之后的 token 全为 positional(即使以 - 开头)
-    if (!onlyPositionals && t === "--") {
-      onlyPositionals = true;
-      continue;
-    }
-    if (onlyPositionals) {
-      positionals.push(t);
-      continue;
-    }
-
-    if (!t.startsWith("--")) {
-      // 单短氢 flag(如 -x):不是负数(-1/-1.5)、不是单个 - → 报错(未知短 flag)
-      // 负数 / 单个 - 仍当 positional(合法值)
-      if (t.startsWith("-") && t.length > 1 && !isNegativeNumber(t)) {
-        throw new errs.ValidationError({
-          subtype: "invalid_argument",
-          param: t,
-          message: `Unknown short flag ${t} (this framework only supports long flags --xxx)`,
-          hint: `To pass a negative number, use -- as a separator: rxcordys cmd -- ${t}`,
-        });
-      }
-      // 非 flag → positional
-      positionals.push(t);
-      continue;
-    }
-    const eqIdx = t.indexOf("=");
-    if (eqIdx >= 0) {
-      const key = t.slice(2, eqIdx);
-      setParsedOption(options, key, t.slice(eqIdx + 1), arrayKeys);
-      continue;
-    }
-    const key = t.slice(2);
-    // H1:--no-<bool> 对 boolean flag 取反
-    if (key.startsWith("no-")) {
-      const inner = key.slice(3);
-      if (booleanKeys.has(inner)) {
-        options[inner] = false;
-        continue;
-      }
-    }
-    if (booleanKeys.has(key)) {
-      options[key] = true;
-      continue;
-    }
-    // M2:若是 value flag 且下一个 token 是负数(如 -1),视为值而非 positional/flag
-    if (valueKeys.has(key) && i + 1 < tokens.length && isNegativeNumber(tokens[i + 1]!)) {
-      setParsedOption(options, key, tokens[++i], arrayKeys);
-      continue;
-    }
-    if (i + 1 < tokens.length && !tokens[i + 1]!.startsWith("-")) {
-      // --key value:value 是下一个非 flag token
-      setParsedOption(options, key, tokens[++i], arrayKeys);
-    } else {
-      options[key] = valueKeys.has(key) ? MISSING_FLAG_VALUE : true;
-    }
-  }
-  return { options, positionals };
-}
-
-function setParsedOption(
-  options: Record<string, unknown>,
-  key: string,
-  value: unknown,
-  arrayKeys: Set<string>,
-): void {
-  if (!arrayKeys.has(key)) {
-    options[key] = value;
-    return;
-  }
-  const existing = options[key];
-  options[key] =
-    existing === undefined
-      ? [value]
-      : [...(Array.isArray(existing) ? existing : [existing]), value];
-}
-
-function hasFlagBeforeSeparator(argv: string[], ...flags: string[]): boolean {
-  const end = argv.indexOf("--");
-  const searchable = end < 0 ? argv : argv.slice(0, end);
-  return searchable.some((arg) => flags.includes(arg));
-}
-
-/** 判断 token 是否负数字符串(如 -1、-1.5),用于 --key -1 的负数 value 识别(M2)。 */
-function isNegativeNumber(token: string): boolean {
-  return /^-\d+(\.\d+)?$/.test(token);
 }
 
 /** 渲染 help 文本(简单版:列出所有命令)。 */
@@ -688,28 +511,20 @@ interface ExecuteOneOptions<State> {
 }
 
 async function executeOne<State>(opts: ExecuteOneOptions<State>): Promise<number> {
-  // auth 插件持有的 transport 配置(on401 hook,用 oauth singleflight)
-  // 从 plugins 里找带 _transportConfig 的 auth 插件
-  const authPlugin = opts.plugins.find(
-    (p): p is Plugin<State> & { _transportConfig?: { on401?: () => Promise<string | null> } } =>
-      "_transportConfig" in p &&
-      (p as { _transportConfig?: unknown })._transportConfig !== undefined,
-  );
-  const on401 = authPlugin?._transportConfig?.on401;
-
-  // 创建 transport(注入 auth 的 on401 hook)
+  // transport 与 ctx 互相引用：hook 只会在 ctx 创建完成、命令发起请求后执行。
+  let ctx: CommandContext<State>;
   let retryRequest: ((req: import("./types.js").RequestOptions) => Promise<void>) | undefined;
   const transport = createTransport({
     baseUrl: opts.baseUrl,
     errorOnStatus: opts.errorOnStatus,
-    ...(on401 ? { on401 } : {}),
+    on401: (req) => runOnUnauthorized(opts.plugins, ctx, req),
     beforeRetry: async (req) => retryRequest?.(req),
   });
 
   // 管道:检测 stdin(阶段 1 给基础能力;阶段 3 完整接入)
   const pipe = process.stdin.isTTY ? emptyPipe() : createPipeReader(process.stdin, opts.name);
 
-  const ctx = createContext<State>({
+  ctx = createContext<State>({
     state: {} as State,
     transport,
     plugins: opts.plugins,

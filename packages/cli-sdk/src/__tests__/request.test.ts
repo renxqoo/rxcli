@@ -150,6 +150,16 @@ describe("H4: 401 on401 返回 null(refresh 失败)应抛 AuthenticationError,�
     }
   });
 
+  it("on401 返回 undefined 表示凭证不可刷新,保留普通 401 分类", async () => {
+    const t = createTransport({ on401: async () => undefined });
+    fetchMock.mockResolvedValue(jsonResponse(401, { message: "invalid api key" }));
+
+    await expect(t.get("/x")).rejects.toMatchObject({
+      subtype: "no_token",
+      message: "invalid api key",
+    });
+  });
+
   it("on401 返回新 token → 用新 token 重试一次", async () => {
     const t = createTransport({
       on401: async () => "new-token",

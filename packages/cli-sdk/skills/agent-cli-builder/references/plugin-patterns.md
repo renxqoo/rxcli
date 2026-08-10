@@ -16,6 +16,7 @@ Use plugins for cross-cutting behavior such as authentication, fixed headers, si
 | `beforeCommand` | Before command `run`              | Resolve identity, initialize state, reject execution |
 | `beforeRequest` | Before each `ctx.*` request       | Headers, tenant, signatures                          |
 | `afterRequest`  | After each response               | Metrics and audit side effects                       |
+| `onUnauthorized` | After a 401 response              | Refresh a context-bound credential once              |
 | `beforeOutput`  | After `run`, before serialization | Redact or reshape structured data                    |
 | `onError`       | After any hook or command throws  | Normalize, redact, or deliberately recover           |
 
@@ -93,7 +94,7 @@ const normalizeErrors = {
 };
 ```
 
-An `onError` hook that throws does not skip later hooks; the thrown value becomes the current error. Returning `undefined` swallows the error and should be rare and explicit.
+An `onError` hook that throws does not replace the business error; the framework continues later hooks with the last valid error. Returning `undefined` deliberately swallows the error and should be rare and explicit. `afterRequest` is observational: a failure is logged and cannot replace a transport error or turn a successful request into a failure.
 
 ## 3. Plugin-provided commands and distribution
 
@@ -118,7 +119,7 @@ const auditPlugin = {
 };
 ```
 
-A plugin-provided route skips that plugin's own `beforeCommand` but still runs other plugins. Route ownership is computed per App. Business commands override an identical plugin route. Never write `_ownedRoutes`; it is framework-internal state.
+A plugin-provided route skips that plugin's own `beforeCommand` but still runs other plugins. Route ownership is computed per App and is not part of the public Plugin object. Business commands override an identical plugin route.
 
 Publish reusable cross-cutting plugins as separate npm packages only when multiple business CLIs need the same behavior. Keep their public options small and test every hook order they rely on.
 
@@ -133,5 +134,6 @@ Common mistakes:
 3. Returning a string from `beforeOutput`.
 4. Returning `undefined` from `onError` and silently producing exit 0.
 5. Sharing an undeclared `ctx.state` field instead of defining `defineCli<State>`.
-6. Manually setting `_ownedRoutes`.
+6. Reimplementing route ownership instead of using `provides`.
 7. Logging request or response payloads that may contain credentials or personal data.
+8. Keeping mutable auth state in a plugin closure instead of a context-bound auth session.

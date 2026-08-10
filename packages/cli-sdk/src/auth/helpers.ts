@@ -2,8 +2,6 @@
  * defineAuth 辅助纯函数:配置解析、provider chain 构造、on401 handler 构造。
  * 从 defineAuth 主体提取,每个函数职责单一,独立可测。
  */
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { createOn401Hook, type AuthStyle, type OAuthClientConfig } from "../oauth.js";
 import { defaultProviders, type ConfigStore } from "../credentials/index.js";
 import type { CredentialProvider } from "../credentials/types.js";

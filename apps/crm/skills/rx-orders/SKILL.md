@@ -17,7 +17,7 @@ metadata:
 
 | 操作         | 命令                            |
 | ------------ | ------------------------------- |
-| 查询订单列表 | `rxcli orders list [--limit N]` |
+| 查询订单列表 | `rxcli orders list [--limit N] [--cursor TOKEN]` |
 | 查询订单详情 | `rxcli orders get <id>`         |
 
 ## 何时用
@@ -26,6 +26,7 @@ metadata:
 | ------------------------------------------------------------------ | ----------------------- |
 | "查订单" / "看看订单" / "订单列表"                                 | `orders list`           |
 | "最近 5 条订单"                                                    | `orders list --limit 5` |
+| "继续查下一页订单"                                                 | `orders list --cursor <上次 nextToken>` |
 | "查一下 o_1001" / "这个订单详情" / "订单里有什么" / "订单发货了吗" | `orders get o_1001`     |
 
 ## 前置条件
@@ -44,6 +45,7 @@ metadata:
 ```bash
 rxcli orders list              # 查全部
 rxcli orders list --limit 10   # 限制返回数量
+rxcli orders list --limit 10 --cursor o_1001  # 从上次 nextToken 继续
 ```
 
 ### 输出示例
@@ -65,11 +67,20 @@ stdout(统一输出格式,`identity:"user"` 表示已认证用户态):
         "createdAt": "2024-02-10T03:15:00Z"
       }
     ]
+  },
+  "meta": {
+    "count": 1,
+    "pagination": {
+      "complete": false,
+      "items": 1,
+      "nextToken": "o_1001"
+    }
   }
 }
 ```
 
 无订单时 `data.orders` 为空数组 `[]`,不是错误。
+当 `meta.pagination.complete` 为 `false` 时,使用 `nextToken` 作为下一次调用的 `--cursor`；为 `true` 时停止续拉。
 
 ## orders get
 

@@ -44,6 +44,36 @@ describe("orders", () => {
     expect(capturedQuery.limit).toBe(5);
   });
 
+  it("list 透传 cursor 并返回可续拉的 pagination 元数据", async () => {
+    let capturedQuery: Record<string, unknown> = {};
+    const ctx = createTestCtx({
+      request: async (opts) => {
+        capturedQuery = opts.query ?? {};
+        return {
+          status: 200,
+          data: {
+            orders: [{ id: "o_1002" }],
+            hasMore: true,
+            nextCursor: "o_1002",
+          },
+          headers: {},
+        };
+      },
+    });
+
+    const result = await ordersCommands.list.run({ limit: 1, cursor: "o_1001" }, ctx);
+
+    expect(capturedQuery).toEqual({ limit: 1, cursor: "o_1001" });
+    expect(result!.meta).toEqual({
+      count: 1,
+      pagination: {
+        complete: false,
+        items: 1,
+        nextToken: "o_1002",
+      },
+    });
+  });
+
   it("get 404 → NotFoundError", async () => {
     const ctx = mockCtx({ "/proxy/api/orders/o_x": { status: 404, data: {} } });
     await expect(ordersCommands.get.run({ id: "o_x" }, ctx)).rejects.toMatchObject({

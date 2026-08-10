@@ -8,8 +8,8 @@
  *   - skill 直接复用 v1(已搬到 skills/)
  */
 
-import { defineCli, defineAuth, envBearerProvider } from "@renxqoo/agent-data-cli";
-import { AUTH_BASE_URL, API_BASE_URL, SKILLS_DIR } from "./config.js";
+import { defineCli, defineAuth } from "@renxqoo/agent-data-cli";
+import { AUTH_BASE_URL, API_BASE_URL, CRM_SCOPES, SKILLS_DIR } from "./config.js";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { ordersCommands } from "./commands/orders.js";
@@ -29,8 +29,13 @@ type CrmState = {
 const auth = await defineAuth<CrmState>({
   credentialNamespace: "crm",
   baseUrl: AUTH_BASE_URL,
-  scopeFromMetadata: true,
-  clientMetadata: { client_name: "crm" },
+  scope: CRM_SCOPES.join(" "),
+  clientMetadata: {
+    client_name: "crm",
+    grant_types: ["urn:ietf:params:oauth:grant-type:device_code", "refresh_token"],
+    scope: CRM_SCOPES.join(" "),
+    token_endpoint_auth_method: "client_secret_basic",
+  },
   bearerToken: process.env.CRM_BEARER_TOKEN,
 });
 

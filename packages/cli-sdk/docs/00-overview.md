@@ -130,7 +130,7 @@
 | 15  | skill     | list/read/sync + **defineCommands 自动生成命令文档**                                                                                                              | `06-skills.md`      |
 | 16  | 测试      | vitest + `createTestCtx`                                                                                                                                          | `02-sdk-guide.md`   |
 | 17  | 类型      | 命令三泛型 `<Args, Result>` + 业务包级 `<State>`;`ctx.state` 强类型防乱塞;请求泛型 `ctx.get<T>()` 可选                                                            | `02-sdk-guide.md`   |
-| 18  | 插件钩子  | 5 个:beforeCommand/beforeRequest/afterRequest/beforeOutput/onError;**enforce 三档**(pre/normal/post);onError 链式                                                 | `02-sdk-guide.md`   |
+| 18  | 插件钩子  | 6 个:beforeCommand/beforeRequest/afterRequest/onUnauthorized/beforeOutput/onError;**enforce 三档**(pre/normal/post);onError 链式                                  | `02-sdk-guide.md`   |
 | 19  | 前版不做  | resource() 生成器、写入确认、OpenAPI 自动注册                                                                                                                     | 本文档              |
 
 ### 几个决策的"为什么"(简版,详见专题文档)

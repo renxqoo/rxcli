@@ -13,7 +13,12 @@
  *   POST   /order/statistic        订单统计({amount, averageAmount})
  */
 
-import { defineCommands, defineCommand, type CommandGroup } from "@renxqoo/agent-data-cli";
+import {
+  defineCommands,
+  defineCommand,
+  type CommandGroup,
+  defineCommandFromArgs,
+} from "@renxqoo/agent-data-cli";
 import { unwrap, buildPagePayload, pagedMeta, parseJsonBody, type PagedData } from "../envelope.js";
 import { ensureConfirmed, assertHasId } from "./leads.js";
 
@@ -63,7 +68,7 @@ export const ordersCommands: CommandGroup = defineCommands({
     },
   }),
 
-  form: defineCommand({
+  form: defineCommandFromArgs({
     name: "form",
     description: "订单表单字段定义",
     args: {},

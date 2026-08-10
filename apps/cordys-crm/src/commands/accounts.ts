@@ -23,7 +23,13 @@
  *   GET    /account/invoice/statistic/{id}
  */
 
-import { defineCommands, defineCommand, errs, type CommandGroup } from "@renxqoo/agent-data-cli";
+import {
+  defineCommands,
+  defineCommand,
+  errs,
+  type CommandGroup,
+  defineCommandFromArgs,
+} from "@renxqoo/agent-data-cli";
 import { unwrap, buildPagePayload, pagedMeta, parseJsonBody, type PagedData } from "../envelope.js";
 import { ensureConfirmed, assertHasId, assertHasField } from "./leads.js";
 
@@ -89,7 +95,7 @@ export const accountsCommands: CommandGroup = defineCommands({
     },
   }),
 
-  form: defineCommand({
+  form: defineCommandFromArgs({
     name: "form",
     description: "客户表单字段定义(写入前必读)",
     args: {},

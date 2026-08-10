@@ -5,16 +5,42 @@
  * v1 的 printGatewayJson 固定 GET → v2 用 ctx.get;美化打印用框架兜底(--no-json 自动表格)。
  */
 
-import { defineCommands, defineCommand, errs } from "@renxqoo/agent-data-cli";
+import {
+  defineCommands,
+  defineCommand,
+  errs,
+  defineCommandFromArgs,
+} from "@renxqoo/agent-data-cli";
 
 export const ordersCommands = defineCommands({
-  list: defineCommand({
+  list: defineCommandFromArgs({
     name: "list",
     description: "查询订单列表(仅本人订单)",
-    args: { limit: { type: "number", desc: "返回数量上限" } },
+    args: {
+      limit: { type: "number", desc: "返回数量上限" },
+      cursor: { type: "string", desc: "续拉游标（使用上次 meta.pagination.nextToken）" },
+    },
     async run(args, ctx) {
-      const res = await ctx.get("/proxy/api/orders", args.limit ? { limit: args.limit } : {});
-      return { data: res.data };
+      const query = {
+        ...(args.limit ? { limit: args.limit } : {}),
+        ...(args.cursor ? { cursor: args.cursor } : {}),
+      };
+      const res = await ctx.get<{
+        orders: unknown[];
+        hasMore: boolean;
+        nextCursor: string | null;
+      }>("/proxy/api/orders", query);
+      return {
+        data: res.data,
+        meta: {
+          count: res.data.orders.length,
+          pagination: {
+            complete: !res.data.hasMore,
+            items: res.data.orders.length,
+            nextToken: res.data.nextCursor ?? undefined,
+          },
+        },
+      };
     },
   }),
 

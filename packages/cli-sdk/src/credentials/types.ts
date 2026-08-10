@@ -42,6 +42,8 @@ export interface TokenResult {
   expiresAt?: number;
   /** OAuth 的刷新 token。 */
   refreshToken?: string;
+  /** 401 时是否允许 auth plugin 使用其 refresh 策略切换 token。默认 false。 */
+  refreshable?: boolean;
 }
 
 export interface IdentityHint {

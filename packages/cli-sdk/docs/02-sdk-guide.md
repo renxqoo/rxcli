@@ -190,7 +190,7 @@ defineCli<OrdersState>({ ... })
 | `Args`   | `defineCommand<Args, Result>` | run 的 `args` 参数类型(命令级)            |
 | `Result` | `defineCommand<Args, Result>` | run 返回的 `data` 类型(命令级)            |
 
-**渐进式:泛型可选。** 不写泛型时 args 默认按 spec 推导(ParsedArgs)、state 默认 `{}`、返回默认 `unknown`——能跑但无补全;写了全类型安全。简单命令可不写,复杂命令才声明。
+**两种强类型入口。** schema 是类型来源时用 `defineCommandFromArgs({...})` 自动得到 `ParsedArgs`;需要字面量联合或领域类型时用 `defineCommand<Args, Result>({...})` 显式声明。不要依赖无泛型 `defineCommand` 推断 schema。
 
 ### ArgsSpec + ArgSpec:参数解析规范
 
@@ -211,7 +211,7 @@ type ArgsSpec = Record<string, ArgSpec>;
 **args 类型两种来源:**
 
 - **interface 显式声明**(推荐,精确):写 `defineCommand<OrderListArgs, ...>`,args 按 interface 类型;spec 只管命令行解析。能写联合字面量 `'paid'|'unpaid'`、可选 `?`、复杂类型。
-- **spec 自动推导**(简单命令):不写泛型,cli-sdk 从 spec 推导出 ParsedArgs(`{limit: number|undefined, ...}`)。够用但不够精确(推导不出联合字面量)。
+- **spec 自动推导**(简单命令):使用 `defineCommandFromArgs`,cli-sdk 从 spec 推导 ParsedArgs；`required/default` 字段必有，其余字段可选。它推导不出字面量联合。
 
 ### CommandSpec:命令结构必填
 
@@ -328,7 +328,7 @@ res.data; // unknown
 业务包**不接触**鉴权细节(token/refresh/header 注入)。这些由两部分自动完成:
 
 1. **auth 插件**(业务包自己写,用 cli-sdk 基础块组装):beforeCommand 填 `ctx.state.user`、缓存 token,beforeRequest 注入 token header
-2. **cli-sdk 请求层**:401 自动 refresh(singleflight)——前提是 auth 插件把 `createOn401Hook` 的结果挂到 `_transportConfig.on401`
+2. **cli-sdk 请求层**:401 自动 refresh(singleflight)——前提是 auth 插件实现公开的 `onUnauthorized` hook
 
 业务包只管 `ctx.get(...)` 发请求,token/header 自动带上。详见 `05-credentials.md`。
 
@@ -525,18 +525,20 @@ interface Plugin<State = {}> {
   beforeCommand?(ctx: CommandContext<State>): Promise<void>;
   beforeRequest?(ctx: CommandContext<State>, req: RequestOptions): Promise<void>;
   afterRequest?(ctx: CommandContext<State>, res: TransportResponse): Promise<void>;
+  onUnauthorized?(ctx: CommandContext<State>, req: RequestOptions): Promise<string | null | undefined>;
   beforeOutput?(ctx: CommandContext<State>, data: unknown): Promise<StructuredData>;
   onError?(ctx: CommandContext<State>, err: CliError): Promise<CliError | void>;
 }
 ```
 
-### 5 个钩子的职责
+### 6 个钩子的职责
 
 | 钩子            | 何时触发               | 能改什么                                             | 典型用途                                |
 | --------------- | ---------------------- | ---------------------------------------------------- | --------------------------------------- |
 | `beforeCommand` | 命令 run 前            | `ctx.state`(填数据)                                  | auth 填 user、参数预处理                |
 | `beforeRequest` | 每次 `ctx.get/post` 前 | `req`(method/path/query/body/headers/timeout 全能改) | 加固定 header、HMAC 签名、注入 tenantId |
 | `afterRequest`  | 每次请求返回后         | `res` 只读,主要用于副作用                            | 审计、metric、请求日志                  |
+| `onUnauthorized` | 请求返回 401 后        | 返回新 token / null / undefined                      | 上下文隔离的凭证续期                    |
 | `beforeOutput`  | run 返回后、序列化前   | 返回新 `data`(StructuredData)                        | 转换、脱敏、删内部字段、自定义格式      |
 | `onError`       | 任何钩子或 run 抛错时  | 返回新 error 或原样                                  | 错误归一化、特定错误重试、上报          |
 
@@ -554,7 +556,7 @@ post 插件(注册序)   ← 最终包装(签名、收尾)
 (真正执行:发请求 / 序列化输出)
 ```
 
-**onError 特殊**:链式——每个插件都跑一遍,不处理的返回原 error,处理的返回新 error。第一个能处理的插件改完后,结果传给下一个。
+**onError 特殊**:链式——每个插件都跑一遍,不处理的返回原 error,处理的返回新 error。hook 自己抛错时保留最近一次有效业务错误，避免掩盖根因。`afterRequest` 是观察性 hook，失败只记 warning。
 
 ### beforeRequest:统一处理请求参数
 
@@ -654,7 +656,7 @@ cli-sdk 出的基础块(从主包 `@renxqoo/cli-sdk` import):
 | `defaultProviders()` / `flagProvider` / `envProvider` / `fileProvider` / `oauthProvider`                            | provider chain 的默认 provider                                                 |
 | `resolveWithChain(providers, pctx)` / `resolveIdentityWithChain(providers, pctx)`                                   | 跑 chain 取 token / identity                                                   |
 | `injectAuthHeader(req, token, style)`                                                                               | 按 authStyle(bearer/x-api-key/basic)注入 header                                |
-| `createOn401Hook({cfg, store, namespace})`                                                                          | 401 singleflight refresh hook(返回的函数挂 Plugin 的 `_transportConfig.on401`) |
+| `createOn401Hook({cfg, store, namespace})`                                                                          | 401 singleflight refresh 原语(由 Plugin 的 `onUnauthorized` 调用)             |
 | `deviceAuthorization` / `pollDeviceToken` / `refreshAccessToken` / `getUserInfo` / `revokeToken` / `registerClient` | OAuth device flow 端点                                                         |
 
 #### 如何写 auth Plugin(参考 `apps/crm/src/auth.ts` 的 `createCrmAuth`)
@@ -670,8 +672,10 @@ import {
   type IdentityHint,
   fileStore,
   defaultProviders,
+  getAuthSession,
   resolveWithChain,
-  resolveIdentityWithChain,
+  setAuthSession,
+  updateAuthSessionToken,
   injectAuthHeader,
   createOn401Hook,
   AuthenticationError,
@@ -682,7 +686,7 @@ export function createCrmAuth<State extends { user?: unknown }>(opts: {
   dir: string; // 必填:凭证目录(业务包声明,如 ~/.rxcli)
   authStyle?: "bearer" | "x-api-key" | "basic";
   oauth?: { baseUrl: string; clientId: string; clientSecret: string };
-}): Plugin<State> & { _transportConfig?: { on401?: () => Promise<string | null> } } {
+}): Plugin<State> {
   const store = fileStore({ dir: opts.dir }); // dir 必填,无默认
   const providers = defaultProviders();
   const authStyle = opts.authStyle ?? "bearer";
@@ -694,8 +698,6 @@ export function createCrmAuth<State extends { user?: unknown }>(opts: {
   return {
     name: `auth:${opts.namespace}`,
     enforce: "pre",
-    _transportConfig: on401 ? { on401 } : undefined, // ★ 挂这里 cli-sdk 请求层才会用
-
     async beforeCommand(ctx) {
       // ① provider chain 取 token(命中即停)
       const pctx: ProviderContext = {
@@ -721,21 +723,32 @@ export function createCrmAuth<State extends { user?: unknown }>(opts: {
         clear: (ns) => store.clearCredentials(ns),
       };
 
-      // ③ scopes(让 ctx.auth.requireScope 工作;api-key 场景无 scopes → 不检查)
-      ctx.auth._setScopes?.(resolved.token.scopes);
-
-      // ④ identity(填统一输出格式顶层 + state.user)
-      const identity = await resolveIdentityWithChain(providers, pctx);
+      // ③ identity 必须来自本次实际命中的 provider
+      const identity = resolved.provider.resolveIdentity
+        ? await resolved.provider.resolveIdentity(pctx)
+        : null;
       (ctx as any)._identity = identity ?? undefined;
       if (identity) ctx.state.user = { userId: identity.userId, name: identity.name };
 
-      // ⑤ 缓存 token 供 beforeRequest 用(挂 ctx,避免并发命令串)
-      (ctx as any)._authToken = resolved.token.token;
+      setAuthSession(ctx, {
+        token: resolved.token.token,
+        type: resolved.token.type,
+        source: resolved.token.source,
+        refreshable: resolved.token.refreshable === true,
+      });
     },
 
     async beforeRequest(ctx, req) {
-      const token = (ctx as any)._authToken;
-      if (token) injectAuthHeader(req, token, authStyle); // ★ 按 authStyle 注入 header
+      const session = getAuthSession(ctx);
+      if (session) injectAuthHeader(req, session.token, authStyle);
+    },
+
+    async onUnauthorized(ctx) {
+      const session = getAuthSession(ctx);
+      if (!on401 || !session?.refreshable) return undefined;
+      const token = await on401();
+      if (token) updateAuthSessionToken(ctx, token);
+      return token;
     },
   };
 }
@@ -745,15 +758,15 @@ export function createCrmAuth<State extends { user?: unknown }>(opts: {
 
 | 出口                     | 在 auth Plugin 里做什么                                                                                                                                                   |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `beforeCommand`          | 跑 provider chain 取 token;包装 `store` 成 `ctx.credentials`;调 `ctx.auth._setScopes` 注入 scopes;跑 `resolveIdentityWithChain` 填 identity + `ctx.state.user`;缓存 token |
+| `beforeCommand`          | 跑 provider chain 取 token;包装 `store` 成 `ctx.credentials`;从命中的 provider 取 identity;建立上下文 auth session                                                   |
 | `beforeRequest`          | 用 `injectAuthHeader(req, token, authStyle)` 按 authStyle 注入 `Authorization: Bearer xxx` / `X-Api-Key: xxx` / `Authorization: Basic xxx`                                |
-| `_transportConfig.on401` | `createOn401Hook(...)` 返回的 hook 挂这里;cli-sdk 请求层遇到 401 时调它,singleflight refresh 后自动重试                                                                   |
+| `onUnauthorized`        | 公开 hook 调 `createOn401Hook(...)`;更新上下文 auth session 后由框架自动重试                                                                                              |
 
 **关键纪律:**
 
 - 认证用 `beforeCommand` + `beforeRequest` 两个标准钩子,不发明新机制。
-- token 缓存挂在 `ctx`(`_authToken`)而非闭包变量,避免并发命令间串。
-- 401 refresh 是请求层(框架)的能力,但**执行能力**(怎么 refresh、怎么落盘)由 auth Plugin 通过 `on401` 提供。没挂 `on401` 的 auth Plugin 不支持 401 自动续期。
+- token 使用 `setAuthSession/getAuthSession` 绑定 `CommandContext`，禁止放在插件闭包中。
+- 401 refresh 是请求层(框架)的能力,但**执行能力**(怎么 refresh、怎么落盘)由 auth Plugin 通过公开 `onUnauthorized` 提供。
 - 业务包可以完全不参考 `createCrmAuth` 骨架,自己写——只要遵守 `Plugin` 接口和上面的契约。
 
 详见 `05-credentials.md`。

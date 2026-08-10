@@ -16,7 +16,13 @@
  *   POST   /lead/follow/record/page 跟进记录(follows 模块覆盖)
  */
 
-import { defineCommands, defineCommand, errs, type CommandGroup } from "@renxqoo/agent-data-cli";
+import {
+  defineCommands,
+  defineCommand,
+  errs,
+  type CommandGroup,
+  defineCommandFromArgs,
+} from "@renxqoo/agent-data-cli";
 import { unwrap, buildPagePayload, pagedMeta, parseJsonBody, type PagedData } from "../envelope.js";
 
 const MODULE = "lead";
@@ -65,7 +71,7 @@ export const leadsCommands: CommandGroup = defineCommands({
     },
   }),
 
-  form: defineCommand({
+  form: defineCommandFromArgs({
     name: "form",
     description: "线索表单字段定义(写入前必读)",
     args: {},

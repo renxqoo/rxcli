@@ -18,7 +18,7 @@
  */
 
 // 核心装配
-export { defineCli, defineCommand, defineCommands } from "./define.js";
+export { defineCli, defineCommand, defineCommandFromArgs, defineCommands } from "./define.js";
 
 // 认证基础能力(供开发者写 auth Plugin 用;auth 本身是 Plugin,无封闭工厂)
 export {
@@ -123,9 +123,17 @@ export {
   runBeforeCommand,
   runBeforeRequest,
   runAfterRequest,
+  runOnUnauthorized,
   runBeforeOutput,
   runOnError,
 } from "./plugin.js";
+
+export {
+  getAuthSession,
+  setAuthSession,
+  updateAuthSessionToken,
+  type AuthSession,
+} from "./auth/session.js";
 
 // 上下文工厂
 export { createContext, createStderrLog } from "./context.js";

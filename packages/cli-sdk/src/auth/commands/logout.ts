@@ -1,10 +1,7 @@
 /**
  * logout 命令:吊销 token + 清本地凭证。
  */
-import * as readline from "node:readline/promises";
-import { stdin, stdout } from "node:process";
 import { defineCommand } from "../../define.js";
-import { errs } from "../../errs/index.js";
 import type { CommandResult, CommandSpec } from "../../types.js";
 import type { ConfigStore } from "../../credentials/types.js";
 import type { StoredOAuthCredentials } from "../../credentials/types.js";

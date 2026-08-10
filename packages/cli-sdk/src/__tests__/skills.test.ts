@@ -1,8 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  existsSync,
+  rmSync,
+  symlinkSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { cleanSubPath, listPath } from "../skills/reader.js";
+import { cleanSubPath, listPath, readSkill } from "../skills/reader.js";
 import { syncSkills } from "../skills/sync.js";
 import {
   DEFAULT_SKILL_TARGETS,
@@ -375,6 +383,17 @@ function makeSkill(root: string, name: string, desc = "x") {
     `---\nname: ${name}\ndescription: ${desc}\n---\nbody`,
   );
 }
+
+describe("skill 文件安全边界", () => {
+  it("拒绝指向 skillsRoot 外部文件的 SKILL.md 符号链接", () => {
+    const outside = join(tmpDest, "outside-secret.md");
+    writeFileSync(outside, "TOP_SECRET");
+    mkdirSync(join(tmpRoot, "leak"), { recursive: true });
+    symlinkSync(outside, join(tmpRoot, "leak", "SKILL.md"));
+
+    expect(() => readSkill(tmpRoot, "leak")).toThrow(/outside|allowed directory/i);
+  });
+});
 
 // ============================================================================
 // M4: syncSkills 应清理源端已删除的 skill(全量同步语义)
