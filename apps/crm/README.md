@@ -96,7 +96,7 @@ Verify: `rxcli auth status` shows you are logged in.
 
 ```bash
 # orders
-rxcli orders list [--limit N] [--cursor TOKEN]  # list orders or continue from nextToken
+rxcli orders list [--limit N] [--cursor TOKEN]  # list orders or continue from next_token
 rxcli orders get <id>                  # get a single order's details
 
 # products
@@ -150,14 +150,14 @@ $ rxcli orders list --no-json
 id      userId   status   total  currency
 ------  -------  -------  -----  --------
 o_1001  u_alice  paid       168  CNY
-o_1002  u_alice  shipped   58.5  CNY
+o_1002  u_alice  shipped     39  CNY
 ```
 
 ### Agent fetches data (JSON)
 
 ```bash
 $ rxcli orders list --limit 1
-{"ok":true,"identity":"user","data":{"orders":[{"id":"o_1001","status":"paid","total":168}]},"meta":{"count":1,"pagination":{"complete":false,"items":1,"nextToken":"o_1001"}}}
+{"ok":true,"identity":"user","data":{"orders":[{"id":"o_1001","status":"paid","total":168}]},"meta":{"count":1,"pagination":{"complete":false,"items":1,"next_token":"o_1001"}}}
 ```
 
 ### Pipeline composition

@@ -1,6 +1,5 @@
 ---
 name: rx-orders
-version: 1.2.0
 description: "查询订单。当用户需要查订单、看订单列表、查最近订单、查某个订单详情、订单里有什么、订单状态时使用。"
 metadata:
   requires:
@@ -9,7 +8,7 @@ metadata:
   category: business
 ---
 
-# orders (v1.2)
+# orders
 
 **CRITICAL — 开始前 MUST 先用 Read 工具读取 [`../rx-shared/SKILL.md`](../rx-shared/SKILL.md),其中包含输出统一格式约定、登录、scope、错误处理说明**
 
@@ -26,7 +25,7 @@ metadata:
 | ------------------------------------------------------------------ | ----------------------- |
 | "查订单" / "看看订单" / "订单列表"                                 | `orders list`           |
 | "最近 5 条订单"                                                    | `orders list --limit 5` |
-| "继续查下一页订单"                                                 | `orders list --cursor <上次 nextToken>` |
+| "继续查下一页订单"                                                 | `orders list --cursor <上次 next_token>` |
 | "查一下 o_1001" / "这个订单详情" / "订单里有什么" / "订单发货了吗" | `orders get o_1001`     |
 
 ## 前置条件
@@ -45,7 +44,7 @@ metadata:
 ```bash
 rxcli orders list              # 查全部
 rxcli orders list --limit 10   # 限制返回数量
-rxcli orders list --limit 10 --cursor o_1001  # 从上次 nextToken 继续
+rxcli orders list --limit 10 --cursor o_1001  # 从上次 next_token 继续
 ```
 
 ### 输出示例
@@ -73,14 +72,14 @@ stdout(统一输出格式,`identity:"user"` 表示已认证用户态):
     "pagination": {
       "complete": false,
       "items": 1,
-      "nextToken": "o_1001"
+      "next_token": "o_1001"
     }
   }
 }
 ```
 
 无订单时 `data.orders` 为空数组 `[]`,不是错误。
-当 `meta.pagination.complete` 为 `false` 时,使用 `nextToken` 作为下一次调用的 `--cursor`；为 `true` 时停止续拉。
+当 `meta.pagination.complete` 为 `false` 时,使用 `next_token` 作为下一次调用的 `--cursor`；为 `true` 时停止续拉。
 
 ## orders get
 

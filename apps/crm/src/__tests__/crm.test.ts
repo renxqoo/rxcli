@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import { createTestCtx } from "@renxqoo/agent-data-cli";
 import { ordersCommands } from "../commands/orders.js";
 import { productsCommands } from "../commands/products.js";
@@ -24,6 +25,10 @@ function mockCtx(responseByPath: Record<string, { status?: number; data: unknown
 }
 
 describe("orders", () => {
+  it("cursor 帮助引用统一 JSON wire 字段 next_token", () => {
+    expect(ordersCommands.list.args.cursor.desc).toContain("meta.pagination.next_token");
+  });
+
   it("list 返回订单数组", async () => {
     const ctx = mockCtx({
       "/proxy/api/orders": {
@@ -132,5 +137,31 @@ describe("account", () => {
     const ctx = mockCtx({ "/proxy/api/admin/users": { data: { users: [{ id: "u_alice" }] } } });
     const result = await accountCommands["admin-users"].run({}, ctx);
     expect(result!.data).toEqual({ users: [{ id: "u_alice" }] });
+  });
+});
+
+describe("published CRM contract", () => {
+  const readProjectFile = (path: string) =>
+    readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
+
+  it("面向使用者的分页文档使用 wire 字段 next_token", () => {
+    const docs = [
+      readProjectFile("README.md"),
+      readProjectFile("README.zh-CN.md"),
+      readProjectFile("skills/rx-orders/SKILL.md"),
+      readProjectFile("skills/rx-orders/references/orders-list.md"),
+    ];
+
+    for (const doc of docs) {
+      expect(doc).not.toContain("nextToken");
+    }
+    expect(docs.join("\n")).toContain("next_token");
+  });
+
+  it("双语 README 的 o_1002 金额与 mock 数据一致", () => {
+    for (const readme of [readProjectFile("README.md"), readProjectFile("README.zh-CN.md")]) {
+      expect(readme).toMatch(/o_1002\s+u_alice\s+shipped\s+39\s+CNY/);
+      expect(readme).not.toContain("58.5");
+    }
   });
 });
