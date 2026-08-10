@@ -1,4 +1,4 @@
 interface:
   display_name: "Agent CLI Builder"
-  short_description: "构建面向 AI agent 的类型安全业务 CLI"
-  default_prompt: "使用 $agent-cli-builder 基于 @renxqoo/agent-data-cli 构建并测试一个业务 CLI。"
+  short_description: "Build production-grade CLIs for AI agents"
+  default_prompt: "Use $agent-cli-builder to build and validate a production-grade CLI for AI agents."

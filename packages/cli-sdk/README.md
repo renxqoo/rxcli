@@ -48,13 +48,13 @@ When an AI agent (or script, or pipeline) consumes your business data, there's a
 
 ### Real business packages (built on this framework)
 
-| Package                                 | Scenario                        | Auth mode         | Highlights                                              |
-| --------------------------------------- | ------------------------------- | ----------------- | ------------------------------------------------------- |
-| [`@renxqoo/rxstock`](../../apps/a-stock) | A-share quotes/financials/indicators | None (public data) | Multi-source fallback, unified fallback executor, local indicator computation |
-| [`@renxqoo/rxopen-cli`](../../apps/rxopen)  | Open data (news/trending/weather) | None (public data) | 60+ endpoints from vikiboss/60s, split into 6 domain skills via `skillsScopes` |
-| [`@renxqoo/rx60s-cli`](../../apps/60s)  | Daily info (news/trending/weather) | None (public data) | Legacy single-skill version of rxopen |
-| [`@renxqoo/rxcordys-cli`](../../apps/cordys-crm) | Cordys CRM (leads/contracts/orders) | Static dual headers | Full L2C pipeline, hand-written auth plugin |
-| [`@renxqoo/cli`](../../apps/crm)        | Company business (orders/products) | OAuth device flow | Middleware auth, split-flow login, install wizard       |
+| Package                                          | Scenario                             | Auth mode           | Highlights                                                                     |
+| ------------------------------------------------ | ------------------------------------ | ------------------- | ------------------------------------------------------------------------------ |
+| [`@renxqoo/rxstock`](../../apps/a-stock)         | A-share quotes/financials/indicators | None (public data)  | Multi-source fallback, unified fallback executor, local indicator computation  |
+| [`@renxqoo/rxopen-cli`](../../apps/rxopen)       | Open data (news/trending/weather)    | None (public data)  | 60+ endpoints from vikiboss/60s, split into 6 domain skills via `skillsScopes` |
+| [`@renxqoo/rx60s-cli`](../../apps/60s)           | Daily info (news/trending/weather)   | None (public data)  | Legacy single-skill version of rxopen                                          |
+| [`@renxqoo/rxcordys-cli`](../../apps/cordys-crm) | Cordys CRM (leads/contracts/orders)  | Static dual headers | Full L2C pipeline, hand-written auth plugin                                    |
+| [`@renxqoo/cli`](../../apps/crm)                 | Company business (orders/products)   | OAuth device flow   | Middleware auth, split-flow login, install wizard                              |
 
 ---
 
@@ -231,22 +231,27 @@ const myPlugin: Plugin = {
 ```json
 {
   "ok": false,
-  "error": { "type": "api", "subtype": "not_found", "message": "Order not found", "hint": "Check the ID" }
+  "error": {
+    "type": "api",
+    "subtype": "not_found",
+    "message": "Order not found",
+    "hint": "Check the ID"
+  }
 }
 ```
 
 **Exit code mapping** (set automatically by the framework by error category; agents can use it to decide handling strategy):
 
-| code | category                                | meaning                              |
-| ---- | --------------------------------------- | ------------------------------------ |
-| 0    | —                                       | success                              |
-| 1    | api                                     | server-side business error (404/500/429, etc.) |
-| 2    | validation                              | invalid parameter                    |
+| code | category                                | meaning                                              |
+| ---- | --------------------------------------- | ---------------------------------------------------- |
+| 0    | —                                       | success                                              |
+| 1    | api                                     | server-side business error (404/500/429, etc.)       |
+| 2    | validation                              | invalid parameter                                    |
 | 3    | authentication / authorization / config | login required / missing permission / missing config |
-| 4    | network                                 | DNS / timeout / connection refused   |
-| 5    | internal                                | SDK internal error (should rarely happen) |
-| 6    | policy                                  | risk-control block                   |
-| 10   | confirmation                            | high-risk write requires `--yes`     |
+| 4    | network                                 | DNS / timeout / connection refused                   |
+| 5    | internal                                | SDK internal error (should rarely happen)            |
+| 6    | policy                                  | risk-control block                                   |
+| 10   | confirmation                            | high-risk write requires `--yes`                     |
 
 9 typed error classes: `ValidationError` / `AuthenticationError` / `PermissionError` / `ConfigError` / `NetworkError` / `APIError` (with `NotFoundError` subclass) / `PolicyError` / `InternalError` / `ConfirmationRequiredError`. Always construct them with `errs.*` — never `throw new Error()` (it gets downgraded to internal/unknown).
 
@@ -254,13 +259,13 @@ const myPlugin: Plugin = {
 
 ## `--json` / `--no-json` output modes
 
-| Mode                      | Behavior                                                        |
-| ------------------------- | --------------------------------------------------------------- |
-| Default (`auto`)          | stdout is a TTY (terminal) → text; non-TTY (pipe/script) → JSON |
-| `--json`                  | Force unified JSON output                                       |
-| `--no-json`               | Force text (pipe protection: still JSON when stdin is non-TTY)  |
-| `defaultFormat: 'human'`  | Business sets text as default                                   |
-| `defaultFormat: 'json'`   | Business sets JSON as default                                   |
+| Mode                     | Behavior                                                        |
+| ------------------------ | --------------------------------------------------------------- |
+| Default (`auto`)         | stdout is a TTY (terminal) → text; non-TTY (pipe/script) → JSON |
+| `--json`                 | Force unified JSON output                                       |
+| `--no-json`              | Force text (pipe protection: still JSON when stdin is non-TTY)  |
+| `defaultFormat: 'human'` | Business sets text as default                                   |
+| `defaultFormat: 'json'`  | Business sets JSON as default                                   |
 
 `--no-json` text mode: the framework auto-detects the data structure and renders a table (array of objects → table / single object → key:value / scalar array → numbered list); commands can optionally provide a `humanFormat` for polish (¥ / Chinese column names / translations). CJK characters are aligned by display width.
 
@@ -270,26 +275,29 @@ const myPlugin: Plugin = {
 
 ### Design docs (shipped with the package, in the `docs/` directory)
 
-| Doc                                         | Content                                       |
-| ------------------------------------------- | --------------------------------------------- |
-| [`00-overview.md`](docs/00-overview.md)     | Architecture, layering, decision checklist    |
-| [`01-cli-usage.md`](docs/01-cli-usage.md)   | Command invocation, pipes, pagination, exit codes |
-| [`02-sdk-guide.md`](docs/02-sdk-guide.md)   | SDK usage, ctx interface, hooks               |
-| [`03-envelopes.md`](docs/03-envelopes.md)   | Unified output field contract                 |
-| [`04-errors.md`](docs/04-errors.md)         | 9 error classes, when to throw                |
-| [`05-credentials.md`](docs/05-credentials.md) | Provider chain, custom credentials          |
-| [`06-skills.md`](docs/06-skills.md)         | Skill system, command doc auto-generation (`--lang en|zh`)     |
+| Doc                                           | Content                                               |
+| --------------------------------------------- | ----------------------------------------------------- |
+| [`00-overview.md`](docs/00-overview.md)       | Architecture, layering, decision checklist            |
+| [`01-cli-usage.md`](docs/01-cli-usage.md)     | Command invocation, pipes, pagination, exit codes     |
+| [`02-sdk-guide.md`](docs/02-sdk-guide.md)     | SDK usage, ctx interface, hooks                       |
+| [`03-envelopes.md`](docs/03-envelopes.md)     | Unified output field contract                         |
+| [`04-errors.md`](docs/04-errors.md)           | 9 error classes, when to throw                        |
+| [`05-credentials.md`](docs/05-credentials.md) | Provider chain, custom credentials                    |
+| [`06-skills.md`](docs/06-skills.md)           | Skill system, command doc auto-generation (`--lang en | zh`) |
 
 ### Agent Skill: agent-cli-builder
 
-The framework ships an AI Agent Skill ([`skills/agent-cli-builder`](skills/agent-cli-builder/SKILL.md)) that teaches AI how to build an agent-native CLI business package from scratch using this framework. After reading it, an AI agent can: write a no-auth CLI in 5 minutes, configure OAuth auth, set up multi-source fallback, and write a SKILL.md so the agent can self-discover. This is the key capability for "building CLIs with AI".
+The npm package ships the English [`agent-cli-builder`](skills/agent-cli-builder/SKILL.md) Skill by default. It guides AI agents through fact discovery, minimal CLI design, authentication, structured output, typed errors, Skill distribution, testing, packaging, and production acceptance.
+
+The repository also keeps a Chinese source version at [`agent-cli-builder-zh-CN`](agent-cli-builder-zh-CN/SKILL.md). It is available on GitHub only and is intentionally excluded from TypeScript builds and npm packages.
 
 Includes advanced references:
 
-- [`auth-patterns.md`](skills/agent-cli-builder/references/auth-patterns.md) — defineAuth / split-flow login / register / HMAC
+- [`core-api.md`](skills/agent-cli-builder/references/core-api.md) — project setup, core APIs, entry point, output contract
+- [`auth-patterns.md`](skills/agent-cli-builder/references/auth-patterns.md) — defineAuth / split-flow login / registration
 - [`patterns.md`](skills/agent-cli-builder/references/patterns.md) — pagination follow-up / pipe downstream / humanFormat
-- [`error-catalog.md`](skills/agent-cli-builder/references/error-catalog.md) — 30+ subtype quick reference + errorOnStatus config
-- [`testing.md`](skills/agent-cli-builder/references/testing.md) — createTestCtx full mock suite
+- [`skill-optimization.md`](skills/agent-cli-builder/references/skill-optimization.md) — TRACE production review
+- [`testing.md`](skills/agent-cli-builder/references/testing.md) — unit, end-to-end, package, and forward testing
 
 ---
 

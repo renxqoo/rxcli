@@ -47,13 +47,13 @@
 
 ### 实际业务包(基于本框架)
 
-| 业务包                                   | 场景                   | 鉴权模式          | 看点                                                  |
-| ---------------------------------------- | ---------------------- | ----------------- | ----------------------------------------------------- |
-| [`@renxqoo/rxstock`](../../apps/a-stock) | A 股行情/财务/技术指标 | 无(公开数据)      | 多源 fallback、统一 fallback 执行器、技术指标本地计算 |
-| [`@renxqoo/rx60s-cli`](../../apps/60s)   | 日常资讯(新闻/热搜/天气) | 无(公开数据)    | rxopen 的旧版单 skill |
-| [`@renxqoo/rxopen-cli`](../../apps/rxopen)   | 开放数据(新闻/热搜/天气) | 无(公开数据)    | 60+ 接口来自 vikiboss/60s,通过 `skillsScopes` 按 6 个数据域拆分 skill |
-| [`@renxqoo/rxcordys-cli`](../../apps/cordys-crm) | Cordys CRM(线索/合同/订单) | 静态双 header | L2C 全流程,手写 auth 插件 |
-| [`@renxqoo/cli`](../../apps/crm)         | 公司业务(订单/商品)    | OAuth device flow | 中间层鉴权、split-flow 登录、install 向导             |
+| 业务包                                           | 场景                       | 鉴权模式          | 看点                                                                  |
+| ------------------------------------------------ | -------------------------- | ----------------- | --------------------------------------------------------------------- |
+| [`@renxqoo/rxstock`](../../apps/a-stock)         | A 股行情/财务/技术指标     | 无(公开数据)      | 多源 fallback、统一 fallback 执行器、技术指标本地计算                 |
+| [`@renxqoo/rx60s-cli`](../../apps/60s)           | 日常资讯(新闻/热搜/天气)   | 无(公开数据)      | rxopen 的旧版单 skill                                                 |
+| [`@renxqoo/rxopen-cli`](../../apps/rxopen)       | 开放数据(新闻/热搜/天气)   | 无(公开数据)      | 60+ 接口来自 vikiboss/60s,通过 `skillsScopes` 按 6 个数据域拆分 skill |
+| [`@renxqoo/rxcordys-cli`](../../apps/cordys-crm) | Cordys CRM(线索/合同/订单) | 静态双 header     | L2C 全流程,手写 auth 插件                                             |
+| [`@renxqoo/cli`](../../apps/crm)                 | 公司业务(订单/商品)        | OAuth device flow | 中间层鉴权、split-flow 登录、install 向导                             |
 
 ---
 
@@ -256,7 +256,7 @@ const myPlugin: Plugin = {
 | 模式                     | 行为                                              |
 | ------------------------ | ------------------------------------------------- |
 | 默认(`auto`)             | stdout 是 TTY(终端)→ 文本;非 TTY(管道/脚本)→ JSON |
-| `--json`                 | 强制 JSON 统一输出                                    |
+| `--json`                 | 强制 JSON 统一输出                                |
 | `--no-json`              | 强制文本(管道保护:stdin 非 TTY 时仍 JSON)         |
 | `defaultFormat: 'human'` | 业务设默认文本                                    |
 | `defaultFormat: 'json'`  | 业务设默认 JSON                                   |
@@ -269,26 +269,29 @@ const myPlugin: Plugin = {
 
 ### 设计文档(随包发布,`docs/` 目录)
 
-| 文档                                          | 内容                            |
-| --------------------------------------------- | ------------------------------- |
-| [`00-overview.md`](docs/00-overview.md)       | 架构、分层、决策清单            |
-| [`01-cli-usage.md`](docs/01-cli-usage.md)     | 命令调用、管道、分页、exit code |
-| [`02-sdk-guide.md`](docs/02-sdk-guide.md)     | SDK 用法、ctx 接口、钩子        |
-| [`03-envelopes.md`](docs/03-envelopes.md)     | 统一输出字段契约                    |
-| [`04-errors.md`](docs/04-errors.md)           | 9 类错误、何时 throw            |
-| [`05-credentials.md`](docs/05-credentials.md) | provider chain、自定义凭证      |
-| [`06-skills.md`](docs/06-skills.md)           | skill 系统、命令文档自动生成(`--lang en|zh`)    |
+| 文档                                          | 内容                                    |
+| --------------------------------------------- | --------------------------------------- |
+| [`00-overview.md`](docs/00-overview.md)       | 架构、分层、决策清单                    |
+| [`01-cli-usage.md`](docs/01-cli-usage.md)     | 命令调用、管道、分页、exit code         |
+| [`02-sdk-guide.md`](docs/02-sdk-guide.md)     | SDK 用法、ctx 接口、钩子                |
+| [`03-envelopes.md`](docs/03-envelopes.md)     | 统一输出字段契约                        |
+| [`04-errors.md`](docs/04-errors.md)           | 9 类错误、何时 throw                    |
+| [`05-credentials.md`](docs/05-credentials.md) | provider chain、自定义凭证              |
+| [`06-skills.md`](docs/06-skills.md)           | skill 系统、命令文档自动生成(`--lang en | zh`) |
 
 ### Agent Skill:agent-cli-builder
 
-框架自带一个 AI Agent Skill([`skills/agent-cli-builder`](skills/agent-cli-builder/SKILL.md)),教 AI 如何用本框架从零构建 agent-native CLI 业务包。AI Agent 读它即可学会:5 分钟写出无鉴权 CLI、配置 OAuth 鉴权、多源 fallback、写 SKILL.md 让 Agent 自服务发现。这是"用 AI 做 CLI"的关键能力。
+npm 包默认发布英文版 [`agent-cli-builder`](skills/agent-cli-builder/SKILL.md)，指导 AI Agent 完成事实确认、最小 CLI 设计、鉴权、结构化输出、类型化错误、Skill 分发、测试、打包和生产验收。
+
+中文版源码保存在 [`agent-cli-builder-zh-CN`](agent-cli-builder-zh-CN/SKILL.md)，仅提交到 GitHub，不参与 TypeScript 构建，也不进入 npm 包。
 
 包含进阶参考:
 
-- [`auth-patterns.md`](skills/agent-cli-builder/references/auth-patterns.md) — defineAuth / split-flow 登录 / register / HMAC
-- [`patterns.md`](skills/agent-cli-builder/references/patterns.md) — 分页续拉 / 管道下游 / humanFormat
-- [`error-catalog.md`](skills/agent-cli-builder/references/error-catalog.md) — 30+ subtype 速查 + errorOnStatus 配置
-- [`testing.md`](skills/agent-cli-builder/references/testing.md) — createTestCtx 全套 mock
+- [`core-api.md`](agent-cli-builder-zh-CN/references/core-api.md) — 项目结构、核心 API、入口和输出契约
+- [`auth-patterns.md`](agent-cli-builder-zh-CN/references/auth-patterns.md) — defineAuth / split-flow 登录 / 注册
+- [`patterns.md`](agent-cli-builder-zh-CN/references/patterns.md) — 分页续拉 / 管道下游 / humanFormat
+- [`skill-optimization.md`](agent-cli-builder-zh-CN/references/skill-optimization.md) — TRACE 生产审查
+- [`testing.md`](agent-cli-builder-zh-CN/references/testing.md) — 单测、端到端、打包和前向评测
 
 ---
 

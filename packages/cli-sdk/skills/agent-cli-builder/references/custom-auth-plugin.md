@@ -1,84 +1,85 @@
-# 自定义鉴权:手写 auth Plugin、provider chain
+# Custom Authentication Plugins and Providers
 
-> `defineAuth` 工厂覆盖 90% 场景(见 `references/auth-patterns.md`)。本文档讲剩下 10%:`defineAuth` 不够用时,如何手写 auth Plugin。
->
-> 何时需要:HMAC 签名、mTLS(客户端证书)、复合鉴权(签名 + header)、自定义 provider。
+Use this only when `defineAuth` cannot express the protocol, such as HMAC, mTLS, or composite signing. Custom auth relies on lower-level APIs, so pin the framework version and test provider priority, persistence, refresh, retry, and redaction.
 
----
+## Contents
 
-## 0. auth Plugin 是什么
+1. Auth plugin skeleton
+2. Plugin-owned login commands
+3. Provider chains
+4. HMAC signing
+5. 401 refresh behavior
 
-auth Plugin 就是一个普通的 `Plugin` 对象,用 cli-sdk 导出的基础块组装。3 个出口的职责:
+## 1. Auth plugin skeleton
 
-| 出口                     | 做什么                                                                                               |
-| ------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `beforeCommand`          | 跑 provider chain 取 token → 包装 store 成 `ctx.credentials` → 填 `ctx.state.user` → 缓存 token      |
-| `beforeRequest`          | 用 `injectAuthHeader(req, token, authStyle)` 按 style 注入 header                                    |
-| `_transportConfig.on401` | `createOn401Hook(...)` 返回的 hook 挂这里;cli-sdk 请求层遇到 401 时调它(singleflight refresh + 重试) |
-
----
-
-## 1. 手写 auth Plugin 骨架
+An auth plugin normally resolves a token in `beforeCommand`, injects it in `beforeRequest`, and optionally exposes `_transportConfig.on401` for one refresh and retry.
 
 ```ts
-// src/auth.ts
-import {
-  type Plugin,
-  type CommandContext,
-  type ProviderContext,
-  fileStore,
-  defaultProviders,
-  resolveWithChain,
-  resolveIdentityWithChain,
-  injectAuthHeader,
-  createOn401Hook,
-  AuthenticationError,
-} from "@renxqoo/agent-data-cli";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import {
+  AuthenticationError,
+  createOn401Hook,
+  defaultProviders,
+  fileStore,
+  injectAuthHeader,
+  resolveIdentityWithChain,
+  resolveWithChain,
+  type CommandContext,
+  type Plugin,
+  type ProviderContext,
+} from "@renxqoo/agent-data-cli";
 
-export function createMyAuth<State extends { user?: unknown }>(opts: {
+export function createCustomAuth<State extends { user?: unknown }>(options: {
   namespace: string;
   authStyle?: "bearer" | "x-api-key" | "basic";
   oauth?: { baseUrl: string; clientId: string; clientSecret: string };
 }): Plugin<State> & { _transportConfig?: { on401?: () => Promise<string | null> } } {
   const store = fileStore({ dir: join(homedir(), ".my-cli") });
   const providers = defaultProviders();
-  const authStyle = opts.authStyle ?? "bearer";
-  const on401 = opts.oauth
-    ? createOn401Hook({ cfg: opts.oauth, store, namespace: opts.namespace })
+  const authStyle = options.authStyle ?? "bearer";
+  let currentToken: string | undefined;
+
+  const refresh = options.oauth
+    ? createOn401Hook({ cfg: options.oauth, store, namespace: options.namespace })
+    : undefined;
+  const on401 = refresh
+    ? async () => {
+        const token = await refresh();
+        if (token) currentToken = token;
+        return token;
+      }
     : undefined;
 
   return {
-    name: `auth:${opts.namespace}`,
-    enforce: "pre", // 鉴权必须 pre,先填 token 再发请求
+    name: `auth:${options.namespace}`,
+    enforce: "pre",
     _transportConfig: on401 ? { on401 } : undefined,
 
     async beforeCommand(ctx: CommandContext<State>) {
-      const pctx: ProviderContext = {
-        namespace: opts.namespace,
+      const providerContext: ProviderContext = {
+        namespace: options.namespace,
         configStore: store,
         args: {},
         env: process.env,
       };
-      const resolved = await resolveWithChain(providers, pctx);
+      const resolved = await resolveWithChain(providers, providerContext);
       if (!resolved) {
         throw new AuthenticationError({
           subtype: "no_credentials",
-          message: `${opts.namespace} 未配置凭证`,
-          hint: `设置 \${opts.namespace.toUpperCase()}_API_KEY 环境变量或运行 \`my-cli auth login\``,
+          message: `${options.namespace} has no credentials`,
+          hint: "Configure a supported environment variable or sign in",
         });
       }
 
-      // 把 store 包装成 ctx.credentials(命令运行时 API)
       (ctx as { credentials: typeof ctx.credentials }).credentials = {
-        get: async (ns) => (await store.loadCredentials(ns)) as Record<string, string> | null,
-        save: (ns, d) => store.saveCredentials(ns, d),
-        clear: (ns) => store.clearCredentials(ns),
+        get: async (namespace) =>
+          (await store.loadCredentials(namespace)) as Record<string, string> | null,
+        save: (namespace, data) => store.saveCredentials(namespace, data),
+        clear: (namespace) => store.clearCredentials(namespace),
       };
 
-      // 填 identity(统一输出格式顶层 user/bot + state.user)
-      const identity = await resolveIdentityWithChain(providers, pctx);
+      const identity = await resolveIdentityWithChain(providers, providerContext);
       if (identity) {
         (ctx as unknown as { _identity?: typeof identity })._identity = identity;
         (ctx.state as Record<string, unknown>).user = {
@@ -87,200 +88,129 @@ export function createMyAuth<State extends { user?: unknown }>(opts: {
         };
       }
 
-      // 缓存 token 给 beforeRequest
       (ctx as unknown as { _authToken?: string })._authToken = resolved.token.token;
+      currentToken = resolved.token.token;
     },
 
-    async beforeRequest(ctx, req) {
-      const token = (ctx as unknown as { _authToken?: string })._authToken;
-      if (token) injectAuthHeader(req, token, authStyle);
+    async beforeRequest(ctx, request) {
+      const token = currentToken ?? (ctx as unknown as { _authToken?: string })._authToken;
+      if (token) injectAuthHeader(request, token, authStyle);
     },
   };
 }
 ```
 
-用法:
+The refresh wrapper must update the token used by `beforeRequest`; retry logic reruns request hooks, and an old token would otherwise overwrite the refreshed header.
+
+## 2. Plugin-owned login commands
+
+A command contributed through `provides` skips that same plugin's `beforeCommand`. Therefore `ctx.credentials` is still the default no-op implementation. Plugin-owned login and logout commands must use the closed-over store directly.
 
 ```ts
-// src/index.ts
-import { createMyAuth } from './auth.js'
-const auth = createMyAuth({
-  namespace: 'my-cli',
-  authStyle: 'bearer',
-  oauth: { baseUrl: process.env.AUTH_BASE_URL!, clientId: process.env.CLIENT_ID!, clientSecret: process.env.CLIENT_SECRET! },
-})
-defineCli({ plugins: [auth], ... })
-```
-
-### provides 的 login/logout 命令:直接用 `store`,不用 `ctx.credentials`
-
-上面的骨架在 `beforeCommand` 里把 `store` 包装成了 `ctx.credentials`。但若通过 `provides` 贡献 login/logout 命令,这些命令会被框架精确豁免自身 beforeCommand(见主 SKILL.md §3 plugin provides 机制)——豁免后 `ctx.credentials` 是框架默认的 no-op(`save`/`clear` 空跑),login 调 `ctx.credentials.save()` 不会写入任何内容。
-
-**正确写法**:login/logout 直接用闭包里的 `store`(和 `defineAuth` 工厂内部一致),不经过 `ctx.credentials`:
-
-```ts
-// 正确:login/logout 直接用 store 落盘
 const authCommands = defineCommands({
   login: defineCommand({
     name: "login",
-    args: { apiKey: { type: "string", required: true } },
-    async run(args, _ctx) {
-      await store.saveCredentials(opts.namespace, { apiKey: args.apiKey });
+    description: "Persist an API key from a controlled environment variable",
+    async run() {
+      const apiKey = process.env.MY_CLI_API_KEY;
+      if (!apiKey) {
+        throw new errs.ConfigError({
+          subtype: "unbound_env",
+          message: "MY_CLI_API_KEY is not set",
+        });
+      }
+      await store.saveCredentials(options.namespace, { apiKey });
       return { data: { saved: true } };
     },
   }),
   logout: defineCommand({
     name: "logout",
-    async run(_args, _ctx) {
-      await store.clearCredentials(opts.namespace);
+    description: "Clear stored credentials",
+    async run() {
+      await store.clearCredentials(options.namespace);
       return { data: { cleared: true } };
     },
   }),
 });
-
-// plugin 里 provides 这组命令
-return {
-  name: `auth:${opts.namespace}`,
-  enforce: "pre",
-  provides: { namespaces: { auth: authCommands } },
-  async beforeCommand(ctx) { /* ... 见上面骨架 ... */ },
-  async beforeRequest(ctx, req) { /* ... */ },
-};
-
-// 错误:login 里用 ctx.credentials.save()
-//   login 被 provides 豁免 beforeCommand → ctx.credentials 是 no-op → 不落盘
-//   async run(args, ctx) { await ctx.credentials.save(...) }  // ← bug
 ```
 
-> 判断规则:**`provides` 贡献的命令里,凭证读写一律用 `store`(闭包),不用 `ctx.credentials`**。`ctx.credentials` 只在业务命令(非 plugin provides)里可靠——此时 beforeCommand 已跑过,包装已生效。
+Never design long-lived secrets as `login --secret <value>`; command arguments may appear in history and process listings. Use a controlled environment variable or a genuinely masked prompt, and never return the secret.
 
----
+## 3. Provider chains
 
-## 2. provider chain 怎么工作
+`resolveWithChain` tries providers by ascending priority and stops at the first token. The default chain contains flag, API-key environment, Bearer environment, file, and OAuth providers.
 
-```ts
-resolveWithChain(providers, pctx) 按 priority 升序逐个尝试:
-  flagProvider       (priority 1)  → --api-key <key> 全局 flag(临时覆盖)
-  envProvider        (priority 5)  → $NS_API_KEY 环境变量
-  envBearerProvider  (priority 6)  → $NS_BEARER_TOKEN 环境变量(sandbox/CI 注入的 JWT)
-  fileProvider       (priority 10) → ~/.rxcli/credentials/<ns>.json 的 apiKey/token
-  oauthProvider      (priority 20) → 同一文件里的 OAuth token(含 refresh_token)
-```
+The framework-global `--api-key` reaches `defineAuth` through an internal channel. The custom skeleton above sets `ProviderContext.args` to `{}` and therefore does not support that flag. Use environment, file, or a custom provider; do not advertise an unconnected flag.
 
-**命中即停**:第一个返回非 null 的 provider 用它的 token;全 null → auth Plugin 抛 `AuthenticationError`。
-
-`defaultProviders()` 默认装好这 5 个(含 envBearerProvider)。**业务包通常不用关心**——只有自定义鉴权(HMAC/mTLS)时才自己 `providers = [...defaultProviders(), customProvider]`。
-
-> **sandbox/CI 场景**:admin 通过 `POST /admin/web/issue-token` 签发 JWT → 注入环境变量 `NS_BEARER_TOKEN`(如 `CRM_BEARER_TOKEN`)→ envBearerProvider 自动命中,agent 直接用,不需要 device flow 登录。也可用 `defineAuth({ bearerToken: process.env.CRM_BEARER_TOKEN })` 一行注入(priority 2,低于 --api-key)。
-
-### provider 接口(写自定义 Provider 时用)
+A provider implements:
 
 ```ts
-export interface CredentialProvider {
-  name(): string; // provider 名(日志/溯源)
-  priority?(): number; // 优先级,小值先试,默认 10
-  resolveToken(pctx: ProviderContext): Promise<TokenResult | null>; // null = 没有,chain 继续
-  resolveIdentity?(pctx: ProviderContext): Promise<IdentityHint | null>; // 可选:填统一输出格式顶层的 user/bot
-}
-
-export interface ProviderContext {
-  namespace: string; // 命名空间
-  configStore: ConfigStore; // 直接读写文件(不走 chain)
-  args: Record<string, unknown>; // 命令参数(读 --api-key 等)
-  env: NodeJS.ProcessEnv; // 环境变量
-}
-
-export interface TokenResult {
-  token: string;
-  type: "api-key" | "bearer" | "basic" | "custom";
-  scopes?: string[];
-  source: string; // 来源描述
-  expiresAt?: number;
-  refreshToken?: string;
+interface CredentialProvider {
+  name(): string;
+  priority?(): number;
+  resolveToken(context: ProviderContext): Promise<TokenResult | null>;
+  resolveIdentity?(context: ProviderContext): Promise<IdentityHint | null>;
 }
 ```
 
-**注意区分两个 API**:
-
-- `ctx.credentials.get/save/clear` —— 业务运行时用(走 provider chain)
-- `configStore.loadCredentials/saveCredentials` —— provider 内部用(直读文件,不走 chain)
-
----
-
-## 3. 自定义 Provider(HMAC 例子)
+Example:
 
 ```ts
-// src/hmac-provider.ts
-import type { CredentialProvider, ProviderContext, TokenResult } from "@renxqoo/agent-data-cli";
-
-export class HmacProvider implements CredentialProvider {
-  constructor(private opts: { namespace: string; accessKeyId?: string }) {}
+class HmacProvider implements CredentialProvider {
   name() {
     return "hmac";
   }
   priority() {
     return 15;
-  } // 在 file(10)之后、oauth(20)之前
-
-  async resolveToken(pctx: ProviderContext): Promise<TokenResult | null> {
-    const creds = await pctx.configStore.loadCredentials(this.opts.namespace);
-    if (!creds?.accessKey || !creds?.secretKey) return null;
-    return { token: creds.accessKey as string, type: "custom", source: "hmac" };
+  }
+  async resolveToken(context: ProviderContext): Promise<TokenResult | null> {
+    const credentials = await context.configStore.loadCredentials(context.namespace);
+    if (!credentials?.accessKey || !credentials?.secretKey) return null;
+    return {
+      token: String(credentials.accessKey),
+      type: "custom",
+      source: "hmac",
+    };
   }
 }
 ```
 
-签名单独写一个 `enforce:'post'` 插件(post 档 = 等所有 header 定型后再签名):
+Inside a provider, use `configStore.loadCredentials/saveCredentials`. In ordinary business commands, use `ctx.credentials` after `beforeCommand` initializes it.
+
+## 4. HMAC signing
+
+Sign in a post plugin after every other plugin finalizes method, path, body, and headers:
 
 ```ts
-// src/hmac-sign-plugin.ts
 import { createHmac } from "node:crypto";
-import type { Plugin } from "@renxqoo/agent-data-cli";
 
-export function hmacSignPlugin(namespace: string): Plugin {
+function hmacSigningPlugin(namespace: string): Plugin {
   return {
-    name: "hmac-sign",
+    name: "hmac-signing",
     enforce: "post",
-    async beforeRequest(ctx, req) {
-      const creds = await ctx.credentials.get(namespace);
-      if (!creds?.secretKey) return;
-      const body = typeof req.body === "string" ? req.body : JSON.stringify(req.body ?? "");
-      const sig = createHmac("sha256", creds.secretKey as string)
-        .update(`${req.method}\n${req.path}\n${body}`)
+    async beforeRequest(ctx, request) {
+      const credentials = await ctx.credentials.get(namespace);
+      if (!credentials?.secretKey) return;
+      const body =
+        typeof request.body === "string" ? request.body : JSON.stringify(request.body ?? "");
+      request.headers["X-Signature"] = createHmac("sha256", credentials.secretKey)
+        .update(`${request.method}\n${request.path}\n${body}`)
         .digest("hex");
-      req.headers["X-Signature"] = sig;
     },
   };
 }
 ```
 
-用法:
+Treat canonicalization, timestamp, nonce, encoding, and header order as protocol facts. Derive them from the service specification and test known vectors; never invent them.
 
-```ts
-defineCli({
-  plugins: [
-    createMyAuth({ namespace: "my-cli", authStyle: "x-api-key" }),
-    hmacSignPlugin("my-cli"),
-  ],
-});
-```
+## 5. 401 refresh behavior
 
----
+With `_transportConfig.on401` configured, the transport:
 
-## 4. 401 自动续期(singleflight)
+1. Receives 401 and runs the refresh hook.
+2. Reuses one in-flight refresh for concurrent requests when the underlying hook supports singleflight.
+3. Persists the refreshed token.
+4. Applies the token, reruns all `beforeRequest` hooks, and retries once.
+5. Throws `AuthenticationError(token_expired)` if refresh fails or the retry is still 401.
 
-**业务包不处理 401**,cli-sdk 请求层自动:
-
-1. 收到 401 → 调 `_transportConfig.on401` hook
-2. hook 用 `createOn401Hook({ cfg, store, namespace })` 创建,内部:
-   - 读当前凭证拿 refreshToken
-   - 用 singleflight(同一 refreshToken 复用同一个 refresh Promise,避免并发重复 refresh)
-   - 续期成功后**落盘**
-3. 拿到新 token → 重试一次原请求
-4. 重试仍 401 → 抛 `AuthenticationError(token_expired)`,触发用户重新登录
-
-**前提**:auth Plugin 必须挂 `_transportConfig.on401`。没挂的 auth Plugin 不支持 401 自动续期。
-
-重试会先替换现有认证 header(大小写不敏感),并重新执行全部 `beforeRequest` hook,因此 Bearer / X-Api-Key / Basic 以及 HMAC nonce、时间戳、签名都会按新 token 重算。任何最终 401 都是认证错误,不会因为遗漏 `errorOnStatus` 而被当成成功响应。
-
-`--api-key <key>` 是框架级一次性凭证,只定向提供给 auth provider chain,不会混入业务命令 args 或暴露给其他 telemetry/plugin hook;裸 `--api-key` 会在命令运行前得到 validation 错误。
+The custom wrapper must keep `currentToken` synchronized so rerun hooks do not restore the expired token. Re-signing plugins must recompute timestamps, nonces, and signatures on retry. Business commands should not implement a second 401 retry loop.

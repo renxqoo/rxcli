@@ -1,181 +1,131 @@
-# README 生成指南
+# README Generation Guide
 
-> README 是给人(开发者/用户)看的项目入口;SKILL.md 是给 AI agent 看的触发指令。CLI 做完后两者都要有——本文档标准化 README 的结构和信息来源,让 agent 照着生成完整 README,不靠记忆、不漏改。
+A README serves developers and terminal users; a Skill serves AI agents. They share fact sources but should not duplicate each other.
 
----
+## Contents
 
-## 1. README 标准结构(7 节)
+1. Sources and structure
+2. Installation copy
+3. Authentication variants
+4. Output and development
+5. Release checks
 
-每节都标注「信息从哪来」,生成时直接取,不用编:
+## 1. Sources and structure
 
-| 节 | 内容 | 信息来源 |
-| -- | ---- | -------- |
-| ① 简介 | 一句话定位 + 基于什么框架 | `defineCli.description` + `package.json` |
-| ② 快速开始 | 装 CLI → 装 Skill → 配凭证(三步) | `package.json` name/bin + `skills sync` + 鉴权方式(见 §3) |
-| ③ 功能 | 模块表格(每 namespace 一行) | `defineCli` 的 `namespaces` |
-| ④ 常用命令 | 5-8 个常用示例 | 从命令表挑常用操作 |
-| ⑤ 输出契约 | 统一输出格式格式 `{ok,source,data,meta}` | 框架标准(固定) |
-| ⑥ 开发 | build / test / typecheck | `package.json.scripts` |
-| ⑦ 技术决策 | 鉴权方式、命名约定等 | auth 实现 + §2 命名检查 |
+Extract facts from implementation rather than filling a template from memory:
 
-> 不要漏节。尤其 ②「装 Skill」最常漏——用户装了 CLI 但 AI 工具读不到 skill 就不会触发。
+| README content                 | Source of truth                              |
+| ------------------------------ | -------------------------------------------- |
+| Package, bin, Node.js version  | `package.json`                               |
+| Positioning, commands, domains | `defineCli`, `defineCommand`                 |
+| Installation effects           | Entry-point `runInstallWizard` configuration |
+| Authentication                 | Auth implementation and real `--help`        |
+| Output and pagination          | Command returns and `defaultFormat`          |
+| Development commands           | `package.json.scripts`                       |
 
----
+Keep only sections that add value:
 
-## 2. 完整模板
+1. One-sentence purpose and scope.
+2. Installation, verification, and material side effects.
+3. Three to eight frequent commands.
+4. Authentication or environment configuration when required.
+5. Output contract and important limitations.
+6. Development, test, and release commands for source projects.
+
+Do not add empty sections, marketing claims, invented links, or scripts that do not exist.
+
+## 2. Installation copy
+
+When the entry point implements the install wizard:
 
 ````markdown
-# {{包名}} ({{bin 名}})
+## Installation
 
-{{一句话简介}} —— 基于 [@renxqoo/agent-data-cli](框架链接) 框架,{{覆盖什么业务}}。
-
-## 快速开始
-
-### 一键安装(推荐)
+Requires Node.js {{engines.node}}. This command globally installs the CLI and synchronizes bundled Skills to detected AI-tool directories:
 
 ```bash
-npx {{包名}} install
+npx {{package-name}} install
 ```
 
-自动完成:① 全局安装 CLI → ② 安装 Skill 到你的 AI 工具发现目录(`~/.agents` 始终写 + 已装工具自动探测)→ ③ 凭证配置。需 Node ≥ 20。
-
-### 手动安装(分步,等价于一键)
-
-**第 1 步:安装 CLI**
+Verify:
 
 ```bash
-npm install -g {{包名}}
+{{bin}} --help
+{{bin}} skills list --json
 ```
-
-安装后跑 `{{bin 名}} --help` 确认可用。
-
-**第 2 步:安装 Skill(让 AI 工具发现)**
-
-```bash
-{{bin 名}} skills sync
-```
-
-同步到你的 AI 工具发现目录(`~/.agents` 始终写 + 已装工具如 `~/.claude`/`~/.cursor`/`~/.zcode` 自动探测——覆盖 Claude Code / Cursor / Codex / ZCode / OpenClaw / Pi / Trae)。验证:
-
-```bash
-{{bin 名}} skills list
-```
-
-**第 3 步:配置凭证**
-
-{{按鉴权类型填,见 §3 三种分支}}
-
-## 功能
-
-覆盖 {{业务域}}:
-
-| 模块 | 说明 |
-|------|------|
-| `{{namespace}}` | {{一句话}} |
-| ... | ... |
-
-## 常用命令
-
-```bash
-{{bin 名}} {{namespace}} {{cmd}} --json    # {{用途}}
-... (5-8 个常用示例)
-```
-
-加 `--dryRun` 仅校验不提交;完整命令见 `{{bin 名}} --help`。
-
-## 输出契约
-
-遵循 agent-data-cli 统一输出格式:`{ ok, source, data, meta }`。列表命令自动计算 `meta.pagination.complete`。
-
-## 开发
-
-```bash
-pnpm --filter {{包名}} build       # 编译
-pnpm --filter {{包名}} test         # 测试
-pnpm --filter {{包名}} typecheck    # 类型检查
-```
-
-Skill 文档:`skills/{{skill 名}}/SKILL.md`。
-
-## 技术决策
-
-- **命名**:npm 包 `{{包名}}` / bin `{{bin 名}}` / skill `{{skill 名}}` / 凭证 namespace `{{ns}}`。
-- {{鉴权方式、业务码处理等关键决策,2-4 条}}
 ````
 
----
+Describe actual effects: global npm package, network downloads, Skill directories, configuration, and credentials. Do not claim steps the source does not perform.
 
-## 3. 「第 3 步:配置凭证」按鉴权类型分支
-
-对应主 SKILL.md §4 决策树,三种 CLI 类型配不同的凭证步骤:
-
-### 类型 A:无鉴权(公开 API / 内网)
-
-没有第 3 步。README 的快速开始只有两步(装 CLI + 装 Skill)。简介里注明"无需鉴权,直接可用"。
-
-### 类型 B:OAuth 鉴权(defineAuth 工厂)
-
-```markdown
-**第 3 步:配置凭证**
-
-首次使用需注册 + 登录(OAuth device flow):
+Offer manual installation for troubleshooting:
 
 ```bash
-{{bin 名}} auth register --token <注册令牌>   # 首次注册(令牌从管理员获取)
-{{bin 名}} auth login                          # 浏览器扫码授权
+npm install -g {{package-name}}
+{{bin}} skills sync --json
+{{bin}} --help
 ```
 
-验证:`{{bin 名}} auth status` 显示已登录。
-```
+If the package has no `runInstallWizard`, do not document `npx <pkg> install`.
 
-> OAuth 的 login 是 device flow,README 里写 `auth login` 给人看(交互式扫码);SKILL.md 里必须写 split-flow 两步(给 agent 用,避免阻塞)。两者受众不同,写法不同。
+## 3. Authentication variants
 
-### 类型 C:静态密钥(手写 auth Plugin,如 API Key / HMAC)
+### No authentication
 
-```markdown
-**第 3 步:配置凭证**
+State that no login is required and omit an empty credentials section.
 
-凭证从 {{系统}}「{{入口}}」获取,两种方式任选:
+### OAuth / `defineAuth`
+
+For human terminal users:
 
 ```bash
-# 方式 A:持久化(推荐,写 ~/.rxcli/credentials/{{ns}}.json)
-{{bin 名}} auth login --access-key <AK> --secret-key <SK>
-
-# 方式 B:环境变量(CI / 临时)
-export {{PREFIX}}_ACCESS_KEY=<AK>
-export {{PREFIX}}_SECRET_KEY=<SK>
+{{bin}} auth register
+{{bin}} auth login
+{{bin}} auth status --json
 ```
 
-验证:`{{bin 名}} whoami` 返回用户信息即凭证有效。
+Include registration only when the implementation requires dynamic client registration. Current interactive registration input is not masked, so instruct users to work in a private terminal. Never ask them to paste a real token into chat or recommend `--token <real-value>` in the README.
+
+The business Skill must document split-flow login for an agent; do not copy the blocking human command unchanged.
+
+### Static credentials or custom auth
+
+Do not show long-lived secrets as command arguments. Prefer controlled environment variables or a genuinely masked prompt implemented by the product:
+
+```bash
+export MY_CLI_API_KEY="<read from your secure credential system>"
+{{bin}} auth status --json
 ```
 
----
+Never claim at-rest encryption unless the storage implementation and tests prove it.
 
-## 4. 一键安装 `npx <pkg> install`
+## 4. Output and development
 
-框架自带 install 向导(`runInstallWizard`),入口拦截 `argv[0]==='install'`。向导自动跑:
+Match output copy to `defaultFormat`:
 
-| 步骤 | 动作 | 适用 |
-| ---- | ---- | ---- |
-| ① | `npm install -g <包名>` | 全局装 CLI |
-| ② | `npx skills add` 或 `<bin> skills sync` | 装 Skill 到已装的 agent 发现目录(`~/.agents` 始终写 + 探测到的) |
-| ③ | `<bin> auth register` | 注册(OAuth CLI 才有,静态密钥跳过) |
-| ④ | `<bin> auth login` | 登录授权(OAuth:浏览器;静态密钥:存 key) |
+```markdown
+Agents and scripts should pass `--json`. Successful data goes to stdout; errors and logs go to stderr.
+```
 
-**README 写法**:一键安装作为首选,手动三步作为备选(等价)。用户可一条命令完成安装,出问题时可分步排查。
+Do not claim pagination is automatic. Mention `complete` and `nextToken` only for commands that return `meta.pagination`.
 
-> 静态密钥 CLI 的向导步骤③④ 不完全适配(register 是 OAuth 概念),但这两步失败不阻断——①② 会正常完成。README 里注明即可。
+Derive command examples from `--help` and execute each one. Never add `--dryRun`, `--yes`, or another flag that is not defined.
 
----
+List only real scripts:
 
-## 5. 避坑(基于实践)
+```bash
+pnpm --filter {{package-name}} typecheck
+pnpm --filter {{package-name}} build
+pnpm --filter {{package-name}} test
+```
 
-1. **勿漏「装 Skill」步骤** —— 用户 `npm install -g` 装了 CLI,但未跑 `skills sync`,AI 工具读不到 skill → 不触发。README 的快速开始必须含这一步。
+Record only maintenance-critical decisions, such as package/bin/namespace mapping, auth strategy, and error mapping.
 
-2. **包名 / bin / skill 目录 / namespace 要一致** —— 对应主 SKILL.md §2 命名检查。README 里将这四个名字列清楚(技术决策节),避免文档和代码漂移。
+## 5. Release checks
 
-3. **README 和 SKILL.md 的安装步骤需同步** —— README 给人看(可交互),SKILL.md 给 agent 看(split-flow 非阻塞)。内容对齐但写法不同。
-
-4. **常用命令不超过 8 个** —— 挑常用的(列表/详情/搜索/统计/新增),其余指向 `--help`。过多会导致用户难以抓住重点。
-
-5. **技术决策节记录"为什么这么做"** —— 例如"手写 auth plugin 而非 defineAuth,因为框架 injectAuthHeader 只支持单 header"。这些决策在 README 里一句话带过,给后续维护者/读者交代关键取舍。
+- [ ] Package, bin, Node.js version, and scripts match `package.json`.
+- [ ] Every example matches current `--help` and runs.
+- [ ] Installation, login, writes, and network effects are disclosed.
+- [ ] Examples contain no real credentials, personal data, production IDs, or private endpoints.
+- [ ] JSON, errors, pagination, and exit-code descriptions match execution.
+- [ ] Human README and agent Skill installation semantics agree.
+- [ ] Package dry-run contains README, dist, Skills, and references.
