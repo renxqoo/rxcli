@@ -12,6 +12,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- CRM 订单分页帮助、双语 README 和 Skill 统一使用实际 JSON wire 字段 `meta.pagination.next_token`，并同步 mock 订单金额示例。
+
 ## [@renxqoo/agent-data-cli@1.2.0] - 2026-08-10
 
 ### Added
