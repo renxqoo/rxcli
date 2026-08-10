@@ -317,8 +317,8 @@ async function stepInstallGlobally(msg: Messages, pkgName: string): Promise<numb
 
 /**
  * 安装 skills。skillsSource 决定路径:
- *   - 空/未设 → 本地 rxcli skills sync(用包内 skills/,不跑 npx)
- *   - 设了 → npx skills add <url> 主路径,失败回退本地 sync
+ *   - 空/未设 → 本地 rxcli skills sync(用包内 skills/,写入 7 个默认 agent 发现目录)
+ *   - 设了 → npx skills add <url> 主路径(覆盖 30+ 工具),失败回退本地 sync
  */
 async function stepInstallSkills(
   msg: Messages,
@@ -339,7 +339,7 @@ async function stepInstallSkills(
         s.message(msg.step2FailNpx);
       }
     }
-    // 回退/默认路径:本地 rxcli skills sync(只写 ~/.agents/skills/,用包内 skills/)
+    // 回退/默认路径:本地 rxcli skills sync(写入所有默认 agent 发现目录:7 个工具,用包内 skills/)
     const rxcli = whichBin(opts.binName);
     if (rxcli) {
       await runSilentAsync(rxcli, ["skills", "sync"], { timeout: 60000 });

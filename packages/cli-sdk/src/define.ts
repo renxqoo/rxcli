@@ -175,12 +175,17 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
   // gen/help 用 binName(终端命令名);命名空间用 name
   const namespaces = { ...mergedNamespaces };
   if (skillsDir) {
-    const builtins = createBuiltinSkillsCommands(binName, skillsDir, {
-      name,
+    const builtins = createBuiltinSkillsCommands(
       binName,
-      commands,
-      namespaces: mergedNamespaces,
-    });
+      skillsDir,
+      {
+        name,
+        binName,
+        commands,
+        namespaces: mergedNamespaces,
+      },
+      options.skillsTargets,
+    );
     namespaces.skills = { ...builtins, ...mergedNamespaces.skills };
   }
 

@@ -72,7 +72,7 @@ agent / end user
 npx @renxqoo/rxstock install
 ```
 
-This automatically does two things: ① globally installs the CLI → ② installs the Skill to `~/.agents/skills/` (the AI tool discovery path). Requires Node ≥ 20. No API key needed — works out of the box.
+This automatically does two things: ① globally installs the CLI → ② installs the Skill to your AI-tool discovery dirs (`~/.agents` always + any installed tool among `~/.claude`/`~/.codex`/`~/.cursor`/`~/.zcode`/`~/.openclaw`/`~/.pi`, auto-detected). Requires Node ≥ 20. No API key needed — works out of the box.
 
 > `npx` requires no pre-install; after running you get the global `rxstock` command plus the skill in place.
 
@@ -90,7 +90,7 @@ After install, run `rxstock --help` to confirm it works. Don't want a global ins
 
 **Step 2: Install the Skill (so AI tools can discover it)**
 
-Sync the skill to `~/.agents/skills/` (the common discovery path for AI tools such as Claude Code / Cursor / Trae):
+Sync the skill to your AI-tool discovery dirs (`~/.agents` always + any installed tool like `~/.claude`/`~/.cursor`/`~/.zcode`, auto-detected — for Claude Code / Cursor / Codex / ZCode / OpenClaw / Pi / Trae):
 
 ```bash
 rxstock skills sync

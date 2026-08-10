@@ -37,7 +37,7 @@
 npx {{包名}} install
 ```
 
-自动完成:① 全局安装 CLI → ② 安装 Skill 到 `~/.agents/skills/` → ③ 凭证配置。需 Node ≥ 20。
+自动完成:① 全局安装 CLI → ② 安装 Skill 到你的 AI 工具发现目录(`~/.agents` 始终写 + 已装工具自动探测)→ ③ 凭证配置。需 Node ≥ 20。
 
 ### 手动安装(分步,等价于一键)
 
@@ -55,7 +55,7 @@ npm install -g {{包名}}
 {{bin 名}} skills sync
 ```
 
-同步到 `~/.agents/skills/`(Claude Code / Cursor / Trae 等的通用发现路径)。验证:
+同步到你的 AI 工具发现目录(`~/.agents` 始终写 + 已装工具如 `~/.claude`/`~/.cursor`/`~/.zcode` 自动探测——覆盖 Claude Code / Cursor / Codex / ZCode / OpenClaw / Pi / Trae)。验证:
 
 ```bash
 {{bin 名}} skills list
@@ -158,7 +158,7 @@ export {{PREFIX}}_SECRET_KEY=<SK>
 | 步骤 | 动作 | 适用 |
 | ---- | ---- | ---- |
 | ① | `npm install -g <包名>` | 全局装 CLI |
-| ② | `npx skills add` 或 `<bin> skills sync` | 装 Skill 到 `~/.agents/skills/` |
+| ② | `npx skills add` 或 `<bin> skills sync` | 装 Skill 到已装的 agent 发现目录(`~/.agents` 始终写 + 探测到的) |
 | ③ | `<bin> auth register` | 注册(OAuth CLI 才有,静态密钥跳过) |
 | ④ | `<bin> auth login` | 登录授权(OAuth:浏览器;静态密钥:存 key) |
 

@@ -166,6 +166,7 @@ defineCli({
   errorOnStatus: { 404: "not_found" },   // 可选:status→自动 throw
   defaultFormat: "auto",  // 可选:'auto' | 'json' | 'human'(详见 §6)
   skillsDir: "./skills",  // 可选:启用 skill 系统
+  skillsTargets: [...],   // 可选:skill 同步目标(省略=默认 7 个 agent 目录;详见 §7)
 });
 ```
 
@@ -331,6 +332,8 @@ rx-todos skills gen rx-todos --init        # 首次:生成 SKILL.md 骨架(带 A
 # 手工填语义部分(何时用、错误处理、前置条件)
 rx-todos skills gen rx-todos               # 后续改命令:只刷 AUTO-GEN 块,语义部分不动
 ```
+
+**`skills sync` 默认探测式安装**:只往用户**已装的** agent 工具目录写(`~/.agents/skills` 始终写 + 其余只写父目录已存在的,如 `~/.claude`),避免给只装 1-2 个工具的用户创建空目录。单个目录失败不中断其余。业务包可用 `defineCli({ skillsTargets })` 显式指定列表(配了则强制全写,不走探测)。详见 `references/skill-gen.md`「自定义同步目标」。
 
 frontmatter `description` 决定 agent 何时触发——写清楚"何时用",别只写"是什么":
 

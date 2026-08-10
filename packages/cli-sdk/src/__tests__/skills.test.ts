@@ -5,6 +5,14 @@ import { join } from "node:path";
 import { cleanSubPath, listPath } from "../skills/reader.js";
 import { syncSkills } from "../skills/sync.js";
 import {
+  DEFAULT_SKILL_TARGETS,
+  resolveSkillTargets,
+  resolveActiveTargets,
+  isTargetInstalled,
+  expandTargetDir,
+  type SkillTarget,
+} from "../skills/targets.js";
+import {
   signatureLine,
   argsTable,
   generateAutogenBlock,
@@ -394,5 +402,282 @@ describe("M7: listPath 错误处理", () => {
     writeFileSync(join(tmpRoot, "orders", "refs", "a.md"), "x");
     // listPath 指向文件应给 contract_violation 提示,而非裸错误
     expect(() => listPath(tmpRoot, "orders/refs/a.md")).toThrow(/file, not a directory|不是目录/);
+  });
+});
+
+// ============================================================================
+// targets 组件:默认列表 / 覆盖 / 展开
+// ============================================================================
+describe("targets 组件:默认列表 + 覆盖 + 展开", () => {
+  it("DEFAULT_SKILL_TARGETS 含 7 个主流工具,key 唯一", () => {
+    expect(DEFAULT_SKILL_TARGETS.length).toBe(7);
+    const keys = DEFAULT_SKILL_TARGETS.map((t) => t.key);
+    expect(new Set(keys).size).toBe(keys.length); // key 唯一
+    // 覆盖用户点名的 7 个工具
+    for (const k of ["agents", "claude", "codex", "cursor", "zcode", "openclaw", "pi"]) {
+      expect(keys).toContain(k);
+    }
+  });
+
+  it("默认 dir 都以 ~/ 开头(可读形式,展开前)", () => {
+    for (const t of DEFAULT_SKILL_TARGETS) {
+      expect(t.dir.startsWith("~/")).toBe(true);
+    }
+  });
+
+  it("resolveSkillTargets(undefined) → 默认列表副本(改副本不影响原)", () => {
+    const a = resolveSkillTargets();
+    const b = resolveSkillTargets();
+    expect(a).toEqual([...DEFAULT_SKILL_TARGETS]);
+    expect(a).not.toBe(DEFAULT_SKILL_TARGETS); // 返回副本,非原引用
+    expect(a).not.toBe(b);
+  });
+
+  it("resolveSkillTargets(非空) → 完全覆盖默认", () => {
+    const custom: SkillTarget[] = [{ key: "mytool", dir: "/tmp/mytool-skills" }];
+    expect(resolveSkillTargets(custom)).toEqual(custom);
+    // 不含默认的 claude
+    expect(resolveSkillTargets(custom).some((t) => t.key === "claude")).toBe(false);
+  });
+
+  it("resolveSkillTargets([]) → 空数组(关闭多 target)", () => {
+    expect(resolveSkillTargets([])).toEqual([]);
+  });
+
+  it("expandTargetDir 展开 ~ 和 ~/", () => {
+    expect(expandTargetDir("~/.claude/skills")).toMatch(/\/\.claude\/skills$/);
+    expect(expandTargetDir("~").length).toBeGreaterThan(0); // 展开成家目录绝对路径
+    // 不含 ~ 的路径原样返回
+    expect(expandTargetDir("/abs/path")).toBe("/abs/path");
+    expect(expandTargetDir("relative/path")).toBe("relative/path");
+    // Windows 风格 ~\ 也展开(跨平台兼容)
+    const winExpanded = expandTargetDir("~\\.claude\\skills");
+    expect(winExpanded).not.toContain("~");
+    expect(winExpanded.length).toBeGreaterThan(".claude".length);
+  });
+});
+
+// ============================================================================
+// 多 target 同步:syncSkills(skillsRoot, { targets })
+// ============================================================================
+describe("多 target 同步:syncSkills({ targets })", () => {
+  it("同步到多个 target 目录,返回汇总结果", () => {
+    makeSkill(tmpRoot, "alpha");
+    const dirA = mkdtempSync(join(tmpdir(), "rxcli-tgtA-"));
+    const dirB = mkdtempSync(join(tmpdir(), "rxcli-tgtB-"));
+    try {
+      const targets: SkillTarget[] = [
+        { key: "toolA", dir: dirA },
+        { key: "toolB", dir: dirB },
+      ];
+      const res = syncSkills(tmpRoot, { targets });
+      expect(res.count).toBe(1);
+      expect(res.targets).toHaveLength(2);
+      expect(res.targets.every((t) => t.ok)).toBe(true);
+      // 两个目录都有 skill
+      expect(existsSync(join(dirA, "alpha", "SKILL.md"))).toBe(true);
+      expect(existsSync(join(dirB, "alpha", "SKILL.md"))).toBe(true);
+      // destDir 是第一个成功 target
+      expect(res.destDir).toBe(dirA);
+    } finally {
+      rmSync(dirA, { recursive: true, force: true });
+      rmSync(dirB, { recursive: true, force: true });
+    }
+  });
+
+  it("单个 target 失败不中断其余,失败项带 error", () => {
+    makeSkill(tmpRoot, "beta");
+    const dirOk = mkdtempSync(join(tmpdir(), "rxcli-tgtOk-"));
+    // 非法路径:空字符串会让 mkdirSync 抛错
+    const badDir = "";
+    try {
+      const targets: SkillTarget[] = [
+        { key: "bad", dir: badDir },
+        { key: "ok", dir: dirOk },
+      ];
+      const res = syncSkills(tmpRoot, { targets });
+      const badRes = res.targets.find((t) => t.key === "bad");
+      const okRes = res.targets.find((t) => t.key === "ok");
+      expect(badRes?.ok).toBe(false);
+      expect(badRes?.error).toBeTruthy();
+      expect(okRes?.ok).toBe(true);
+      // 失败 target 不影响成功 target:ok 目录有 skill
+      expect(existsSync(join(dirOk, "beta", "SKILL.md"))).toBe(true);
+      // destDir 是成功 target(跳过失败的)
+      expect(res.destDir).toBe(dirOk);
+    } finally {
+      rmSync(dirOk, { recursive: true, force: true });
+    }
+  });
+
+  it("省略 targets → 用默认列表(7 个)", () => {
+    // 用显式 targets(绝对路径,指向临时目录)模拟"默认列表展开后"的样子,
+    // 验证 syncSkills 逐个同步。不依赖 homedir mock(ESM 静态绑定难 mock)。
+    makeSkill(tmpRoot, "gamma");
+    const fakeHome = mkdtempSync(join(tmpdir(), "rxcli-fakehome-"));
+    // 复刻默认 7 个 target,但 dir 用 fakeHome 下的绝对路径
+    const targets: SkillTarget[] = DEFAULT_SKILL_TARGETS.map((t) => ({
+      key: t.key,
+      dir: t.dir.replace(/^~/, fakeHome),
+    }));
+    try {
+      const res = syncSkills(tmpRoot, { targets });
+      expect(res.count).toBe(1);
+      expect(res.targets).toHaveLength(7);
+      const keys = res.targets.map((t) => t.key);
+      expect(keys).toEqual(DEFAULT_SKILL_TARGETS.map((t) => t.key));
+      expect(res.targets.every((t) => t.ok)).toBe(true);
+      // 逐个目录都有 skill
+      const claudeDir = res.targets.find((t) => t.key === "claude")!;
+      expect(existsSync(join(claudeDir.dir, "gamma", "SKILL.md"))).toBe(true);
+    } finally {
+      rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
+
+  it("{ destDir } 等价于只同步到一个目录", () => {
+    makeSkill(tmpRoot, "delta");
+    const only = mkdtempSync(join(tmpdir(), "rxcli-only-"));
+    try {
+      const res = syncSkills(tmpRoot, { destDir: only });
+      expect(res.targets).toHaveLength(1);
+      expect(res.targets[0]!.ok).toBe(true);
+      expect(res.destDir).toBe(only);
+      expect(existsSync(join(only, "delta", "SKILL.md"))).toBe(true);
+    } finally {
+      rmSync(only, { recursive: true, force: true });
+    }
+  });
+});
+
+// ============================================================================
+// 探测模式(detect):只写已装工具 + ~/.agents 兜底
+// ============================================================================
+describe("探测组件:isTargetInstalled / resolveActiveTargets", () => {
+  it("isTargetInstalled:父目录存在 → true", () => {
+    const fakeHome = mkdtempSync(join(tmpdir(), "rxcli-inst-home-"));
+    try {
+      // 模拟用户装了 claude(创建 ~/.claude)但没装 codex
+      mkdirSync(join(fakeHome, ".claude"), { recursive: true });
+      const installed = isTargetInstalled({
+        key: "claude",
+        dir: join(fakeHome, ".claude", "skills"),
+      });
+      const missing = isTargetInstalled({ key: "codex", dir: join(fakeHome, ".codex", "skills") });
+      expect(installed).toBe(true); // ~/.claude 存在
+      expect(missing).toBe(false); // ~/.codex 不存在
+    } finally {
+      rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
+
+  it("resolveActiveTargets:~/.agents 始终纳入,其余只留已装的", () => {
+    const fakeHome = mkdtempSync(join(tmpdir(), "rxcli-active-home-"));
+    try {
+      // 模拟用户只装了 claude + cursor
+      mkdirSync(join(fakeHome, ".claude"), { recursive: true });
+      mkdirSync(join(fakeHome, ".cursor"), { recursive: true });
+      // candidates:复刻默认 7 个,dir 指向 fakeHome
+      const candidates: SkillTarget[] = DEFAULT_SKILL_TARGETS.map((t) => ({
+        key: t.key,
+        dir: t.dir.replace(/^~/, fakeHome),
+      }));
+      const active = resolveActiveTargets(candidates);
+      const keys = active.map((t) => t.key);
+      // ~/.agents 始终在(兜底,即便 ~/.agents 目录没创建)
+      expect(keys).toContain("agents");
+      // 已装的 claude / cursor 在
+      expect(keys).toContain("claude");
+      expect(keys).toContain("cursor");
+      // 没装的 codex / zcode / openclaw / pi 不在
+      expect(keys).not.toContain("codex");
+      expect(keys).not.toContain("zcode");
+      expect(keys).not.toContain("openclaw");
+      expect(keys).not.toContain("pi");
+      // 总共 3 个:agents + claude + cursor
+      expect(active).toHaveLength(3);
+    } finally {
+      rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
+
+  it("resolveActiveTargets:用户一个工具都没装 → 只剩 agents 兜底", () => {
+    const fakeHome = mkdtempSync(join(tmpdir(), "rxcli-empty-home-"));
+    try {
+      const candidates: SkillTarget[] = DEFAULT_SKILL_TARGETS.map((t) => ({
+        key: t.key,
+        dir: t.dir.replace(/^~/, fakeHome),
+      }));
+      const active = resolveActiveTargets(candidates);
+      expect(active).toHaveLength(1);
+      expect(active[0]!.key).toBe("agents");
+    } finally {
+      rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
+
+  it("resolveActiveTargets:去重(agents 不重复)", () => {
+    const candidates: SkillTarget[] = [
+      { key: "agents", dir: "/tmp/x/.agents/skills" },
+      { key: "agents", dir: "/tmp/y/.agents/skills" }, // 同 key 重复
+      { key: "claude", dir: "/tmp/x/.claude/skills" },
+    ];
+    const active = resolveActiveTargets(candidates);
+    const agentsCount = active.filter((t) => t.key === "agents").length;
+    expect(agentsCount).toBe(1); // 只保留第一个
+  });
+});
+
+describe("探测模式同步:syncSkills() 省略 opts → 探测", () => {
+  it("默认探测:只写 ~/.agents + 已装工具,未装的记 skipped", () => {
+    makeSkill(tmpRoot, "epsilon");
+    const fakeHome = mkdtempSync(join(tmpdir(), "rxcli-detect-home-"));
+    try {
+      // 模拟用户只装了 claude
+      mkdirSync(join(fakeHome, ".claude"), { recursive: true });
+      // mock homedir → 用显式 targets + detect:true 模拟(避开 ESM homedir mock 难题)
+      const targets: SkillTarget[] = DEFAULT_SKILL_TARGETS.map((t) => ({
+        key: t.key,
+        dir: t.dir.replace(/^~/, fakeHome),
+      }));
+      const res = syncSkills(tmpRoot, { targets, detect: true });
+      const written = res.targets.filter((t) => t.ok);
+      const skipped = res.targets.filter((t) => t.skipped);
+      // 写入:agents(兜底) + claude(已装)= 2
+      expect(written.map((t) => t.key).sort()).toEqual(["agents", "claude"]);
+      expect(existsSync(join(fakeHome, ".agents", "skills", "epsilon", "SKILL.md"))).toBe(true);
+      expect(existsSync(join(fakeHome, ".claude", "skills", "epsilon", "SKILL.md"))).toBe(true);
+      // 跳过:codex/cursor/zcode/openclaw/pi = 5
+      expect(skipped.map((t) => t.key).sort()).toEqual([
+        "codex",
+        "cursor",
+        "openclaw",
+        "pi",
+        "zcode",
+      ]);
+      // 跳过的目录不应被创建
+      expect(existsSync(join(fakeHome, ".codex", "skills"))).toBe(false);
+      expect(existsSync(join(fakeHome, ".cursor", "skills"))).toBe(false);
+    } finally {
+      rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
+
+  it("detect:false(显式 targets 默认)→ 强制全写,不探测", () => {
+    makeSkill(tmpRoot, "zeta");
+    const fakeHome = mkdtempSync(join(tmpdir(), "rxcli-nodetect-home-"));
+    try {
+      // 没装任何工具
+      const targets: SkillTarget[] = DEFAULT_SKILL_TARGETS.map((t) => ({
+        key: t.key,
+        dir: t.dir.replace(/^~/, fakeHome),
+      }));
+      const res = syncSkills(tmpRoot, { targets }); // detect 默认 false
+      const written = res.targets.filter((t) => t.ok);
+      expect(written).toHaveLength(7); // 全写
+      expect(res.targets.filter((t) => t.skipped)).toHaveLength(0); // 无跳过
+    } finally {
+      rmSync(fakeHome, { recursive: true, force: true });
+    }
   });
 });

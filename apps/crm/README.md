@@ -46,7 +46,7 @@ company business system (orders/products/invoices/accounts API)
 npx @renxqoo/cli install
 ```
 
-Automatically performs three steps: ① globally install the CLI → ② install skills to `~/.agents/skills/` (the discovery path for AI tools) → ③ register + login. Requires Node ≥ 20.
+Automatically performs three steps: ① globally install the CLI → ② install skills to your AI-tool discovery dirs (`~/.agents` always + any installed tool among `~/.claude`/`~/.codex`/`~/.cursor`/`~/.zcode`/`~/.openclaw`/`~/.pi`, auto-detected) → ③ register + login. Requires Node ≥ 20.
 
 > No need to pre-install `npx`; once finished you get a global `rxcli` command plus skills in place.
 
@@ -64,7 +64,7 @@ After installing, run `rxcli --help` to confirm it works. Don't want a global in
 
 **Step 2: Install skills (so AI tools can discover them)**
 
-Sync skills to `~/.agents/skills/` (the common discovery path for AI tools like Claude Code / Cursor / Trae):
+Sync skills to your AI-tool discovery dirs (`~/.agents` always + any installed tool like `~/.claude`/`~/.cursor`/`~/.zcode`, auto-detected — for Claude Code / Cursor / Codex / ZCode / OpenClaw / Pi / Trae):
 
 ```bash
 rxcli skills sync
@@ -126,7 +126,7 @@ rxcli auth logout                                   # logout
 rxcli qrcode <url>              # turn a URL into a QR code (ASCII / PNG)
 rxcli skills list               # list all skills
 rxcli skills read <name>        # read a skill's docs
-rxcli skills sync               # sync skills to ~/.agents/skills/
+rxcli skills sync               # sync skills to all agent discovery dirs
 rxcli skills gen <name>         # generate/refresh command docs
 ```
 
@@ -172,7 +172,7 @@ rxcli orders list --no-json | jq '.data'
 
 ### AI agent integration
 
-AI agents read the SKILL.md files under `~/.agents/skills/` and automatically learn all commands:
+AI agents read the SKILL.md files under their discovery dirs (e.g. `~/.agents/skills/`, `~/.claude/skills/`, `~/.codex/skills/`) and automatically learn all commands:
 
 ```
 User: Help me check my recent orders

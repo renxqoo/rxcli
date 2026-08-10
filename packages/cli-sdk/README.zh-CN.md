@@ -41,7 +41,7 @@
 - **🔌 vite 式插件** —— beforeCommand/beforeRequest/afterRequest/beforeOutput/onError 钩子 + `provides` 自动贡献命令。
 - **🔑 provider chain** —— flag/env/file/oauth 四级凭证解析优先级,业务自定义凭证源。
 - **🚇 unix 管道** —— `rxcli orders list | rxcli report` 自动把上游统一输出格式拆成记录流。
-- **📖 skill 系统** —— SKILL.md 命令文档自动生成,同步到 `~/.agents/skills/`,供 AI agent 自服务发现。
+- **📖 skill 系统** —— SKILL.md 命令文档自动生成,同步到用户已装的 AI agent 发现目录(`~/.agents` 始终写 + 探测到的 `~/.claude`/`~/.codex`/`~/.cursor`/`~/.zcode`/`~/.openclaw`/`~/.pi`),供 AI agent 自服务发现。
 - **🖥️ 双模输出** —— 默认 `auto`(TTY 文本、脚本/管道 JSON);`--json` / `--no-json` 显式覆盖；`defaultFormat` 可固定默认。
 - **🧙 install 向导** —— 全局安装 + skills 装载 + 注册 + 登录引导,业务包拦截 `install` 命令即可。
 
@@ -146,6 +146,7 @@ defineCli({
   errorOnStatus: { 404: 'not_found', '5xx': 'server_error' },  // 可选
   defaultFormat: 'auto',           // 可选:'auto'(默认)|'json'|'human'
   skillsDir: './skills',           // 可选:skill 目录
+  skillsTargets: [...],            // 可选:skill 同步目标(省略=默认 7 个 agent 目录)
 })
 ```
 
