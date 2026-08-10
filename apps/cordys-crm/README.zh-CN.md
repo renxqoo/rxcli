@@ -101,7 +101,7 @@ rxcordys util raw GET /lead/view/view                  # 透传未覆盖端点
 
 ```bash
 pnpm --filter @renxqoo/rxcordys-cli build       # 编译
-pnpm --filter @renxqoo/rxcordys-cli test         # 测试(61 用例)
+pnpm --filter @renxqoo/rxcordys-cli test         # 测试(64 用例)
 pnpm --filter @renxqoo/rxcordys-cli typecheck    # 类型检查
 ```
 

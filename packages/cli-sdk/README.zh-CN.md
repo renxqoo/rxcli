@@ -15,7 +15,7 @@
 
 让 AI agent(或脚本、管道)消费你的业务数据时,有个核心矛盾:**后端接口千差万别**(REST/GraphQL/RPC、OAuth/API-key/mTLS、各种字段命名),但"把数据交给 agent 的方式"是通用的。
 
-`agentdatacli` 把前者交给业务包,后者收敛成框架能力:
+`agent-data-cli` 把前者交给业务包,后者收敛成框架能力:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -50,6 +50,8 @@
 | 业务包                                   | 场景                   | 鉴权模式          | 看点                                                  |
 | ---------------------------------------- | ---------------------- | ----------------- | ----------------------------------------------------- |
 | [`@renxqoo/rxstock`](../../apps/a-stock) | A 股行情/财务/技术指标 | 无(公开数据)      | 多源 fallback、统一 fallback 执行器、技术指标本地计算 |
+| [`@renxqoo/rx60s-cli`](../../apps/60s)   | 日常资讯(新闻/热搜/天气) | 无(公开数据)    | 60+ 接口来自 vikiboss/60s,自动缓存 |
+| [`@renxqoo/rxcordys-cli`](../../apps/cordys-crm) | Cordys CRM(线索/合同/订单) | 静态双 header | L2C 全流程,手写 auth 插件 |
 | [`@renxqoo/cli`](../../apps/crm)         | 公司业务(订单/商品)    | OAuth device flow | 中间层鉴权、split-flow 登录、install 向导             |
 
 ---
@@ -62,7 +64,7 @@ npm install @renxqoo/agent-data-cli
 pnpm add @renxqoo/agent-data-cli
 ```
 
-> **要求** Node.js >= 18
+> **要求** Node.js >= 20
 
 ---
 
@@ -273,7 +275,7 @@ const myPlugin: Plugin = {
 | [`03-envelopes.md`](docs/03-envelopes.md)     | 统一输出字段契约                    |
 | [`04-errors.md`](docs/04-errors.md)           | 9 类错误、何时 throw            |
 | [`05-credentials.md`](docs/05-credentials.md) | provider chain、自定义凭证      |
-| [`06-skills.md`](docs/06-skills.md)           | skill 系统、命令文档自动生成    |
+| [`06-skills.md`](docs/06-skills.md)           | skill 系统、命令文档自动生成(`--lang en|zh`)    |
 
 ### Agent Skill:agent-cli-builder
 

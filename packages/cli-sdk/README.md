@@ -51,6 +51,8 @@ When an AI agent (or script, or pipeline) consumes your business data, there's a
 | Package                                 | Scenario                        | Auth mode         | Highlights                                              |
 | --------------------------------------- | ------------------------------- | ----------------- | ------------------------------------------------------- |
 | [`@renxqoo/rxstock`](../../apps/a-stock) | A-share quotes/financials/indicators | None (public data) | Multi-source fallback, unified fallback executor, local indicator computation |
+| [`@renxqoo/rx60s-cli`](../../apps/60s)  | Daily info (news/trending/weather) | None (public data) | 60+ endpoints from vikiboss/60s, auto caching |
+| [`@renxqoo/rxcordys-cli`](../../apps/cordys-crm) | Cordys CRM (leads/contracts/orders) | Static dual headers | Full L2C pipeline, hand-written auth plugin |
 | [`@renxqoo/cli`](../../apps/crm)        | Company business (orders/products) | OAuth device flow | Middleware auth, split-flow login, install wizard       |
 
 ---
@@ -63,7 +65,7 @@ npm install @renxqoo/agent-data-cli
 pnpm add @renxqoo/agent-data-cli
 ```
 
-> **Requires** Node.js >= 18
+> **Requires** Node.js >= 20
 
 ---
 
@@ -274,7 +276,7 @@ const myPlugin: Plugin = {
 | [`03-envelopes.md`](docs/03-envelopes.md)   | Unified output field contract                 |
 | [`04-errors.md`](docs/04-errors.md)         | 9 error classes, when to throw                |
 | [`05-credentials.md`](docs/05-credentials.md) | Provider chain, custom credentials          |
-| [`06-skills.md`](docs/06-skills.md)         | Skill system, command doc auto-generation     |
+| [`06-skills.md`](docs/06-skills.md)         | Skill system, command doc auto-generation (`--lang en|zh`)     |
 
 ### Agent Skill: agent-cli-builder
 
