@@ -1,89 +1,38 @@
-# 错误完整目录 + errorOnStatus 推荐配置
+# Error Catalog and Status Mapping
 
-> 主 SKILL.md 讲了 9 个 Category,这里给完整 subtype 速查表 + 推荐配置。
+Use this reference for standard error categories, subtypes, exit codes, and `errorOnStatus`.
 
----
+## Contents
 
-## 1. 全部 subtype 速查
+1. Categories and subtypes
+2. Recommended `errorOnStatus`
+3. Typed error examples
+4. Wrapping, redaction, and `BareError`
 
-### validation (exit 2)
+## 1. Categories and subtypes
 
-| subtype            | 用法                              | example            |
-| ------------------ | --------------------------------- | ------------------ |
-| `invalid_argument` | flag/位置参数不合法(类型错、值错) | `--limit` 不是数字 |
-| `missing_required` | 必填参数没传                      | 漏了 `<id>`        |
-| `out_of_range`     | 值在范围外(数量超限、日期错)      | `--limit 9999`     |
+| Category         | Exit | Standard subtypes                                                                  |
+| ---------------- | ---: | ---------------------------------------------------------------------------------- |
+| `validation`     |    2 | `invalid_argument`, `missing_required`, `out_of_range`                             |
+| `authentication` |    3 | `no_token`, `token_expired`, `token_revoked`, `no_credentials`, `no_refresh_token` |
+| `authorization`  |    3 | `missing_scope`, `app_permission_denied`, `forbidden`                              |
+| `config`         |    3 | `missing_config`, `invalid_config`, `unbound_env`                                  |
+| `network`        |    4 | `timeout`, `connection_refused`, `dns_failure`, `ssl_error`                        |
+| `api`            |    1 | `not_found`, `already_exists`, `conflict`, `rate_limited`, `server_error`          |
+| `policy`         |    6 | `content_blocked`, `challenge_required`, `access_denied`                           |
+| `internal`       |    5 | `decode_failure`, `unknown`, `contract_violation`                                  |
+| `confirmation`   |   10 | `high_risk_write`                                                                  |
 
-### authentication (exit 3) — 没登录
+Use `internal` only for framework or unexpected implementation failures. Business code should not use it as a generic fallback.
 
-| subtype            | 用法                                         |
-| ------------------ | -------------------------------------------- |
-| `no_token`         | 完全没凭证                                   |
-| `token_expired`    | access token 过期且 refresh 失败(需重新登录) |
-| `token_revoked`    | 主动吊销或服务端拒绝                         |
-| `no_credentials`   | 没配置凭证(provider chain 全 null)           |
-| `no_refresh_token` | OAuth 流程缺 refresh_token                   |
+Useful semantics:
 
-### authorization (exit 3) — 登录了但缺权限
+- `rate_limited` and 5xx `server_error` are retryable.
+- `not_found` has the `errs.NotFoundError` convenience constructor.
+- `missing_scope` may include a machine-readable `missingScopes` array.
+- `high_risk_write` should include a concrete confirmation hint.
 
-| subtype                 | 用法           | 扩展字段                  |
-| ----------------------- | -------------- | ------------------------- |
-| `missing_scope`         | token 缺 scope | `missingScopes: string[]` |
-| `app_permission_denied` | 应用级权限不足 | —                         |
-| `forbidden`             | 通用 403       | —                         |
-
-### config (exit 3)
-
-| subtype          | 用法                          |
-| ---------------- | ----------------------------- |
-| `missing_config` | 本地配置缺失(如 baseUrl 没设) |
-| `invalid_config` | 配置值不合法                  |
-| `unbound_env`    | 环境变量没绑定                |
-
-### network (exit 4, 默认 `retryable:true`)
-
-| subtype              | 用法         |
-| -------------------- | ------------ |
-| `timeout`            | 请求超时     |
-| `connection_refused` | 连接拒绝     |
-| `dns_failure`        | DNS 解析失败 |
-| `ssl_error`          | TLS/SSL 错误 |
-
-### api (exit 1)
-
-| subtype          | 用法               | 备注                                  |
-| ---------------- | ------------------ | ------------------------------------- |
-| `not_found`      | 资源不存在(404)    | `NotFoundError(msg)` 快捷写法         |
-| `already_exists` | 创建时冲突(409)    | 唯一索引冲突                          |
-| `conflict`       | 业务冲突(状态机错) | —                                     |
-| `rate_limited`   | 限流(429)          | `retryable:true` + `Retry-After` hint |
-| `server_error`   | 5xx                | `retryable:true`(>=500)               |
-
-### policy (exit 6)
-
-| subtype              | 用法                 |
-| -------------------- | -------------------- |
-| `content_blocked`    | 内容触发风控         |
-| `challenge_required` | 需要验证码 / MFA     |
-| `access_denied`      | IP 黑名单 / 地理限制 |
-
-### internal (exit 5) — SDK 不该发生
-
-| subtype              | 用法                     |
-| -------------------- | ------------------------ |
-| `decode_failure`     | 响应 JSON 解析失败       |
-| `unknown`            | 兜底(裸 Error 被包装)    |
-| `contract_violation` | SDK 契约违反(框架内部用) |
-
-### confirmation (exit 10)
-
-| subtype           | 用法             | hint 模板           |
-| ----------------- | ---------------- | ------------------- |
-| `high_risk_write` | 高危写入需要确认 | `加 --yes 跳过确认` |
-
----
-
-## 2. 推荐 errorOnStatus 配置
+## 2. Recommended `errorOnStatus`
 
 ```ts
 defineCli({
@@ -94,184 +43,94 @@ defineCli({
     429: "rate_limited",
     "5xx": "server_error",
   },
+  // ...
 });
 ```
 
-| status | subtype          | → Category               | → exit |
-| ------ | ---------------- | ------------------------ | :----: |
-| 403    | `forbidden`      | authorization            |   3    |
-| 404    | `not_found`      | api                      |   1    |
-| 409    | `already_exists` | api                      |   1    |
-| 429    | `rate_limited`   | api(自动 retryable:true) |   1    |
-| 5xx    | `server_error`   | api(自动 retryable:true) |   1    |
+Values are subtype strings, not constructors. `defineCli` validates status keys and registered subtypes during assembly.
 
-`errorOnStatus` 的值**只写 subtype 字符串**,不写构造器名。cli-sdk 自动从 subtype 注册表查 Category 选构造器。
+401 is reserved for authentication handling. The transport attempts one auth refresh and retry; a final 401 becomes `AuthenticationError(token_expired)`. Do not depend on an `errorOnStatus` entry for 401.
 
-401 是请求层保留状态：框架会尝试一次 auth refresh/retry，最终仍为 401 时固定抛 `AuthenticationError(token_expired)`；不需要也不应依赖 `errorOnStatus` 配置 401。
+Use global mapping when every command gives the status the same meaning. Handle a status inside `run` when its business meaning or hint differs by command. Never configure and manually inspect the same status: mapped responses throw before `ctx.*` returns.
 
----
-
-## 3. 何时用 `errorOnStatus`,何时手写 if
-
-**用 `errorOnStatus` 的场景**:
-
-- 业务错误语义和 HTTP status 完全对齐(如 404 = 不存在)
-- 多个命令都要同样处理(集中配)
-
-**手写 if 的场景**:
-
-- 同一 status 在不同命令下语义不同(如 404 在 `get` 是"资源不存在",在 `create` 是"父资源不存在")
-- 想给特定 status 加业务专属 hint
-- 想给特定 status 加扩展字段(如 `missingScopes`)
-
-```ts
-// 该 status 需要命令专属语义时，不要把它放进全局 errorOnStatus
-get: defineCommand({
-  async run({ id }, ctx) {
-    const res = await ctx.get(`/orders/${id}`)
-    // 特殊:404 在这里给业务专属 hint
-    if (res.status === 404) {
-      throw new errs.NotFoundError(`订单 ${id} 不存在,可能属于其他用户`)
-    }
-    return { data: res.data }
-  },
-}),
-```
-
-已配置进 `errorOnStatus` 的响应会在 `ctx.get/post/...` 返回前抛出，因此命令内同 status 的 `if` 分支不可达，不能用于覆盖全局映射。
-
----
-
-## 4. 完整错误抛出示例
+## 3. Typed error examples
 
 ```ts
 import { errs } from "@renxqoo/agent-data-cli";
 
-// ① 参数错误
 throw new errs.ValidationError({
-  subtype: "invalid_argument",
+  subtype: "out_of_range",
   param: "--limit",
-  message: "--limit 必须为 1-100 的正数",
-  hint: "使用 --limit 30(默认) 或 --limit 1-100",
+  message: "--limit must be from 1 to 100",
+  hint: "Use --limit 20 or another value from 1 to 100",
 });
 
-// ② 必填参数缺失
-throw new errs.ValidationError({
-  subtype: "missing_required",
-  param: "id",
-  message: "缺少订单 ID",
-  hint: "用法:my-cli orders get <id>",
-});
-
-// ③ 权限不足(带 missingScopes 扩展字段)
 throw new errs.PermissionError({
   subtype: "missing_scope",
-  message: "缺少 orders:write 权限",
-  hint: "run `my-cli auth login --scope orders:write` 重新登录",
+  message: "orders:write is required",
+  hint: "Ask an administrator to grant orders:write, then sign in again",
   missingScopes: ["orders:write"],
 });
 
-// ④ 网络超时(可重试)
 throw new errs.NetworkError({
   subtype: "timeout",
-  message: "请求超时(30s)",
+  message: "The request timed out after 30 seconds",
   retryable: true,
   cause: originalError,
 });
 
-// ⑤ 限流(带 Retry-After)
 throw new errs.APIError({
   subtype: "rate_limited",
   code: 429,
-  message: "请求过于频繁",
+  message: "Too many requests",
   hint: "Retry-After: 60s",
   retryable: true,
 });
 
-// ⑥ 高危写入(需要 --yes)
 throw new errs.ConfirmationRequiredError({
   subtype: "high_risk_write",
-  message: "批量删除 100 条记录",
-  hint: "加 --yes 跳过确认",
-});
-
-// ⑦ NotFoundError 快捷写法
-throw new errs.NotFoundError(`订单 ${id} 不存在`);
-// 等价于 new errs.APIError({ subtype:'not_found', code:404, message })
-```
-
----
-
-## 5. errorOnStatus 注册表校验
-
-**`defineCli` 启动期会校验 `errorOnStatus` 的每个 subtype 是否已在 `SUBTYPE_REGISTRY` 登记**——拼错的 subtype 会**立刻 throw**(不进 `run`),避免请求时悄悄降级成 `internal`(exit 5)。
-
-```ts
-defineCli({
-  errorOnStatus: { 404: "not_foundd" }, // ← 拼错
-  // → defineCli 立刻 throw:subtype "not_foundd"(配在 status 404)未在 SUBTYPE_REGISTRY 登记
+  message: "Deleting 100 records requires confirmation",
+  hint: "Review the preview and rerun with --yes",
 });
 ```
 
-所以 `errorOnStatus` 的值必须和下表 §1 的标准 subtype **逐字一致**。新增自定义 subtype 时,先登记:
+Prefer standard subtypes. If a genuinely new subtype is required, register it before `defineCli` assembly:
 
 ```ts
-// 业务包入口登记自己的 subtype 到 SUBTYPE_REGISTRY
 import { SUBTYPE_REGISTRY } from "@renxqoo/agent-data-cli";
-
-SUBTYPE_REGISTRY["my_custom_subtype"] = { category: "api" };
+SUBTYPE_REGISTRY.my_service_conflict = { category: "api" };
 ```
 
-> 直接修改全局注册表是反模式。**优先复用标准 subtype**;确需自定义时再用上述方式登记(后续 cli-sdk 会提供声明式方式)。
+Direct global registration is an escape hatch. Document it and test startup validation.
 
----
+## 4. Wrapping, redaction, and `BareError`
 
-## 6. 错误 wrap 规则
-
-**re-wrap 已类型化的错误会丢失 category/subtype,等于降级。**
+Do not rewrap a typed error and lose its category or subtype:
 
 ```ts
 try {
   return await ctx.get("/orders");
-} catch (err) {
-  // 已类型化则透传
-  if (err instanceof errs.CliError) throw err;
-  // 非类型化才包装
-  throw new errs.InternalError({ subtype: "unknown", message: "意外错误", cause: err });
+} catch (error) {
+  if (error instanceof errs.CliError) throw error;
+  throw new errs.InternalError({
+    subtype: "unknown",
+    message: "Unexpected order-service failure",
+    cause: error,
+  });
 }
 ```
 
-**cause 字段保留底层错误**,让 `errors.is` / `errors.Unwrap` 仍能工作。
-
----
-
-## 7. onError 插件:错误归一化/脱敏
+Use an `onError` plugin to normalize or redact errors. Every hook receives the previous hook's result. Returning `undefined` swallows the error and turns the command into success, so do that only for an explicitly normal branch.
 
 ```ts
-const errorNormalizePlugin = {
-  name: "error-normalize",
-  async onError(ctx, err) {
-    if (!(err instanceof errs.CliError)) return err;
-    // 脱敏:防止 token 漏到 message
-    if (err.message) {
-      err.message = err.message.replace(/Bearer [A-Za-z0-9._-]+/g, "Bearer [REDACTED]");
-    }
-    return err;
+const redactErrors = {
+  name: "redact-errors",
+  async onError(_ctx, error) {
+    if (!(error instanceof errs.CliError)) return error;
+    error.message = error.message.replace(/Bearer [A-Za-z0-9._-]+/g, "Bearer [REDACTED]");
+    return error;
   },
 };
 ```
 
-**onError 链式执行**:多个插件按 enforce(pre→normal→post)依次跑,每个拿到上一个的结果。
-**返回 undefined = 吞掉错误**(命令变成功)——危险,只在"这是正常分支"时用。
-
----
-
-## 8. BareError 例外(谓词命令)
-
-少数命令(`auth check`)stdout 已携带完整答案(yes/no),只需对应 exit code,不要 stderr 统一输出格式:
-
-```ts
-if (!loggedIn) throw new errs.BareError(3); // exit 3,stderr 不渲染统一输出
-```
-
-`BareError` 是**唯一**绕过错误输出的类型。普通命令禁用。
+`errs.BareError(exitCode)` is the only error that suppresses the normal stderr envelope. Reserve it for predicate commands whose stdout already contains the complete answer, such as an auth check. Ordinary business commands must use structured errors.

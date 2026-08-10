@@ -1,118 +1,110 @@
-# 模式进阶:分页 / 管道 / humanFormat
+# Advanced Patterns: Pagination, Pipes, and Human Output
 
-> 主 SKILL.md §5 只留了常用模式(多域 namespaces、errorOnStatus)。这里放进阶写法——**需要时才读**:
->
-> - 命令返回大列表,要给 agent 续拉能力 → §1 分页
-> - 下游命令消费上游命令输出(`a list | b generate`)→ §2 管道下游
-> - `--no-json` 时要精致化人类可读输出 → §3 humanFormat
+Read only the section required by the task.
 
----
+## Contents
 
-## 1. 分页(给 agent `complete + nextToken`)
+1. Cursor pagination
+2. Pipe consumers
+3. `humanFormat`
 
-列表命令如实填 `pagination`,agent 才能判断"是否续拉":
+## 1. Cursor pagination
+
+Return truthful pagination metadata so an agent can decide whether to continue:
 
 ```ts
 list: defineCommand({
-  args: { cursor: { type: 'string', desc: '续拉游标(从上次 nextToken 取)' } },
+  name: "list",
+  description: "List items",
+  args: { cursor: { type: "string", desc: "Continuation token from the previous result" } },
   async run(args, ctx) {
-    const res = await ctx.get('/items', { cursor: args.cursor })
+    const res = await ctx.get<{ items: Item[]; hasMore: boolean; nextCursor?: string }>("/items", {
+      cursor: args.cursor,
+    });
     return {
       data: res.data.items,
       meta: {
         count: res.data.items.length,
-        pagination: {
-          complete: !res.data.hasMore,         // agent 靠它判断是否续拉
-          pages: 1,
-          items: res.data.items.length,
-          nextToken: res.data.hasMore ? res.data.nextCursor : undefined,
-        },
+        pagination: res.data.hasMore
+          ? { complete: false, nextToken: res.data.nextCursor! }
+          : { complete: true },
       },
-    }
+    };
   },
-}),
+});
 ```
 
-**`complete` 必须如实填**——填错 agent 误判:
+Rules:
 
-- `complete: true` 但其实还有更多 → agent 漏拉数据
-- `complete: false` 但其实拉完了 → agent 死循环续拉
+- `complete: true` means no more data; omit `nextToken`.
+- `complete: false` requires a non-empty `nextToken` that can be passed to the next request.
+- Do not hard-code page counts when the backend exposes only a cursor.
+- Treat cursors as opaque strings. Never parse, normalize, or fabricate them.
+- If backend fields are unknown, ask for a response sample. Do not implement `raw.items ?? raw.data ?? raw.records` fallbacks.
 
-**后端分页字段未知时:先问用户,别默认全兼容。** 后端可能用 `items`/`data`/`<域名>` 三种数组键、`hasMore`/`has_more`、`nextCursor`/`next_cursor` 等不同约定。**不要在代码里猜着写 `raw.items ?? raw.data ?? raw.xxx` 的防御性归一化**——这是过度防御,掩盖了"你其实不知道后端长什么样"的问题。正确做法:列出 2-3 个候选问用户("后端列表响应是 `{items:[...]}` 还是 `{data:[...]}`?分页用 cursor 还是 page?"),拿到确定答案再写。如果暂时问不到,用**一个**最可能的形态 + `// TODO: 确认后端响应字段` 标注,不要堆兼容。
+The wire contract is camelCase even when the backend uses `has_more` or `next_cursor`.
 
-字段含义:
+## 2. Pipe consumers
 
-| 字段              | 类型    | 说明                                                                                |
-| ----------------- | ------- | ----------------------------------------------------------------------------------- |
-| `complete`        | boolean | **必填**。true=已拉完;false=还有更多                                                |
-| `nextToken`       | string  | complete:false 时填,agent 用它作下次 `--cursor`                                     |
-| `pages` / `items` | number  | 可选,信息性。**不知道总页数就省略 `pages`,别硬编码 1**(cursor 分页通常无总页数概念) |
-
----
-
-## 2. 管道下游(消费上游命令的输出)
-
-下游命令用 `ctx.pipe.isInPipe()` 分流:在管道里就读上游记录,不在就用参数。
+Branch on `ctx.pipe.isInPipe()`: read records when piped and accept explicit arguments otherwise.
 
 ```ts
 generate: defineCommand({
-  args: { orderId: { type: 'string' } },     // 既支持管道,又支持参数
+  name: "generate",
+  description: "Generate invoices",
+  args: { orderId: { type: "string", desc: "Order ID when not reading from a pipe" } },
   async run(args, ctx) {
     if (ctx.pipe.isInPipe()) {
-      let count = 0
-      for await (const rec of ctx.pipe.in()) {
-        if (rec.type !== 'orders') continue   // 按 defineCli.name 分流(只处理来自 orders 的)
-        await ctx.post('/invoices', { orderId: rec.id })
-        count++
+      let generated = 0;
+      for await (const record of ctx.pipe.in()) {
+        if (record.type !== "orders") continue;
+        const orderId = String(record.id ?? "");
+        if (!orderId) continue;
+        await ctx.post("/invoices", { orderId });
+        generated += 1;
       }
-      return { data: { generated: count } }
+      return { data: { generated } };
     }
-    // 不在管道里:走参数
-    if (!args.orderId) throw new errs.ValidationError({ param: 'orderId', message: '需要 orderId 或管道输入' })
-    const res = await ctx.post('/invoices', { orderId: args.orderId })
-    return { data: res.data }
+
+    if (!args.orderId) {
+      throw new errs.ValidationError({
+        subtype: "missing_required",
+        param: "--orderId",
+        message: "Provide --orderId or pipe order records",
+      });
+    }
+    const res = await ctx.post("/invoices", { orderId: args.orderId });
+    return { data: res.data };
   },
-}),
+});
 ```
 
-**PipeRecord 结构**(上游 stdout 的 data 数组被框架逐条包成这个):
+`PipeRecord` contains `type`, optional `id`, optional `data`, and optional `meta`. `type` comes from the upstream success envelope's `source`, normally `defineCli.name`.
+
+The reader accepts one complete successful JSON envelope up to 16 MiB. It does not accept NDJSON or a stream of separate JSON objects. Invalid JSON, failed envelopes, and values without `data` are rejected. `data: null` produces no records.
+
+Piped execution forces JSON even when `--no-json` is present, protecting downstream parsing.
+
+## 3. `humanFormat`
+
+The framework already renders arrays as tables and objects as key-value details. Add `humanFormat` only when human-facing output needs custom columns or labels.
 
 ```ts
-interface PipeRecord {
-  type: string; // 上游成功输出的 source(通常是 defineCli.name),下游按它分流
-  id?: string; // 稳定标识
-  data?: unknown; // payload(已过 beforeOutput 转换)
-  meta?: Record<string, unknown>;
-}
-```
-
-上游必须输出严格成功输出（`ok === true` 且自有 `data` 字段）；失败输出、缺 `data`、非法 JSON 都会被拒绝。普通业务对象即使有 `type` 字段，也仍用统一输出格式 `source` 包装；只有同时有字符串 `type` 和自有 `data` 的对象才被视为显式 `PipeRecord`。单值和数组元素都产生记录，`data:null` 产生 0 条记录。
-
-当前 reader 会缓冲并解析一整个 JSON 统一输出（上限 16 MiB），不接受 NDJSON 或 `jq -c` 输出的多段对象流。需要组合时让中间工具仍输出一个完整成功输出。
-
-用法:`rx-shop orders list --status unpaid | rx-shop invoices generate`
-
-> **管道保护是自动的**:被管道时(stdin 非 TTY),即使 `--no-json` 也强制输出 JSON,保护下游解析。
-
----
-
-## 3. `humanFormat` 自定义 `--no-json` 输出
-
-不声明 `humanFormat` 时,框架兜底渲染(对象数组→表格,单对象→key:value 详情)。想精致化用框架导出的 `printTable`(内置 CJK 宽度对齐,中文按 2 列):
-
-```ts
-import { defineCommand, printTable } from '@renxqoo/agent-data-cli'
+import { defineCommand, printTable } from "@renxqoo/agent-data-cli";
 
 list: defineCommand({
-  humanFormat: (data) => printTable(data as any[], [
-    { header: 'ID', value: (r: any) => r.id },
-    { header: '总额', value: (r: any) => `¥${r.total}`, align: 'right' },
-    { header: '状态', value: (r: any) => ({ paid: '已支付', shipped: '已发货' })[r.status] ?? r.status },
-  ]),
-  async run(args, ctx) { /* ... */ },
-}),
+  name: "list",
+  description: "List orders",
+  humanFormat: (data) =>
+    printTable(data as Order[], [
+      { header: "ID", value: (row) => row.id },
+      { header: "Total", value: (row) => `$${row.total}`, align: "right" },
+      { header: "Status", value: (row) => row.status },
+    ]),
+  async run(args, ctx) {
+    // ...
+  },
+});
 ```
 
-- `humanFormat(data, meta?)` 返回 string,框架打到 stdout(仅 `--no-json`/TTY 模式)
-- **agent 场景用不到**(agent 走 JSON 统一输出),这是给人看的终端输出
-- 不想自定义就别声明,框架兜底够用
+`humanFormat(data, meta?)` returns a string and runs only in human mode. Agent calls use structured JSON, so do not duplicate business logic in the formatter.
