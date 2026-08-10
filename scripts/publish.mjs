@@ -250,19 +250,23 @@ async function main() {
       }
     }
 
+    // 备份原始 package.json(发布后恢复,不污染 monorepo 源文件)
+    const pkgJsonPath = join(pkg.dir, "package.json");
+    const originalPkgJson = readFileSync(pkgJsonPath, "utf8");
+
     // 如需 bump,写回 package.json
     if (needBump) {
       if (DRY_RUN) {
         console.log(`   [dry-run] version would become ${publishVer}`);
       } else {
-        const pkgJson = JSON.parse(readFileSync(join(pkg.dir, "package.json"), "utf8"));
+        const pkgJson = JSON.parse(originalPkgJson);
         pkgJson.version = publishVer;
-        writeFileSync(join(pkg.dir, "package.json"), JSON.stringify(pkgJson, null, 2) + "\n");
+        writeFileSync(pkgJsonPath, JSON.stringify(pkgJson, null, 2) + "\n");
         console.log(`   ✓ version updated: ${localVer} → ${publishVer}`);
       }
     }
 
-    // 发布(用 pnpm publish:它会自动把 workspace:* 替换成真实版本号)
+    // 发布
     const otpFlag = OTP ? ` --otp=${OTP}` : "";
     const publishCmd = `pnpm publish --access public --no-git-checks${DRY_RUN ? " --dry-run" : ""}${otpFlag}`;
     try {
@@ -272,6 +276,11 @@ async function main() {
     } catch {
       console.error(`   ❌ ${pkg.name}@${publishVer} failed`);
       results.push({ name: pkg.name, version: publishVer, ok: false });
+    } finally {
+      // 恢复原始 package.json
+      if (!DRY_RUN) {
+        writeFileSync(pkgJsonPath, originalPkgJson);
+      }
     }
   }
 
