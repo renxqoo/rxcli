@@ -8,6 +8,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
+[![CI](https://github.com/renxqoo/rxcli/actions/workflows/ci.yml/badge.svg)](https://github.com/renxqoo/rxcli/actions/workflows/ci.yml)
 
 ---
 
@@ -38,7 +39,7 @@
 - **🔐 鉴权工厂 `defineAuth`** —— OAuth 2.0 device flow(RFC 8628)+ 401 singleflight 自动刷新。一行配置,login/status/logout/register 命令自动注入。
 - **📦 结构化统一输出** —— JSON 模式输出 `{ok, source, data, meta}`,stderr 是错误输出,exit code 分类；`defaultFormat` 可选择 JSON、人类文本或 TTY 自动模式。
 - **🏷️ 9 类类型化错误** —— validation/authentication/permission/config/network/api/not_found/policy/internal,每类映射 exit code。
-- **🔌 vite 式插件** —— beforeCommand/beforeRequest/afterRequest/beforeOutput/onError 钩子 + `provides` 自动贡献命令。
+- **🔌 vite 式插件** —— beforeCommand/beforeRequest/afterRequest/onUnauthorized/beforeOutput/onError 钩子 + `provides` 自动贡献命令。
 - **🔑 provider chain** —— flag/env/file/oauth 四级凭证解析优先级,业务自定义凭证源。
 - **🚇 unix 管道** —— `rxcli orders list | rxcli report` 自动把上游统一输出格式拆成记录流。
 - **📖 skill 系统** —— SKILL.md 命令文档自动生成,同步到用户已装的 AI agent 发现目录(`~/.agents` 始终写 + 探测到的 `~/.claude`/`~/.codex`/`~/.cursor`/`~/.zcode`/`~/.openclaw`/`~/.pi`),供 AI agent 自服务发现。
@@ -66,6 +67,8 @@ pnpm add @renxqoo/agent-data-cli
 ```
 
 > **要求** Node.js >= 20
+>
+> 本包仅提供 ESM。请在 ESM 项目中使用 `import`/动态 `import()`；不支持 CommonJS `require()`。
 
 ---
 
@@ -74,7 +77,7 @@ pnpm add @renxqoo/agent-data-cli
 一个命令 < 30 行(无鉴权场景,如公开数据):
 
 ```ts
-import { defineCli, defineCommand } from "@renxqoo/agent-data-cli";
+import { defineCli, defineCommandFromArgs } from "@renxqoo/agent-data-cli";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -82,12 +85,14 @@ const app = defineCli({
   name: "myapp",
   description: "我的数据 CLI",
   commands: {
-    list: defineCommand({
+    list: defineCommandFromArgs({
       name: "list",
       description: "查询列表",
       args: { limit: { type: "number", default: 20, desc: "返回数量上限" } },
       async run(args, ctx) {
-        const res = await ctx.get<{ items: any[] }>("/items", { limit: args.limit });
+        const res = await ctx.get<{ items: Array<{ id: string; title: string }> }>("/items", {
+          limit: args.limit,
+        });
         return { data: res.data.items, meta: { count: res.data.items.length } };
       },
     }),
@@ -151,10 +156,10 @@ defineCli({
 })
 ```
 
-### `defineCommand(spec)` — 声明命令
+### `defineCommandFromArgs(spec)` / `defineCommand(spec)` — 声明命令
 
 ```ts
-defineCommand({
+defineCommandFromArgs({
   name: "get",
   description: "查询单个订单",
   args: {
@@ -169,6 +174,11 @@ defineCommand({
   },
 });
 ```
+
+参数 schema 是类型来源时使用 `defineCommandFromArgs`。需要领域字面量联合，或命令需要读取
+`ctx.state` 时，使用 `defineCommand<Args, Result, State>`。组件化命令组使用
+`defineCommands<State>({...})`，让所有命令共享同一应用状态类型；挂载到
+`defineCli<State>` 时也会拒绝状态类型不兼容的命令组。
 
 ### `defineAuth(opts)` — OAuth 鉴权工厂
 
@@ -203,6 +213,9 @@ const myPlugin: Plugin = {
   },
   async afterRequest(ctx, res) {
     /* 审计 */
+  },
+  async onUnauthorized(ctx, req) {
+    /* 刷新凭证并返回新 token */
   },
   async beforeOutput(ctx, data) {
     return transformedData;
@@ -303,6 +316,8 @@ pnpm build          # 构建
 pnpm typecheck      # 类型检查
 pnpm test           # 跑测试(vitest)
 ```
+
+提交 PR 或问题前，请阅读[贡献指南](https://github.com/renxqoo/rxcli/blob/main/CONTRIBUTING.md)、[安全策略](https://github.com/renxqoo/rxcli/blob/main/SECURITY.md)和[支持说明](https://github.com/renxqoo/rxcli/blob/main/SUPPORT.md)。
 
 ## License
 

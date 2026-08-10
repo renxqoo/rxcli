@@ -133,7 +133,7 @@ Common mistakes:
 2. Assuming same-tier order without a lifecycle test.
 3. Returning a string from `beforeOutput`.
 4. Returning `undefined` from `onError` and silently producing exit 0.
-5. Sharing an undeclared `ctx.state` field instead of defining `defineCli<State>`.
+5. Sharing an undeclared `ctx.state` field instead of using the same State type in `defineCommands<State>`, `Plugin<State>`, and `defineCli<State>`.
 6. Reimplementing route ownership instead of using `provides`.
 7. Logging request or response payloads that may contain credentials or personal data.
 8. Keeping mutable auth state in a plugin closure instead of a context-bound auth session.

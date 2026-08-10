@@ -19,6 +19,7 @@
 - 新增 `defineCommandFromArgs`，根据参数 schema 推导必填、默认和可选字段。
 - 新增公开的 `onUnauthorized` 插件 hook，以及绑定 `CommandContext` 的认证会话 API。
 - 新增路由参数、并发认证、授权回调清理、Skill 路径安全和错误保真的回归测试。
+- 新增 npm tarball 消费测试、公开类型负向测试、覆盖率门禁和 Markdown 链接检查，并在 CI 中接入 publint 与 Are the Types Wrong。
 
 ### Changed
 
@@ -28,6 +29,8 @@
 - `onError` 或 `afterRequest` 观察性 hook 失败时保留原始业务/传输结果。
 - `skills sync` 任一目标写入失败时返回非零退出码和标准错误 envelope。
 - Windows 浏览器启动改用 `FileProtocolHandler`，不再依赖不可直接执行的 `start` shell built-in。
+- `CommandSpec`、`CommandGroup`、`defineCommands` 和 `defineCommandFromArgs` 现在完整传播 `State` 泛型；组件化命令组会在装配期拒绝不兼容状态。
+- npm 包现在包含 License、设计文档和 TypeScript 源码，使 README 链接与 source map 都可解析。
 
 ### Fixed
 
@@ -38,6 +41,7 @@
 - 修复 authorization-code 浏览器启动失败时本地回调服务器未关闭。
 - 修复错误 hook 和请求观察 hook 掩盖真正业务错误。
 - 修复可选参数在 `ParsedArgs` 中被错误标记为必有字段。
+- 修复命令上下文状态被 `CommandContext<any>` 擦除，导致不存在的 state 字段也能通过类型检查。
 
 ### Removed
 
@@ -47,6 +51,7 @@
 
 - 重构中英文根 README 的信息架构，突出 agent-native 输出契约、Skill 自发现、可组合认证、schema 类型推导和真实业务 CLI 验证等项目优势。
 - 同步更新中英文 `agent-cli-builder` Skill、认证模式、插件生命周期和核心 API 文档。
+- 明确 ESM-only、State 泛型和 `defineAuth` 推荐用法，并补齐贡献、安全、支持、行为准则、Issue 模板和依赖更新策略。
 
 ## [@renxqoo/cli@1.2.0] - 2026-08-10
 

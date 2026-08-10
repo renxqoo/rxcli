@@ -74,7 +74,7 @@ export const todoCommands = defineCommands({
 
 必填 positional 不能放在可选 positional 后面。参数 schema 在装配期校验，但数值范围、枚举和跨参数关系仍由命令验证。
 
-schema 是类型来源时使用 `defineCommandFromArgs`：`required`/`default` 字段推导为必有，其余字段推导为可选。需要字面量联合或领域类型时使用 `defineCommand<ExactArgs, Result>`。`json`、`api-key`、`help`、`version` 是框架保留参数，业务命令不能重复声明；框架参数可放在命令路径前或后。
+schema 是类型来源时使用 `defineCommandFromArgs`：`required`/`default` 字段推导为必有，其余字段推导为可选。需要字面量联合或命令要读取 `ctx.state` 时使用 `defineCommand<ExactArgs, Result, State>`；组件化的有状态命令组使用 `defineCommands<State>({...})`，状态不兼容的命令组不能挂到 `defineCli<State>`。`json`、`api-key`、`help`、`version` 是框架保留参数，业务命令不能重复声明；框架参数可放在命令路径前或后。
 
 ## 3. CLI 装配与入口
 

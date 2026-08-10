@@ -74,7 +74,7 @@ Argument rules:
 
 A required positional cannot follow an optional positional. Assembly validates schema shape; the command still validates ranges, enums, and cross-argument rules.
 
-Use `defineCommandFromArgs` when the schema is the source of truth: required/default fields are inferred as present and all others as optional. Use `defineCommand<ExactArgs, Result>` when values need narrower unions or domain types. `json`, `api-key`, `help`, and `version` are framework-reserved names and cannot be redeclared by a business command. Framework flags may appear before or after the command route.
+Use `defineCommandFromArgs` when the schema is the source of truth: required/default fields are inferred as present and all others as optional. Use `defineCommand<ExactArgs, Result, State>` when values need narrower unions or the command reads `ctx.state`. Componentized stateful groups should use `defineCommands<State>({...})`; incompatible groups are rejected by `defineCli<State>`. `json`, `api-key`, `help`, and `version` are framework-reserved names and cannot be redeclared by a business command. Framework flags may appear before or after the command route.
 
 ## 3. CLI assembly and entry point
 

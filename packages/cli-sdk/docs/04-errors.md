@@ -36,7 +36,7 @@
 
 ## 构造器签名
 
-所有错误类型都继承自 `errs.CliError`(嵌入 `Problem`),位于 `@renxqoo/cli-sdk/errs`。
+所有错误类型都继承自 `errs.CliError`(嵌入 `Problem`),位于 `@renxqoo/agent-data-cli/errs`。
 
 ### 通用 Problem 结构
 
@@ -55,7 +55,7 @@ interface Problem {
 ### 各构造器用法
 
 ```ts
-import { errs } from "@renxqoo/cli-sdk";
+import { errs } from "@renxqoo/agent-data-cli";
 
 // ① 参数错误(用户输入不对)
 throw new errs.ValidationError({

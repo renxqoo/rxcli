@@ -1,21 +1,49 @@
-# Contributing
+# Contributing to rxcli
 
-## Changelog and version policy
+Thanks for helping improve rxcli and `@renxqoo/agent-data-cli`.
 
-用户可见行为、公开 API、错误契约、配置、CLI 参数或迁移方式发生变化时，应在同一 PR 更新根目录 `CHANGELOG.md` 的 `Unreleased` 部分。
+## Before opening a change
 
-版本 PR 必须同时完成：
+- Search existing issues and pull requests first.
+- Use an issue for security-sensitive reports only as described in `SECURITY.md`.
+- Keep changes focused. Public API changes must include motivation, migration notes, tests, and documentation.
+- Do not add compatibility branches for an obsolete API unless the maintainers explicitly approve them.
 
-1. 修改目标包的 `package.json` 版本。
-2. 将该包待发布内容从 `Unreleased` 移到正式标题：
+## Local development
 
-   ```text
-   ## [@scope/package@1.2.3] - YYYY-MM-DD
-   ```
+Requirements: Node.js 20 or 22 and pnpm 9.
 
-3. 一个 PR 修改多个包版本时，为每个包添加独立标题。
-4. 在 PR 描述中说明 breaking change 和迁移方式。
+```bash
+pnpm install --frozen-lockfile
+pnpm build
+pnpm typecheck
+pnpm test
+pnpm lint
+pnpm docs:check
+pnpm --filter @renxqoo/agent-data-cli test:package
+```
 
-CI 的 `Version changelog` job 会比较 PR base 和 HEAD；检测到版本变化但缺少对应正式条目时直接失败。
+Tests should describe observable behavior. For a defect, first add a failing regression test, then implement the smallest coherent fix. Public types require positive and negative fixtures under `packages/cli-sdk/type-tests`; npm-facing changes require the package smoke test.
 
-发布脚本不会自动 bump 或临时修改 `package.json`。本地版本必须高于 npm 远程版本，并且已有匹配的正式 changelog 条目，才能发布。
+## Pull requests
+
+Every pull request should explain:
+
+- the user-visible problem and intended behavior;
+- architecture or compatibility decisions;
+- tests actually executed;
+- documentation, Skill, or application migrations included.
+
+Keep generated output and unrelated formatting out of the diff. The CI matrix covers Ubuntu, macOS, and Windows on supported Node.js versions.
+
+## Versions and changelog
+
+Publishing never changes versions automatically. A release pull request must update each affected package version explicitly and add a matching root `CHANGELOG.md` heading:
+
+```text
+## [@scope/package@1.2.3] - YYYY-MM-DD
+```
+
+Record public API changes, user-visible behavior, breaking changes, and migration instructions. The release gate rejects a package version change without its matching changelog entry.
+
+By participating, you agree to follow `CODE_OF_CONDUCT.md`.

@@ -54,7 +54,7 @@ jobs:
       - run: pnpm run lint
 
   # ---------------------------------------------------------------------------
-  # build + typecheck + test —— 3 平台 × 3 Node 版本矩阵
+  # build + typecheck + test —— 3 平台 × 2 Node 版本矩阵
   # ---------------------------------------------------------------------------
   build-test:
     name: Build & Test (${{ matrix.os }} / node-${{ matrix.node }})
@@ -84,3 +84,30 @@ jobs:
       - run: pnpm -r run typecheck
 
       - run: pnpm -r run test
+
+  package-quality:
+    name: Package quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.0.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm --filter @renxqoo/agent-data-cli test:package
+
+      - run: pnpm --filter @renxqoo/agent-data-cli test:coverage
+
+      - run: pnpm docs:check
+
+      - run: pnpm dlx publint@0.3.23 packages/cli-sdk --strict
+
+      - run: pnpm dlx @arethetypeswrong/cli@0.18.5 --pack packages/cli-sdk --profile esm-only

@@ -62,7 +62,7 @@ stdout(统一输出格式,`identity:"user"` 表示已认证用户态):
         "id": "o_1001",
         "userId": "u_alice",
         "status": "paid",
-        "total": 199.0,
+        "total": 168.0,
         "currency": "CNY",
         "createdAt": "2024-02-10T03:15:00Z"
       }
@@ -100,7 +100,7 @@ rxcli orders get o_1001
     "id": "o_1001",
     "userId": "u_alice",
     "status": "paid",
-    "total": 199.0,
+    "total": 168.0,
     "currency": "CNY",
     "createdAt": "2024-02-10T03:15:00Z",
     "items": [

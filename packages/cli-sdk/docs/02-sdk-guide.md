@@ -1,6 +1,6 @@
 # 02 · SDK 开发指南
 
-> 给**业务包开发者**看。讲清楚怎么用 `@renxqoo/cli-sdk` 写一个业务包:目录结构、ctx、命令、插件、auth、分页、测试。这是开发者最常翻的文档。
+> 给**业务包开发者**看。讲清楚怎么用 `@renxqoo/agent-data-cli` 写一个业务包:目录结构、ctx、命令、插件、auth、分页、测试。这是开发者最常翻的文档。
 
 ---
 
@@ -11,7 +11,7 @@
 ```bash
 mkdir rxcli-orders && cd rxcli-orders
 pnpm init
-pnpm add @renxqoo/cli-sdk
+pnpm add @renxqoo/agent-data-cli
 ```
 
 ### 2. 目录结构
@@ -30,7 +30,7 @@ rxcli-orders/
         └── SKILL.md      ← 教 agent 怎么用(命令表自动生成)
 ```
 
-> 注意:没有 `client.ts`。cli-sdk 取消了 client 概念,请求方法直接挂在 `ctx` 上,鉴权由业务包自写的 auth Plugin 处理(用 cli-sdk 基础块组装)。
+> 注意:没有 `client.ts`。cli-sdk 取消了 client 概念,请求方法直接挂在 `ctx` 上。标准 OAuth、Bearer、API key 和 Basic 鉴权优先使用 `defineAuth`;只有 HMAC、mTLS 等特殊协议才手写 Plugin。
 
 ### 3. package.json
 
@@ -46,42 +46,39 @@ rxcli-orders/
     "build": "tsc",
     "test": "vitest",
   },
-  "dependencies": { "@renxqoo/cli-sdk": "^0.1.0" },
-  "rxcli": { "plugin": true }, // ★ 标记可被 rxcli 主包发现
+  "dependencies": { "@renxqoo/agent-data-cli": "^1.2.0" },
 }
 ```
 
-`"rxcli": {"plugin": true}` 这个标记让 `@renxqoo/cli` meta 包启动时自动发现它,注册成 `rxcli orders ...` 子命令。不写这个标记就只能用独立 bin。
+`@renxqoo/agent-data-cli` 仅提供 ESM。业务包必须使用 `"type": "module"` 和 ESM `import`;不支持 CommonJS `require()`。
 
 ### 4. 入口 src/index.ts
 
 ```ts
 #!/usr/bin/env node
-import { defineCli } from "@renxqoo/cli-sdk";
-import { ordersCommands } from "./commands/orders";
-import { createCrmAuth } from "./auth";
+import { defineCli, defineAuth } from "@renxqoo/agent-data-cli";
+import { ordersCommands } from "./commands/orders.js";
 
-// ① auth Plugin:开发者用 cli-sdk 基础块自己组装(见 src/auth.ts)
-const auth = createCrmAuth<{
+type OrdersState = {
   user: { userId: string } | null;
-}>({
-  namespace: "orders",
-  authStyle: "bearer", // 默认;API key 用 'x-api-key'
+};
+
+const auth = await defineAuth<OrdersState>({
+  credentialNamespace: "orders",
+  baseUrl: "https://auth.example.com",
+  scope: "orders.read offline_access",
 });
 
-// ② 装配:<State> 泛型声明 ctx.state 的形状
-export default defineCli<{
-  user: { userId: string } | null; // ctx.state.user 的类型
-}>({
+export default defineCli<OrdersState>({
   name: "orders",
   description: "订单查询与管理",
-  plugins: [auth], // ★ 所有扩展统一成插件(见"插件系统")
+  plugins: [auth],
   commands: ordersCommands,
   skillsDir: "./skills",
 });
 ```
 
-> `src/auth.ts` 里是 `createCrmAuth`——业务包自己写的 auth Plugin 工厂(用 cli-sdk 的 `fileStore`/`defaultProviders`/`resolveWithChain`/`injectAuthHeader`/`createOn401Hook` 组装)。完整写法见本文档"如何写 auth Plugin"和 `05-credentials.md`。cli-sdk **不提供**封闭的 `createAuthPlugin`,只提供基础块。
+> `defineAuth` 返回普通 `Plugin` 并自动贡献 login/status/logout/register 命令。需要特殊协议时，再使用 `fileStore`、provider chain、auth session 和 `onUnauthorized` 等公开基础块手写 Plugin；见 `05-credentials.md`。
 
 **就这些。** 下面逐块讲 `ctx`、`defineCommand`、插件系统、auth。
 
@@ -216,14 +213,11 @@ type ArgsSpec = Record<string, ArgSpec>;
 ### CommandSpec:命令结构必填
 
 ```ts
-// 命令级只有 Args/Result 两个泛型;State 由 defineCli<State> 统一注入(见下)
-interface CommandSpec<Args = any, Result = unknown> {
+interface CommandSpec<Args = any, Result = unknown, State = unknown> {
   name: string; // 必填,缺了编译报错
   description: string; // 必填
   args?: ArgsSpec; // 可选(解析规范)
-  requiresScope?: string; // 可选
-  run: (args: Args, ctx: CommandContext) => Promise<CommandResult<Result> | void>;
-  // ctx 的 state 类型由 defineCli<State> 推导注入,命令定义时不写 State
+  run: (args: Args, ctx: CommandContext<State>) => Promise<CommandResult<Result> | void>;
 }
 ```
 
@@ -244,12 +238,21 @@ type StructuredData = Record<string, unknown> | unknown[] | null;
 ### defineCli 泛型:ctx.state 的强类型来源
 
 ```ts
-// defineCli<State> 的 State 推导到 ctx.state
-defineCli<OrdersState>({ ... })
-// → 所有命令和插件的 ctx.state 是 OrdersState 强类型
+const ordersCommands = defineCommands<OrdersState>({
+  list: defineCommandFromArgs({
+    name: "list",
+    description: "查询订单",
+    args: {},
+    async run(_args, ctx) {
+      return { data: { userId: ctx.state.user?.userId } };
+    },
+  }),
+});
+
+defineCli<OrdersState>({ commands: ordersCommands, ... });
 ```
 
-业务包不写泛型时,State 默认 `{}`(`ctx.state` 是空对象,访问任何字段报错)。写了泛型,`ctx.state` 就是业务包声明的强类型。**纯增强,不强制。**
+组件化命令组使用 `defineCommands<State>({...})` 获得上下文类型；单独导出的命令可使用 `defineCommand<Args, Result, State>`。未声明 State 时是 `unknown`,不能静默访问任意字段；状态不兼容的命令组也不能挂到 `defineCli<State>`。
 
 ---
 
@@ -396,7 +399,7 @@ async run(args, ctx): Promise<CommandResult | void> {
 ### 单个命令(带三泛型)
 
 ```ts
-import { defineCommand, errs } from "@renxqoo/cli-sdk";
+import { defineCommand, errs } from "@renxqoo/agent-data-cli";
 
 interface GetOrderArgs {
   id: string;
@@ -424,7 +427,7 @@ export const getOrder = defineCommand<GetOrderArgs, Order>({
 
 ```ts
 // src/commands/orders.ts
-import { defineCommands, defineCommand, errs } from "@renxqoo/cli-sdk";
+import { defineCommands, defineCommand, errs } from "@renxqoo/agent-data-cli";
 
 interface OrderListArgs {
   limit?: number;
@@ -644,11 +647,11 @@ import { tenantPlugin } from '@org/rxcli-plugin-tenant'
 defineCli({ plugins: [tenantPlugin('acme')], ... })
 ```
 
-### 认证插件:auth 是 Plugin,用基础块自己写
+### 认证插件:标准场景用 defineAuth,特殊协议再组合基础块
 
-**auth 不是特殊机制,就是一个普通的 `Plugin`。** cli-sdk **不提供**封闭的 `createAuthPlugin` 工厂——它只导出可复用的基础块,开发者自己写 `beforeCommand` + `beforeRequest` 组装。
+`defineAuth` 是标准认证工厂，返回的仍是普通 `Plugin`。OAuth、Bearer、API key 和 Basic 场景直接使用它；HMAC、mTLS 或复合认证才用下列基础块手写 `beforeCommand`、`beforeRequest` 与 `onUnauthorized`。
 
-cli-sdk 出的基础块(从主包 `@renxqoo/cli-sdk` import):
+cli-sdk 出的基础块(从主包 `@renxqoo/agent-data-cli` import):
 
 | 基础块                                                                                                              | 作用                                                                           |
 | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
@@ -679,7 +682,7 @@ import {
   injectAuthHeader,
   createOn401Hook,
   AuthenticationError,
-} from "@renxqoo/cli-sdk";
+} from "@renxqoo/agent-data-cli";
 
 export function createCrmAuth<State extends { user?: unknown }>(opts: {
   namespace: string;
@@ -912,7 +915,7 @@ defineCli<State>({
 })
 ```
 
-**认证**:不在 defineCli 顶层配置,而是业务包自己写 auth Plugin(用 `fileStore`/`defaultProviders`/`injectAuthHeader` 等基础块组装)塞进 `plugins`(见 `05-credentials.md`)。cli-sdk 不提供封闭的 `createAuthPlugin`。
+**认证**:`await defineAuth({...})` 后把返回值放进 `plugins`;特殊协议才手写 Plugin(见 `05-credentials.md`)。
 
 ---
 
@@ -986,7 +989,7 @@ cli-sdk 提供 `createTestCtx`,业务包用它 mock ctx 测 run 逻辑:
 ```ts
 // src/commands/orders.test.ts
 import { describe, it, expect } from "vitest";
-import { createTestCtx, errs } from "@renxqoo/cli-sdk";
+import { createTestCtx, errs } from "@renxqoo/agent-data-cli";
 import { ordersCommands } from "./orders";
 
 describe("orders list", () => {
@@ -1023,7 +1026,7 @@ describe("orders list", () => {
 
 ```ts
 // src/commands/orders.ts
-import { defineCommands, defineCommand, errs } from '@renxqoo/cli-sdk'
+import { defineCommands, defineCommand, errs } from '@renxqoo/agent-data-cli'
 
 interface Order { id: string; total: number; status: string }
 interface OrderListResult { items: Order[]; hasMore: boolean; nextCursor?: string }
@@ -1053,7 +1056,7 @@ export const ordersCommands = defineCommands({
 
 // src/index.ts
 #!/usr/bin/env node
-import { defineCli } from '@renxqoo/cli-sdk'
+import { defineCli } from '@renxqoo/agent-data-cli'
 import { ordersCommands } from './commands/orders'
 import { createCrmAuth } from './auth'
 
@@ -1078,7 +1081,7 @@ export default defineCli<{
 ## 开发者常犯的错(避坑)
 
 1. **直接 `console.log` 到 stdout** → ❌ 破坏管道。用 `ctx.log`(stderr)记日志;要输出数据就 `return { data, meta }`。
-2. **在 run 里处理鉴权** → ❌ 鉴权是 auth 插件的事(业务包自己写 auth Plugin,用 `defaultProviders`/`injectAuthHeader` 组装,见 `05-credentials.md`)。你只调 `ctx.get`。
+2. **在 run 里处理鉴权** → ❌ 鉴权是 auth 插件的事。标准场景用 `defineAuth`，特殊协议才组合公开基础块；命令只调用 `ctx.get`。
 3. **`beforeOutput` 返回字符串** → ❌ 破坏管道契约。返回 StructuredData(object/array/null)。
 4. **不填 `pagination.complete`** → ❌ agent 会误以为拉完了。如实填。
 5. **throw 裸 Error** → ❌ 用 `errs.*` 类型化错误。裸 Error 会被兜底成 `internal/unknown`,exit code 错、agent 会误解。throw 后会进 onError 链(插件可拦截),再渲染 stderr。

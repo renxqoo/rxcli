@@ -20,7 +20,7 @@
 // 核心装配
 export { defineCli, defineCommand, defineCommandFromArgs, defineCommands } from "./define.js";
 
-// 认证基础能力(供开发者写 auth Plugin 用;auth 本身是 Plugin,无封闭工厂)
+// 认证基础能力(defineAuth 覆盖标准场景；特殊协议可用这些公开边界组合 Plugin)
 export {
   injectAuthHeader,
   type AuthStyle,
