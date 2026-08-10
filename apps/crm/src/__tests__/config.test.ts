@@ -12,6 +12,7 @@ async function loadConfig() {
   return (await import("../config.js")) as {
     AUTH_BASE_URL: string;
     API_BASE_URL: string;
+    CRM_SCOPES: readonly string[];
   };
 }
 
@@ -62,5 +63,19 @@ describe("地址拆分: AUTH_BASE_URL / API_BASE_URL", () => {
     // AUTH/OAuth 与业务 /proxy 都在中间层(3000);业务请求经 /proxy 转发公司应用
     expect(cfg.AUTH_BASE_URL).toBe("http://120.26.219.32");
     expect(cfg.API_BASE_URL).toBe("http://120.26.219.32");
+  });
+});
+
+describe("CRM OAuth scope 契约", () => {
+  it("注册与登录共享完整的业务和离线权限集合", async () => {
+    const cfg = await loadConfig();
+    expect(cfg.CRM_SCOPES).toEqual([
+      "company.api",
+      "orders:read",
+      "products:read",
+      "invoices:read",
+      "admin",
+      "offline_access",
+    ]);
   });
 });

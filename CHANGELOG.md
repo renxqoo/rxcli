@@ -54,6 +54,8 @@
 
 - 使用 `defineCommandFromArgs` 迁移订单和商品命令，消除隐式 `any` 并正确表达可选参数。
 - 适配 `@renxqoo/agent-data-cli@1.2.0` 的上下文隔离认证会话和公开插件协议。
+- 订单列表新增 `--cursor` 续拉参数，并把服务端游标映射为统一的 `meta.pagination` 契约。
+- 注册与登录共享显式的 CRM Scope 和 RFC 7591 客户端元数据，避免客户端权限声明漂移。
 
 ## [@renxqoo/rxcordys-cli@1.2.0] - 2026-08-10
 

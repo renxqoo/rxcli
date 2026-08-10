@@ -23,5 +23,15 @@ export const AUTH_BASE_URL = process.env.RXCLI_AUTH_BASE_URL ?? "http://120.26.2
  */
 export const API_BASE_URL = process.env.RXCLI_API_BASE_URL ?? "http://120.26.219.32";
 
+/** CRM 实际使用的最小权限集合；注册和登录必须共享同一份契约。 */
+export const CRM_SCOPES = [
+  "company.api",
+  "orders:read",
+  "products:read",
+  "invoices:read",
+  "admin",
+  "offline_access",
+] as const;
+
 /** skill 文件目录(SKILL.md + references 所在)。dist/config.js → ../skills/ */
 export const SKILLS_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "skills");
