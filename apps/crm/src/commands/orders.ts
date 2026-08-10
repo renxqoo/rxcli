@@ -18,7 +18,7 @@ export const ordersCommands = defineCommands({
     description: "查询订单列表(仅本人订单)",
     args: {
       limit: { type: "number", desc: "返回数量上限" },
-      cursor: { type: "string", desc: "续拉游标（使用上次 meta.pagination.nextToken）" },
+      cursor: { type: "string", desc: "续拉游标（使用上次 meta.pagination.next_token）" },
     },
     async run(args, ctx) {
       const query = {
