@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   defineAuth,
   defineCli,
@@ -155,18 +158,26 @@ describe("auth runtime isolation", () => {
 
 describe("skills sync command failure contract", () => {
   it("所有目标写入失败时返回非零退出码和错误 envelope", async () => {
-    const app = defineCli({
-      name: "demo",
-      description: "demo",
-      commands: {},
-      skillsDir: new URL("../../skills", import.meta.url).pathname,
-      skillsTargets: [{ key: "broken", dir: "/dev/null/skills" }],
-      defaultFormat: "json",
-    });
+    const fixtureDir = mkdtempSync(join(tmpdir(), "rxcli-skills-sync-failure-"));
+    const blockingFile = join(fixtureDir, "not-a-directory");
+    writeFileSync(blockingFile, "block child directory creation");
 
-    await app.run(["skills", "sync"]);
-    expect(process.exitCode).not.toBe(0);
-    expect(stdout).toBe("");
-    expect(JSON.parse(stderr).ok).toBe(false);
+    try {
+      const app = defineCli({
+        name: "demo",
+        description: "demo",
+        commands: {},
+        skillsDir: new URL("../../skills", import.meta.url).pathname,
+        skillsTargets: [{ key: "broken", dir: join(blockingFile, "skills") }],
+        defaultFormat: "json",
+      });
+
+      await app.run(["skills", "sync"]);
+      expect(process.exitCode).not.toBe(0);
+      expect(stdout).toBe("");
+      expect(JSON.parse(stderr).ok).toBe(false);
+    } finally {
+      rmSync(fixtureDir, { recursive: true, force: true });
+    }
   });
 });
