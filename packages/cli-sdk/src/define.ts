@@ -185,6 +185,7 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
         namespaces: mergedNamespaces,
       },
       options.skillsTargets,
+      options.skillsScopes,
     );
     namespaces.skills = { ...builtins, ...mergedNamespaces.skills };
   }

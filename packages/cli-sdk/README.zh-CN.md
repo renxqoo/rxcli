@@ -50,7 +50,8 @@
 | 业务包                                   | 场景                   | 鉴权模式          | 看点                                                  |
 | ---------------------------------------- | ---------------------- | ----------------- | ----------------------------------------------------- |
 | [`@renxqoo/rxstock`](../../apps/a-stock) | A 股行情/财务/技术指标 | 无(公开数据)      | 多源 fallback、统一 fallback 执行器、技术指标本地计算 |
-| [`@renxqoo/rx60s-cli`](../../apps/60s)   | 日常资讯(新闻/热搜/天气) | 无(公开数据)    | 60+ 接口来自 vikiboss/60s,自动缓存 |
+| [`@renxqoo/rx60s-cli`](../../apps/60s)   | 日常资讯(新闻/热搜/天气) | 无(公开数据)    | rxopen 的旧版单 skill |
+| [`@renxqoo/rxopen-cli`](../../apps/rxopen)   | 开放数据(新闻/热搜/天气) | 无(公开数据)    | 60+ 接口来自 vikiboss/60s,通过 `skillsScopes` 按 6 个数据域拆分 skill |
 | [`@renxqoo/rxcordys-cli`](../../apps/cordys-crm) | Cordys CRM(线索/合同/订单) | 静态双 header | L2C 全流程,手写 auth 插件 |
 | [`@renxqoo/cli`](../../apps/crm)         | 公司业务(订单/商品)    | OAuth device flow | 中间层鉴权、split-flow 登录、install 向导             |
 

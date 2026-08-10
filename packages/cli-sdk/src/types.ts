@@ -271,6 +271,16 @@ export interface DefineCliOptions<State> {
    * 传空数组 [] → 不同步到任何目录(关闭多 target,仅 install 向导的 npx 路径生效)。
    */
   skillsTargets?: SkillTarget[];
+  /**
+   * 可选:per-skill 命令过滤(命令文档分片)。
+   *
+   * key = skill 目录名,value = 该 skill 覆盖的 namespace / 顶层命令名列表。
+   * `skills gen <name>` 据此只把 scope 内的命令写进该 skill 的 AUTO-GEN 块,
+   * 让一个 CLI 拆成多个聚焦 skill 时,每个 skill 的命令表只列自己的域。
+   *
+   * 省略或某 skill 未列出 → 该 skill 的 AUTO-GEN 块含全部命令(旧行为,向后兼容)。
+   */
+  skillsScopes?: Record<string, string[]>;
   /** 可选:status→错误自动 throw(subtype 隐含 category)。 */
   errorOnStatus?: ErrorOnStatus;
   /** 可选:后端 baseUrl(无 auth 时可直连;有 auth 时由 provider 决定)。 */

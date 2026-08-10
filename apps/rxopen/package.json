@@ -1,0 +1,58 @@
+{
+  "name": "@renxqoo/rxopen-cli",
+  "version": "0.0.0",
+  "description": "rxopen — an open-data CLI built on @renxqoo/agent-data-cli, wrapping all public APIs of the vikiboss/60s open-source project (news, trending, weather, fuel prices, lunar calendar, translate, QR code, 60+ endpoints)",
+  "keywords": [
+    "agent",
+    "agentdatacli",
+    "cli",
+    "daily-news",
+    "hot-search",
+    "news",
+    "open-data",
+    "rxcli",
+    "translate",
+    "weather"
+  ],
+  "homepage": "https://github.com/renxqoo/rxcli/tree/main/apps/rxopen#readme",
+  "bugs": {
+    "url": "https://github.com/renxqoo/rxcli/issues"
+  },
+  "license": "MIT",
+  "author": "renxqoo <wangrenren611@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/renxqoo/rxcli.git",
+    "directory": "apps/rxopen"
+  },
+  "bin": {
+    "rxopen": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "skills"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@renxqoo/agent-data-cli": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "typescript": "^5.9.2",
+    "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "rxcli": {
+    "plugin": true
+  }
+}

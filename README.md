@@ -46,7 +46,7 @@ Four business packages, install on demand. All use `npx <package> install` as a 
 | Package | One-step install | Auth | Description |
 | --- | --- | --- | --- |
 | **rxstock** (A-share data) | `npx @renxqoo/rxstock install` | None (public data) | Quotes/K-line/financials/sectors/dragon-tiger list, multi-source fallback |
-| **rx60s** (Daily info) | `npx @renxqoo/rx60s-cli install` | None (public data) | News/trending/weather/fuel-prices/translate/passwords — 60+ endpoints |
+| **rxopen** (Open data) | `npx @renxqoo/rxopen-cli install` | None (public data) | News/trending/weather/fuel-prices/translate/passwords — 60+ endpoints, split into 6 domain skills |
 | **rxcordys** (Cordys CRM) | `npx @renxqoo/rxcordys-cli install` | Static dual headers (API Key) | Leads/accounts/opportunities/contracts/payments/approvals |
 | **rxcli** (Company business) | `npx @renxqoo/cli install` | OAuth device flow | Orders/products/invoices/accounts |
 
@@ -62,14 +62,14 @@ npx @renxqoo/rxstock stock diagnosis 300656    # Comprehensive stock diagnosis
 npx @renxqoo/rxstock kline indicator 600519    # Technical indicators (MACD/RSI/KDJ)
 ```
 
-**Daily info (rx60s, no login required):**
+**Open data (rxopen, no login required):**
 
 ```bash
-npx @renxqoo/rx60s-cli install
-rx60s 60s                            # What's in the news today
-rx60s life weather 杭州              # Real-time weather
-rx60s tool fanyi "hello" --to zh-CHS # Youdao translate
-rx60s hot weibo                      # Weibo trending
+npx @renxqoo/rxopen-cli install
+rxopen daily                         # What's in the news today
+rxopen life weather 杭州              # Real-time weather
+rxopen tool fanyi "hello" --to zh-CHS # Youdao translate
+rxopen hot weibo                      # Weibo trending
 ```
 
 **Cordys CRM (rxcordys, requires API Key):**
@@ -88,11 +88,12 @@ rxcordys contracts stat              # Contract amount statistics
 | --- | --- | --- | --- |
 | [`@renxqoo/agent-data-cli`](packages/cli-sdk) | `packages/cli-sdk` | — | Framework base package (auth/output/errors/credentials/pipe/skill) |
 | [`@renxqoo/rxstock`](apps/a-stock) | `apps/a-stock` | None | Public market data APIs (Tencent/Eastmoney/Sina/10jqka, multi-source fallback) |
-| [`@renxqoo/rx60s-cli`](apps/60s) | `apps/60s` | None | [vikiboss/60s](https://github.com/vikiboss/60s) open-source project (news/trending/weather/tools — 60+ endpoints) |
+| [`@renxqoo/rxopen-cli`](apps/rxopen) | `apps/rxopen` | None | [vikiboss/60s](https://github.com/vikiboss/60s) open-source project (news/trending/weather/tools — 60+ endpoints, 6 domain skills) |
+| [`@renxqoo/rx60s-cli`](apps/60s) | `apps/60s` | None | [vikiboss/60s](https://github.com/vikiboss/60s) — legacy single-skill version (superseded by `rxopen`) |
 | [`@renxqoo/rxcordys-cli`](apps/cordys-crm) | `apps/cordys-crm` | Static dual headers | Cordys CRM (leads/accounts/opportunities/contracts/approvals/stats) |
 | [`@renxqoo/cli`](apps/crm) | `apps/crm` | OAuth device flow | Company business gateway (orders/products/invoices/accounts) |
 
-> **Data attribution**: rxstock / rx60s data comes from public market APIs and the [vikiboss/60s](https://github.com/vikiboss/60s) open-source project respectively. Copyright belongs to the original data sources; this project only wraps them as CLIs.
+> **Data attribution**: rxstock / rxopen data comes from public market APIs and the [vikiboss/60s](https://github.com/vikiboss/60s) open-source project respectively. Copyright belongs to the original data sources; this project only wraps them as CLIs.
 
 ---
 
@@ -100,9 +101,9 @@ rxcordys contracts stat              # Contract amount statistics
 
 ```
 agent / terminal user
-    │  rxstock quote 600519  /  rx60s life weather 杭州  /  rxcordys accounts page
+    │  rxstock quote 600519  /  rxopen life weather 杭州  /  rxcordys accounts page
     ▼
-Business package (@renxqoo/rxstock / rx60s-cli / rxcordys-cli / cli)
+Business package (@renxqoo/rxstock / rxopen-cli / rxcordys-cli / cli)
     │  cache + multi-source fallback / response unwrap / static-key auth / OAuth auth + refresh
     ▼
 @renxqoo/agent-data-cli (framework)
@@ -146,7 +147,7 @@ rxstock skills read rx-stock         # Read skill content
 
 # Method 2: install to the agent scan directory (recommended)
 rxstock install                      # One-step install to ~/.agents/skills/ (30+ AI tools discovery path)
-rx60s install                        # Same
+rxopen install                       # Same
 ```
 
 Once installed, agents semantically match the SKILL.md `description` against user intent at startup, self-servicing all command discovery.
@@ -211,7 +212,7 @@ pnpm publish:dry-run    # Preview what would be published
 
 ## Acknowledgements
 
-- **[vikiboss/60s](https://github.com/vikiboss/60s)** — rx60s data source, a collection of high-quality open-source public APIs, MIT License © Viki
+- **[vikiboss/60s](https://github.com/vikiboss/60s)** — rxopen / rx60s data source, a collection of high-quality open-source public APIs, MIT License © Viki
 - Public market data APIs (Tencent/Eastmoney/Sina/10jqka) — rxstock data sources
 
 ---

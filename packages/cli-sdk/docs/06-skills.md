@@ -228,6 +228,30 @@ rxcli-orders skills gen orders --init --lang zh
 
 首次 `--init` 用 B,后续维护用 A。两者共享同一套标记块机制。
 
+### per-skill 命令分片(`defineCli({ skillsScopes })`)
+
+当一个 CLI 有多个业务域、拆成多个聚焦 skill 时,每个 skill 的 AUTO-GEN 块只应列**自己域**的命令,而不是全部命令。用 `skillsScopes` 配置这种映射:
+
+```ts
+defineCli({
+  // …
+  skillsDir: './skills',
+  skillsScopes: {
+    // key = skill 目录名,value = 该 skill 覆盖的 namespace / 顶层命令名
+    'myapp-news': ['news', 'tech', 'daily'],   // news.* / tech.* / 顶层 daily 命令
+    'myapp-life': ['life', 'health'],
+    'myapp-tool': ['tool', 'kb'],
+  },
+})
+```
+
+`skills gen myapp-news` 据此只把 scope 内的命令写进 `myapp-news/SKILL.md` 的 AUTO-GEN 块。scope 匹配命令路径的**第一段**(namespace 名,或顶层命令名本身):
+
+- `'life'` → 命中 `life weather`、`life fuel-price`(namespace = life)
+- `'daily'` → 命中顶层命令 `daily`(path 无空格,第一段 = 自身)
+
+省略 `skillsScopes` 或某 skill 未在映射中列出 → 该 skill 的 AUTO-GEN 块含**全部**命令(旧行为,单 skill CLI 不需要配)。这是 `@renxqoo/rxopen-cli` 把 60+ 接口拆成 6 个 skill 的核心机制。
+
 ---
 
 ## 命令签名生成规则

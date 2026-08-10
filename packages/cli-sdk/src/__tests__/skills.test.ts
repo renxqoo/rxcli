@@ -206,6 +206,75 @@ describe("gen: 骨架生成(--init)", () => {
   });
 });
 
+describe("gen: skillsScopes per-skill 命令过滤", () => {
+  const scopedCliOptions: Pick<DefineCliOptions<any>, "commands" | "namespaces"> = {
+    commands: defineCommands({
+      today: defineCommand({ name: "today", description: "每日速览", async run() {} }),
+    }),
+    namespaces: {
+      news: defineCommands({
+        ai: defineCommand({ name: "ai", description: "AI 资讯", async run() {} }),
+        it: defineCommand({ name: "it", description: "IT 资讯", async run() {} }),
+      }),
+      hot: defineCommands({
+        weibo: defineCommand({ name: "weibo", description: "微博热搜", async run() {} }),
+      }),
+      life: defineCommands({
+        weather: defineCommand({ name: "weather", description: "天气", async run() {} }),
+      }),
+    },
+  };
+
+  it("scope 只留指定 namespace 的命令", () => {
+    const block = generateAutogenBlock("rxopen", scopedCliOptions, "en", ["news", "today"]);
+    expect(block).toContain("rxopen news ai");
+    expect(block).toContain("rxopen news it");
+    expect(block).toContain("rxopen today"); // 顶层命令命中(第一段=自身)
+    expect(block).not.toContain("rxopen hot weibo");
+    expect(block).not.toContain("rxopen life weather");
+  });
+
+  it("scope 命中 namespace 时保留该 namespace 下全部命令", () => {
+    const block = generateAutogenBlock("rxopen", scopedCliOptions, "en", ["hot"]);
+    expect(block).toContain("rxopen hot weibo");
+    expect(block).not.toContain("rxopen news");
+    expect(block).not.toContain("rxopen today");
+  });
+
+  it("省略 scope = 全部命令(向后兼容)", () => {
+    const block = generateAutogenBlock("rxopen", scopedCliOptions);
+    expect(block).toContain("rxopen today");
+    expect(block).toContain("rxopen news ai");
+    expect(block).toContain("rxopen hot weibo");
+    expect(block).toContain("rxopen life weather");
+  });
+
+  it("空数组 scope = 全部命令(等价省略)", () => {
+    const block = generateAutogenBlock("rxopen", scopedCliOptions, "en", []);
+    expect(block).toContain("rxopen hot weibo");
+    expect(block).toContain("rxopen life weather");
+  });
+
+  it("refreshAutogen 带 scope 只写该域命令到 AUTO-GEN 块", () => {
+    const existing = `# rxopen-hot\n\n人写简介\n\n${AUTOGEN_START}\n旧的\n${AUTOGEN_END}\n`;
+    const updated = refreshAutogen(existing, "rxopen", scopedCliOptions, "en", ["hot"]);
+    expect(updated).toContain("人写简介"); // 块外语义保留
+    expect(updated).toContain("rxopen hot weibo");
+    expect(updated).not.toContain("rxopen news ai");
+    expect(updated).not.toContain("旧的");
+  });
+
+  it("generateSkillSkeleton 带 scope 骨架只含该域命令", () => {
+    const skel = generateSkillSkeleton("rxopen-hot", "热搜", "rxopen", scopedCliOptions, "zh", [
+      "hot",
+    ]);
+    expect(skel).toContain("name: rxopen-hot");
+    expect(skel).toContain("rxopen hot weibo");
+    expect(skel).not.toContain("rxopen news");
+    expect(skel).not.toContain("rxopen life");
+  });
+});
+
 describe("gen: lang 参数(中英文)", () => {
   const cliOptions: Pick<DefineCliOptions<any>, "commands" | "namespaces"> = {
     commands: defineCommands({
@@ -445,7 +514,8 @@ describe("targets 组件:默认列表 + 覆盖 + 展开", () => {
   });
 
   it("expandTargetDir 展开 ~ 和 ~/", () => {
-    expect(expandTargetDir("~/.claude/skills")).toMatch(/\/\.claude\/skills$/);
+    // 跨平台:Windows 上 path.join 把 / 转成 \,所以用 [\/\\] 兼容两种分隔符
+    expect(expandTargetDir("~/.claude/skills")).toMatch(/[/\\]\.claude[/\\]skills$/);
     expect(expandTargetDir("~").length).toBeGreaterThan(0); // 展开成家目录绝对路径
     // 不含 ~ 的路径原样返回
     expect(expandTargetDir("/abs/path")).toBe("/abs/path");
