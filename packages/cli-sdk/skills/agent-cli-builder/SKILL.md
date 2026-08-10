@@ -1,6 +1,6 @@
 ---
 name: agent-cli-builder
-description: 用 @renxqoo/agent-data-cli 框架构建 agent-native CLI 的 skill——产物是供 AI agent 自服务发现并调用的命令行程序。何时触发:用户要新建/写一个 CLI 或命令行工具、把后端 API 或内部接口封装成命令行给 agent 用、把 API 包成 CLI、给已有 CLI 加鉴权/登录/统一输出/分页/skill 文档能力,或提到 agent-data-cli / cli-sdk 框架。覆盖"做个拉数据的命令""帮我写个 CLI""把这个 API 包一下"等说法——即使没说出 CLI / 框架名也触发。仅限用本框架构建 CLI;通用 skill 编写(不涉及 CLI/命令行)用 skill-creator。
+description: 用 @renxqoo/agent-data-cli 框架构建 agent-native CLI 的 skill——产物是供 AI agent 自服务发现并调用的命令行程序。何时触发:用户要新建/写一个 CLI 或命令行工具、把后端 API 或内部接口封装成命令行给 agent 用、把 API 包成 CLI、给已有 CLI 加鉴权/登录/统一输出/分页/skill 文档能力,或提到 agent-data-cli / cli-sdk 框架。覆盖"做个拉数据的命令""帮我写个 CLI""把这个 API 包一下"等说法——即使没说出 CLI / 框架名也触发。
 ---
 
 # agent-cli-builder
