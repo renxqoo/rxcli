@@ -514,7 +514,8 @@ describe("targets 组件:默认列表 + 覆盖 + 展开", () => {
   });
 
   it("expandTargetDir 展开 ~ 和 ~/", () => {
-    expect(expandTargetDir("~/.claude/skills")).toMatch(/\/\.claude\/skills$/);
+    // 跨平台:Windows 上 path.join 把 / 转成 \,所以用 [\/\\] 兼容两种分隔符
+    expect(expandTargetDir("~/.claude/skills")).toMatch(/[/\\]\.claude[/\\]skills$/);
     expect(expandTargetDir("~").length).toBeGreaterThan(0); // 展开成家目录绝对路径
     // 不含 ~ 的路径原样返回
     expect(expandTargetDir("/abs/path")).toBe("/abs/path");
