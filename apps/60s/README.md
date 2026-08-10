@@ -12,7 +12,7 @@ Understand the world in 60 seconds every day · an open-data agent CLI tool — 
 npx @renxqoo/rx60s-cli install
 ```
 
-This runs two steps automatically: ① globally install the CLI → ② install the Skill to `~/.agents/skills/` (the discovery path for AI tools). Requires Node ≥ 20.
+This runs two steps automatically: ① globally install the CLI → ② install the Skill to your AI-tool discovery dirs (`~/.agents` always + any installed tool among `~/.claude`/`~/.codex`/`~/.cursor`/`~/.zcode`/`~/.openclaw`/`~/.pi`, auto-detected). Requires Node ≥ 20.
 
 > No need to pre-install `npx` — running this gives you the global `rx60s` command plus a ready-to-use skill. This tool is **unauthenticated** (fully public data) and requires no credential configuration.
 
@@ -30,7 +30,7 @@ After installation, run `rx60s --help` to confirm it works. Don't want a global 
 
 **Step 2: Install the Skill (so AI tools can discover it)**
 
-Sync the skill to `~/.agents/skills/` (the common discovery path for AI tools such as Claude Code / Cursor / Trae):
+Sync the skill to your AI-tool discovery dirs (`~/.agents` always + any installed tool like `~/.claude`/`~/.cursor`/`~/.zcode`, auto-detected — for Claude Code / Cursor / Codex / ZCode / OpenClaw / Pi / Trae):
 
 ```bash
 rx60s skills sync

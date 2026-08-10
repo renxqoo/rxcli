@@ -24,7 +24,7 @@
 | `my-cli skills list`                          | 列出所有 skill(返回统一输出)                            |
 | `my-cli skills read <name>`                   | 读 SKILL.md 原文(stdout,**输出契约例外**)              |
 | `my-cli skills read <name>/references/foo.md` | 读 reference 文件(带路径穿越校验)                   |
-| `my-cli skills sync`                          | 同步到 `~/.agents/skills/`(主流 agent 工具发现路径) |
+| `my-cli skills sync`                          | 同步到已装的 agent 发现目录(`~/.agents` 始终写 + 探测到的工具:`~/.claude`/`~/.codex`/`~/.cursor`/`~/.zcode`/`~/.openclaw`/`~/.pi`) |
 | `my-cli skills gen <name>`                    | 刷新已有 SKILL.md 的命令表(AUTO-GEN 块内)           |
 | `my-cli skills gen <name> --init`             | 首次生成整份 SKILL.md 骨架(带 `{{FILL}}` 占位)      |
 | `my-cli skills gen <name> --init --lang zh`   | 生成中文骨架(默认 `--lang en` 英文)                |
@@ -266,10 +266,30 @@ AUTO-GEN 块只生成命令索引表(操作 + 命令签名),**不生成参数说
 
 | `skillsSource`                         | install 向导行为                                                                               |
 | -------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 空(默认)                               | 跑 `my-cli skills sync`,把包内本地 `skills/` 写到 `~/.agents/skills/`(主流 agent 工具发现路径) |
+| 空(默认)                               | 跑 `my-cli skills sync`(探测模式):`~/.agents/skills` 始终写 + 其余 6 个工具目录只写用户已装的(父目录存在),不创建空目录 |
 | 设了 URL(如 `https://skills.sh/p/xxx`) | 优先 `npx skills add <url>`(覆盖 30+ AI 工具发现路径),失败回退本地 sync                        |
 
 业务包入口拦截 `argv[0]==='install'` → `runInstallWizard({ skillsSource })`(4 步:npm i -g → 装 skills → register → login)。`defineCli({ skillsSource })` 当前不会自动转交该值；必须显式传给向导。详见主 SKILL.md §7。
+
+#### 自定义同步目标(`defineCli({ skillsTargets })`)与探测模式
+
+`skills sync` 默认走**探测模式**:只往用户已装的 agent 工具目录写——`~/.agents/skills` 始终写(标准兜底),其余 target(`~/.claude`、`~/.codex` 等)只在其父目录已存在(=用户装了该工具)时才写。这样只装了 Claude Code 的用户只会写 `~/.agents/skills` + `~/.claude/skills`,不会污染其余空目录。
+
+业务包可通过 `defineCli({ skillsTargets })` **覆盖**默认列表。**配了 skillsTargets 就强制全写指定目录,不走探测**(业务包显式指定 = 强制):
+
+```ts
+defineCli({
+  // …
+  // 只同步到 Claude Code 和 ZCode(完全覆盖默认 7 个,强制全写)
+  skillsTargets: [
+    { key: 'claude', dir: '~/.claude/skills' },
+    { key: 'zcode', dir: '~/.zcode/skills' },
+  ],
+  // [] 空数组 → 关闭多 target(仅 install 向导的 npx 路径生效)
+})
+```
+
+`dir` 支持 `~/` 前缀(自动展开家目录)或绝对路径。省略 `skillsTargets` 用探测模式(默认 7 个候选,只写已装的)。
 
 ---
 

@@ -46,14 +46,41 @@ $ rxcli skills read orders
 
 支持读子文件:`rxcli skills read orders/references/orders-list.md`。带路径穿越校验(拒绝 `..`、绝对路径),对齐 lark-cli 的 `cleanSubPath`。
 
-### `skills sync` — 同步到 agent 扫描目录
+### `skills sync` — 同步到已装的 agent 扫描目录(探测模式)
 
 ```bash
 $ rxcli skills sync
-已同步 5 个 skill 到 ~/.agents/skills/
+Synced 5 skill(s) to 2 target(s):
+  ✓ agents     /home/u/.agents/skills
+  ✓ claude     /home/u/.claude/skills
+  · codex      (not installed, skipped)
+  · cursor     (not installed, skipped)
+  · zcode      (not installed, skipped)
+  · openclaw   (not installed, skipped)
+  · pi         (not installed, skipped)
 ```
 
-把所有业务包的 skill 拷贝到 `~/.agents/skills/`(主流 agent 工具的标准发现路径)。这是离线兜底;在线推荐用 `@renxqoo/cli` meta 包的 install 向导(覆盖 30+ agent 工具)。
+**探测模式(默认)**:`skills sync` 只往**用户实际安装了的** agent 工具目录写,避免给只装 1-2 个工具的用户创建一堆空目录:
+
+- **`~/.agents/skills` 始终写**(Agent Skills 标准路径,任何兼容工具都能发现,作为兜底)
+- **其余工具**(`~/.claude`、`~/.codex` 等)只在其父目录已存在(=用户装了该工具)时才写
+- 未安装的工具记 `skipped`,不创建目录、不算失败
+
+用户后续装了新工具后,重新跑一次 `skills sync` 即可补装。单个 target 写入失败(权限/磁盘)不中断其余,最后汇总。这是离线兜底;在线推荐用 `@renxqoo/cli` meta 包的 install 向导(覆盖 30+ agent 工具)。
+
+#### 内置默认 target 列表(`DEFAULT_SKILL_TARGETS`)
+
+| key       | 目录                | 工具                |
+| --------- | ------------------- | ------------------- |
+| `agents`  | `~/.agents/skills`  | Agent Skills 标准(始终写) |
+| `claude`  | `~/.claude/skills`  | Claude Code         |
+| `codex`   | `~/.codex/skills`   | OpenAI Codex        |
+| `cursor`  | `~/.cursor/skills`  | Cursor              |
+| `zcode`   | `~/.zcode/skills`   | ZCode               |
+| `openclaw`| `~/.openclaw/skills`| OpenClaw            |
+| `pi`      | `~/.pi/agent/skills`| Pi Coding Agent     |
+
+业务包可通过 `defineCli({ skillsTargets })` 覆盖这份列表——**配了 skillsTargets 时强制全写指定目录,不走探测**(业务包显式指定 = 强制)。见下文"自定义同步目标"。
 
 ---
 
@@ -265,12 +292,39 @@ args: {
 
 业务包自带的 `skills/` 目录,通过两种方式让 agent 发现:
 
-### 方式 1:`skills sync`(离线兜底)
+### 方式 1:`skills sync`(离线兜底,探测式多 target)
 
 ```bash
 rxcli skills sync
-# 把所有已装业务包的 skills/ 拷贝到 ~/.agents/skills/
+# 把所有已装业务包的 skills/ 拷贝到用户已装的 agent 工具发现目录:
+#   ~/.agents/skills(始终写)+ 探测到的已装工具目录
+#   (没装的工具不创建空目录)
 ```
+
+**探测逻辑**:`~/.agents/skills` 始终写(标准兜底);其余 target(`~/.claude`、`~/.codex` 等)只在其父目录已存在(=用户装了该工具)时才写。这样只装了 Claude Code 的用户只会写 `~/.agents/skills` + `~/.claude/skills`,不会污染其余目录。
+
+#### 自定义同步目标(`defineCli({ skillsTargets })`)
+
+框架内置 7 个默认 target(见上表 `DEFAULT_SKILL_TARGETS`),默认走探测。业务包可完全覆盖:
+
+```ts
+import { defineCli } from '@renxqoo/agent-data-cli'
+
+defineCli({
+  // …
+  // 只同步到 Claude Code 和 ZCode(覆盖默认 7 个)
+  // 注意:配了 skillsTargets 后【强制全写指定目录,不走探测】
+  skillsTargets: [
+    { key: 'claude', dir: '~/.claude/skills' },
+    { key: 'zcode', dir: '~/.zcode/skills' },
+  ],
+  // [] 空数组 → 关闭多 target(仅 install 向导的 npx 路径生效)
+})
+```
+
+`dir` 支持 `~/` 前缀(自动展开为家目录),也支持绝对路径。
+
+> **探测 vs 强制**:省略 `skillsTargets` → 探测模式(只写已装工具);配了 `skillsTargets` → 强制模式(列表里的目录全写,不探测)。业务包显式指定列表 = 表达"我知道我要装这些,别帮我探测"。
 
 ### 方式 2:`@renxqoo/cli` install 向导(在线,覆盖 30+ agent 工具)
 

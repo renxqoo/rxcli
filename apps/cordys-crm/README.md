@@ -12,7 +12,7 @@ A command-line agent tool for the full Cordys CRM Lead-to-Cash (L2C) pipeline �
 npx @renxqoo/rxcordys-cli install
 ```
 
-Performs three steps automatically: ① globally install the CLI → ② install the Skill to `~/.agents/skills/` (the AI-tool discovery path) → ③ configure credentials. Requires Node ≥ 20.
+Performs three steps automatically: ① globally install the CLI → ② install the Skill to your AI-tool discovery dirs (`~/.agents` always + any installed tool among `~/.claude`/`~/.codex`/`~/.cursor`/`~/.zcode`/`~/.openclaw`/`~/.pi`, auto-detected) → ③ configure credentials. Requires Node ≥ 20.
 
 > `npx` requires no pre-install — once it finishes you'll have the global `rxcordys` command plus a skill ready to go.
 
@@ -30,7 +30,7 @@ After installation, run `rxcordys --help` to confirm it works. Don't want a glob
 
 **Step 2: Install the Skill (so AI tools can discover it)**
 
-Sync the skill to `~/.agents/skills/` (the common discovery path for AI tools such as Claude Code / Cursor / Trae):
+Sync the skill to your AI-tool discovery dirs (`~/.agents` always + any installed tool like `~/.claude`/`~/.cursor`/`~/.zcode`, auto-detected — for Claude Code / Cursor / Codex / ZCode / OpenClaw / Pi / Trae):
 
 ```bash
 rxcordys skills sync

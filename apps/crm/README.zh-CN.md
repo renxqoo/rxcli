@@ -46,7 +46,7 @@ agent / 终端用户
 npx @renxqoo/cli install
 ```
 
-自动完成三步:① 全局安装 CLI → ② 安装 Skill 到 `~/.agents/skills/`(AI 工具发现路径)→ ③ 注册 + 登录。需 Node ≥ 20。
+自动完成三步:① 全局安装 CLI → ② 安装 Skill 到你的 AI 工具发现目录(`~/.agents` 始终写 + 已装工具 `~/.claude`/`~/.codex`/`~/.cursor`/`~/.zcode`/`~/.openclaw`/`~/.pi` 自动探测)→ ③ 注册 + 登录。需 Node ≥ 20。
 
 > `npx` 无需预装,跑完即得全局 `rxcli` 命令 + 已就位的 skill。
 
@@ -64,7 +64,7 @@ npm install -g @renxqoo/cli
 
 **第 2 步:安装 Skill(让 AI 工具发现)**
 
-把 skill 同步到 `~/.agents/skills/`(Claude Code / Cursor / Trae 等 AI 工具的通用发现路径):
+把 skill 同步到你的 AI 工具发现目录(`~/.agents` 始终写 + 已装工具如 `~/.claude`/`~/.cursor`/`~/.zcode` 自动探测——覆盖 Claude Code / Cursor / Codex / ZCode / OpenClaw / Pi / Trae):
 
 ```bash
 rxcli skills sync
@@ -126,7 +126,7 @@ rxcli auth logout                         # 退出登录
 rxcli qrcode <url>              # 把 URL 生成二维码(ASCII / PNG)
 rxcli skills list               # 列出所有 skill
 rxcli skills read <name>        # 读 skill 文档
-rxcli skills sync               # 同步 skills 到 ~/.agents/skills/
+rxcli skills sync               # 同步 skills 到所有 agent 发现目录
 rxcli skills gen <name>         # 生成/刷新命令文档
 ```
 
@@ -172,7 +172,7 @@ rxcli orders list --no-json | jq '.data'
 
 ### AI agent 集成
 
-AI agent 读 `~/.agents/skills/` 下的 SKILL.md,自动学会所有命令:
+AI agent 读各自发现目录(如 `~/.agents/skills/`、`~/.claude/skills/`、`~/.codex/skills/`)下的 SKILL.md,自动学会所有命令:
 
 ```
 用户:帮我查下最近的订单

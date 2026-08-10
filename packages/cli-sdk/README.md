@@ -42,7 +42,7 @@ When an AI agent (or script, or pipeline) consumes your business data, there's a
 - **🔌 Vite-style plugins** — beforeCommand/beforeRequest/afterRequest/beforeOutput/onError hooks + `provides` for auto-contributing commands.
 - **🔑 Provider chain** — flag/env/file/oauth four-tier credential resolution priority, with custom credential sources per business.
 - **🚇 Unix pipes** — `rxcli orders list | rxcli report` automatically splits the upstream unified output into a record stream.
-- **📖 Skill system** — SKILL.md command docs auto-generated and synced to `~/.agents/skills/` for AI agent self-discovery.
+- **📖 Skill system** — SKILL.md command docs auto-generated and synced to installed AI agent discovery dirs (`~/.agents` always + detected tools among `~/.claude`/`~/.codex`/`~/.cursor`/`~/.zcode`/`~/.openclaw`/`~/.pi`) for AI agent self-discovery.
 - **🖥️ Dual-mode output** — defaults to `auto` (TTY→text, script/pipe→JSON); `--json` / `--no-json` for explicit override; `defaultFormat` to pin a default.
 - **🧙 Install wizard** — global install + skills loading + register + login guidance; business packages just intercept the `install` command.
 
@@ -147,6 +147,7 @@ defineCli({
   errorOnStatus: { 404: 'not_found', '5xx': 'server_error' },  // optional
   defaultFormat: 'auto',           // optional: 'auto' (default) | 'json' | 'human'
   skillsDir: './skills',           // optional: skill directory
+  skillsTargets: [...],            // optional: skill sync targets (omit = default 7 agent dirs)
 })
 ```
 

@@ -133,7 +133,7 @@ export { createContext, createStderrLog } from "./context.js";
 // 管道
 export { createPipeReader, emptyPipe } from "./pipe.js";
 
-// skill 系统(reader + sync + gen)
+// skill 系统(reader + sync + targets + gen)
 export {
   listSkills,
   listPath,
@@ -143,6 +143,12 @@ export {
   cleanSubPath,
   parseFrontmatter,
   syncSkills,
+  DEFAULT_SKILL_TARGETS,
+  resolveSkillTargets,
+  resolveActiveTargets,
+  isTargetInstalled,
+  detectInstalledTargets,
+  expandTargetDir,
   flattenCommands,
   signatureLine,
   argsTable,
@@ -153,6 +159,9 @@ export {
   AUTOGEN_END,
   type SkillInfo,
   type DirEntry,
+  type SkillTarget,
+  type SyncResult,
+  type SyncTargetResult,
   type GenLang,
 } from "./skills/index.js";
 

@@ -157,7 +157,7 @@ if (isMainEntry()) app.run(argv);
 3. `<bin> auth register`(若 `~/.rxcli/config.json` 无 clientId)
 4. `<bin> auth login`(失败仅 warn,不阻断)
 
-**传给 `runInstallWizard` 的 `skillsSource` 决定 skills 怎么装**:空 → 本地 `skills/` 同步到 `~/.agents/skills/`;设 URL → `npx skills add`(覆盖 30+ AI 工具发现路径)。当前 `defineCli({ skillsSource })` 不会自动转交该配置。
+**传给 `runInstallWizard` 的 `skillsSource` 决定 skills 怎么装**:空 → 本地 `skills/` 同步到用户已装的 agent 工具发现目录(`~/.agents` 始终写 + 探测到的已装工具);设 URL → `npx skills add`(覆盖 30+ AI 工具发现路径)。当前 `defineCli({ skillsSource })` 不会自动转交该配置。
 
 ---
 

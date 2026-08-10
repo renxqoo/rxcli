@@ -6,6 +6,8 @@
  * 运行时中立:只用标准 TS/Web API,不依赖任何运行时专属 API。
  */
 
+import type { SkillTarget } from "./skills/targets.js";
+
 // ============================================================================
 // 通用基础
 // ============================================================================
@@ -258,9 +260,17 @@ export interface DefineCliOptions<State> {
   /**
    * 可选:skills 源 URL(install 向导用)。
    * 设了 → install 向导优先 `npx skills add <url>`(覆盖 30+ AI 工具发现路径);
-   * 空/未设 → 用包内本地 skills(走 `rxcli skills sync`,只写 ~/.agents/skills/)。
+   * 空/未设 → 用包内本地 skills(走 `rxcli skills sync`,写入所有默认 agent 发现目录)。
    */
   skillsSource?: string;
+  /**
+   * 可选:skill 同步目标(AI agent 工具发现目录列表)。
+   * 省略 → 框架内置默认 7 个:`~/.agents`、`~/.claude`、`~/.codex`、`~/.cursor`、
+   *   `~/.zcode`、`~/.openclaw`、`~/.pi/agent`(均下的 skills 子目录,见 skills/targets.ts)。
+   * 传非空数组 → 完全覆盖默认列表(只同步到你指定的目录)。
+   * 传空数组 [] → 不同步到任何目录(关闭多 target,仅 install 向导的 npx 路径生效)。
+   */
+  skillsTargets?: SkillTarget[];
   /** 可选:status→错误自动 throw(subtype 隐含 category)。 */
   errorOnStatus?: ErrorOnStatus;
   /** 可选:后端 baseUrl(无 auth 时可直连;有 auth 时由 provider 决定)。 */

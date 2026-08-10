@@ -21,6 +21,7 @@ import {
 } from "./reader.js";
 import { syncSkills } from "./sync.js";
 import { refreshAutogen, generateSkillSkeleton } from "./gen.js";
+import { type SkillTarget } from "./targets.js";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { DefineCliOptions } from "../types.js";
@@ -31,11 +32,13 @@ import type { DefineCliOptions } from "../types.js";
  * @param binName bin 名(defineCli.name,用于签名/gen)
  * @param skillsDir skill 目录
  * @param cliOptions defineCli 的 options(gen 用 commands/namespaces 提取签名)
+ * @param skillsTargets 同步目标(agent 工具发现目录)。省略 → targets.ts 默认 7 个
  */
 export function createBuiltinSkillsCommands(
   binName: string,
   skillsDir: string,
   cliOptions: Pick<DefineCliOptions<any>, "commands" | "namespaces" | "name" | "binName">,
+  skillsTargets?: SkillTarget[],
 ) {
   return defineCommands({
     // list:列出所有 skill(统一输出格式),或列举一层(带 name/path 参数)
@@ -85,14 +88,58 @@ export function createBuiltinSkillsCommands(
       },
     }),
 
-    // sync:同步到 ~/.agents/skills/
+    // sync:同步到已装的 AI agent 工具发现目录(探测模式)
+    //   - 默认(未配 skillsTargets):~/.agents 始终写 + 探测到的已装工具
+    //   - 配了 skillsTargets:完全按业务包列表(强制全写,不探测)
     sync: defineCommand<any, unknown>({
       name: "sync",
-      description: "Sync skills to ~/.agents/skills/ (for AI agent discovery)",
+      description:
+        "Sync skills to installed AI agent discovery dirs (~/.agents always + detected: .claude/.codex/.cursor/.zcode/.openclaw/.pi)",
       internal: true,
       async run() {
-        const { count, destDir } = syncSkills(skillsDir);
-        return { data: { synced: count, destDir } };
+        // skillsTargets 未配 → 省略 opts,走探测模式;配了 → 显式传,强制全写。
+        const opts = skillsTargets ? { targets: skillsTargets } : undefined;
+        const { count, targets, destDir } = syncSkills(skillsDir, opts);
+        const written = targets.filter((t) => t.ok);
+        const skipped = targets.filter((t) => t.skipped);
+        const failed = targets.filter((t) => !t.ok && !t.skipped);
+        return {
+          data: {
+            synced: count,
+            targets: targets.map((t) => ({
+              key: t.key,
+              dir: t.dir,
+              ok: t.ok,
+              ...(t.skipped ? { skipped: true } : {}),
+              ...(t.error ? { error: t.error } : {}),
+            })),
+            destDir,
+          },
+          meta: {
+            synced: count,
+            written: written.length,
+            skipped: skipped.length,
+            failed: failed.length,
+          },
+        };
+      },
+      humanFormat(data) {
+        const d = data as {
+          synced: number;
+          targets: { key: string; dir: string; ok: boolean; skipped?: boolean; error?: string }[];
+        };
+        const written = d.targets.filter((t) => t.ok);
+        const lines = [`Synced ${d.synced} skill(s) to ${written.length} target(s):`];
+        for (const t of d.targets) {
+          if (t.ok) {
+            lines.push(`  ✓ ${t.key.padEnd(10)} ${t.dir}`);
+          } else if (t.skipped) {
+            lines.push(`  · ${t.key.padEnd(10)} (not installed, skipped)`);
+          } else {
+            lines.push(`  ✗ ${t.key.padEnd(10)} ${t.dir}  (${t.error ?? "failed"})`);
+          }
+        }
+        return lines.join("\n");
       },
     }),
 
