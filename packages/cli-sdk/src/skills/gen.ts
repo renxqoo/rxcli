@@ -160,6 +160,27 @@ function formatDefault(def: unknown): string {
 }
 
 // ============================================================================
+// scope 过滤(per-skill 命令分片)
+// ============================================================================
+
+/**
+ * 按 scope 过滤扁平化命令列表。
+ *
+ * scope 匹配命令路径的**第一段**(namespace 名,或顶层命令名本身):
+ *   - `"life weather"` → 第一段 `"life"` → scope 含 `"life"` 则保留
+ *   - `"today"`(顶层命令,path 无空格) → 第一段 `"today"` → scope 含 `"today"` 则保留
+ *
+ * @param scope 命令路径第一段的允许集合;undefined / 空数组 → 不过滤(返回全部)
+ */
+function filterByScope(cmds: FlatCommand[], scope?: string[]): FlatCommand[] {
+  if (!scope || scope.length === 0) return cmds;
+  const allow = new Set(scope);
+  // path 第一段 = namespace 名(如 "life weather" → "life")或顶层命令名(如 "today")。
+  // split(" ", 1)[0] 在 noUncheckedIndexedAccess 下是 string | undefined,兜底空串(永不在 allow 中)。
+  return cmds.filter((c) => allow.has(c.path.split(" ", 1)[0] ?? ""));
+}
+
+// ============================================================================
 // AUTO-GEN 块内容(## 命令 + ### 参数说明)
 // ============================================================================
 
@@ -168,8 +189,9 @@ export function generateAutogenBlock(
   binName: string,
   options: Pick<DefineCliOptions<any>, "commands" | "namespaces">,
   lang: GenLang = "en",
+  scope?: string[],
 ): string {
-  const cmds = flattenCommands(options);
+  const cmds = filterByScope(flattenCommands(options), scope);
   if (cmds.length === 0) return "";
   const t = GEN_STRINGS[lang];
 
@@ -205,9 +227,10 @@ export function refreshAutogen(
   binName: string,
   options: Pick<DefineCliOptions<any>, "commands" | "namespaces">,
   lang: GenLang = "en",
+  scope?: string[],
 ): string {
   const t = GEN_STRINGS[lang];
-  const block = generateAutogenBlock(binName, options, lang);
+  const block = generateAutogenBlock(binName, options, lang, scope);
   const fullBlock = `${AUTOGEN_START}\n${t.autogenComment}\n${block}\n${AUTOGEN_END}`;
 
   if (existing.includes(AUTOGEN_START)) {
@@ -234,9 +257,10 @@ export function generateSkillSkeleton(
   binName: string,
   options: Pick<DefineCliOptions<any>, "commands" | "namespaces">,
   lang: GenLang = "en",
+  scope?: string[],
 ): string {
   const t = GEN_STRINGS[lang];
-  const block = generateAutogenBlock(binName, options, lang);
+  const block = generateAutogenBlock(binName, options, lang, scope);
   return `---
 name: ${skillName}
 description: ${description || t.skeletonFillDesc}

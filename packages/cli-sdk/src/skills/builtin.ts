@@ -33,12 +33,14 @@ import type { DefineCliOptions } from "../types.js";
  * @param skillsDir skill 目录
  * @param cliOptions defineCli 的 options(gen 用 commands/namespaces 提取签名)
  * @param skillsTargets 同步目标(agent 工具发现目录)。省略 → targets.ts 默认 7 个
+ * @param skillsScopes per-skill 命令过滤(gen 只把 scope 内命令写进该 skill)。省略 → 全部命令
  */
 export function createBuiltinSkillsCommands(
   binName: string,
   skillsDir: string,
   cliOptions: Pick<DefineCliOptions<any>, "commands" | "namespaces" | "name" | "binName">,
   skillsTargets?: SkillTarget[],
+  skillsScopes?: Record<string, string[]>,
 ) {
   return defineCommands({
     // list:列出所有 skill(统一输出格式),或列举一层(带 name/path 参数)
@@ -167,18 +169,19 @@ export function createBuiltinSkillsCommands(
         const skillDir = prepareSkillDir(skillsDir, skillName);
         const skillMdPath = join(skillDir, "SKILL.md");
         const lang = args.lang === "zh" ? "zh" : "en";
+        const scope = skillsScopes?.[skillName];
 
         if (args.init || !existsSync(skillMdPath)) {
           // 策略 B:吐整份骨架
           const desc = `${binName} business skill`;
-          const content = generateSkillSkeleton(skillName, desc, binName, cliOptions, lang);
+          const content = generateSkillSkeleton(skillName, desc, binName, cliOptions, lang, scope);
           writeFileSync(skillMdPath, content);
           return { data: { generated: skillMdPath, mode: "init" } };
         }
 
         // 策略 A:刷新 AUTO-GEN 块(块外语义内容保留)
         const existing = readFileSync(skillMdPath, "utf8");
-        const updated = refreshAutogen(existing, binName, cliOptions, lang);
+        const updated = refreshAutogen(existing, binName, cliOptions, lang, scope);
         writeFileSync(skillMdPath, updated);
         return { data: { refreshed: skillMdPath, mode: "refresh" } };
       },

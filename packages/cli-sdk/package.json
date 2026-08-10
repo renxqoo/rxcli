@@ -13,7 +13,7 @@
     "oauth",
     "sdk"
   ],
-  "homepage": "https://github.com/renxqoo/rxcli#readme",
+  "homepage": "https://github.com/renxqoo/rxcli/tree/main/packages/cli-sdk#readme",
   "bugs": {
     "url": "https://github.com/renxqoo/rxcli/issues"
   },
