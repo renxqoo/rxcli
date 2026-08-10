@@ -51,7 +51,8 @@ When an AI agent (or script, or pipeline) consumes your business data, there's a
 | Package                                 | Scenario                        | Auth mode         | Highlights                                              |
 | --------------------------------------- | ------------------------------- | ----------------- | ------------------------------------------------------- |
 | [`@renxqoo/rxstock`](../../apps/a-stock) | A-share quotes/financials/indicators | None (public data) | Multi-source fallback, unified fallback executor, local indicator computation |
-| [`@renxqoo/rx60s-cli`](../../apps/60s)  | Daily info (news/trending/weather) | None (public data) | 60+ endpoints from vikiboss/60s, auto caching |
+| [`@renxqoo/rxopen-cli`](../../apps/rxopen)  | Open data (news/trending/weather) | None (public data) | 60+ endpoints from vikiboss/60s, split into 6 domain skills via `skillsScopes` |
+| [`@renxqoo/rx60s-cli`](../../apps/60s)  | Daily info (news/trending/weather) | None (public data) | Legacy single-skill version of rxopen |
 | [`@renxqoo/rxcordys-cli`](../../apps/cordys-crm) | Cordys CRM (leads/contracts/orders) | Static dual headers | Full L2C pipeline, hand-written auth plugin |
 | [`@renxqoo/cli`](../../apps/crm)        | Company business (orders/products) | OAuth device flow | Middleware auth, split-flow login, install wizard       |
 

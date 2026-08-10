@@ -1,0 +1,64 @@
+{
+  "skill_name": "rxopen",
+  "evals": [
+    {
+      "id": 1,
+      "name": "daily-news",
+      "prompt": "帮我看看今天有什么新闻,每天速览那种。把新闻标题列出来就行。",
+      "expected_output": "调用 rxopen daily(或 news today),返回今天的新闻标题列表(至少几条),以结构化或列表形式呈现给用户",
+      "files": [],
+      "expectations": [
+        "调用了 rxopen CLI(daily 或 news today 命令)",
+        "输出包含至少 3 条新闻标题",
+        "新闻内容是真实的当日新闻(非占位符)"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "weibo-hotsearch",
+      "prompt": "现在微博上什么最火?给我看看热搜前几条。",
+      "expected_output": "调用 rxopen hot weibo,返回微博热搜列表(带热度值),呈现给用户",
+      "files": [],
+      "expectations": [
+        "调用了 rxopen hot weibo(或顶层 weibo 命令)",
+        "输出包含多条热搜标题(至少 5 条)",
+        "输出包含热度值(hot_value)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "weather-query",
+      "prompt": "查一下上海现在的天气情况,温度多少,空气怎么样。",
+      "expected_output": "调用 rxopen life weather 上海,返回实时天气(温度/湿度/空气质量等)",
+      "files": [],
+      "expectations": [
+        "调用了 rxopen life weather(位置参数为上海或类似)",
+        "输出包含温度数值(temperature 字段)",
+        "输出包含天气状况描述(如 多云/晴)"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "translate",
+      "prompt": "帮我把 'artificial intelligence' 翻译成中文。",
+      "expected_output": "调用 rxopen tool fanyi,返回中文翻译结果",
+      "files": [],
+      "expectations": [
+        "调用了 rxopen tool fanyi(文本为 artificial intelligence,to 为中文)",
+        "输出包含中文翻译结果(如 人工智能)"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "password-gen",
+      "prompt": "我需要一个 20 位的强随机密码,要包含特殊符号,顺便告诉我它有多安全。",
+      "expected_output": "调用 rxopen tool password,生成包含特殊符号的 20 位密码,并给出强度/破解时间",
+      "files": [],
+      "expectations": [
+        "调用了 rxopen tool password(length=20 且 symbols=true)",
+        "输出了一个 20 位密码字符串",
+        "输出包含强度评估或破解时间信息"
+      ]
+    }
+  ]
+}

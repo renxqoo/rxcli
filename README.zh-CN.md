@@ -46,7 +46,7 @@
 | 业务包 | 一键安装 | 鉴权 | 说明 |
 | --- | --- | --- | --- |
 | **rxstock**(A 股数据) | `npx @renxqoo/rxstock install` | 无(公开数据) | 行情/K线/财务/板块/龙虎榜,多源 fallback |
-| **rx60s**(日常资讯) | `npx @renxqoo/rx60s-cli install` | 无(公开数据) | 新闻/热搜/天气/油价/翻译/密码等 60+ 接口 |
+| **rxopen**(开放数据) | `npx @renxqoo/rxopen-cli install` | 无(公开数据) | 新闻/热搜/天气/油价/翻译/密码等 60+ 接口,按数据域拆 6 个 skill |
 | **rxcordys**(Cordys CRM) | `npx @renxqoo/rxcordys-cli install` | 静态双 header(API Key) | 线索/客户/商机/合同/回款/审批 |
 | **rxcli**(公司业务) | `npx @renxqoo/cli install` | OAuth device flow | 订单/商品/发票/账号 |
 
@@ -62,14 +62,14 @@ npx @renxqoo/rxstock stock diagnosis 300656    # 个股综合诊断
 npx @renxqoo/rxstock kline indicator 600519    # 技术指标(MACD/RSI/KDJ)
 ```
 
-**日常资讯(rx60s,无需登录):**
+**开放数据(rxopen,无需登录):**
 
 ```bash
-npx @renxqoo/rx60s-cli install
-rx60s 60s                            # 今天有什么新闻
-rx60s life weather 杭州              # 实时天气
-rx60s tool fanyi "hello" --to zh-CHS # 有道翻译
-rx60s hot weibo                      # 微博热搜
+npx @renxqoo/rxopen-cli install
+rxopen daily                         # 今天有什么新闻
+rxopen life weather 杭州              # 实时天气
+rxopen tool fanyi "hello" --to zh-CHS # 有道翻译
+rxopen hot weibo                      # 微博热搜
 ```
 
 **Cordys CRM(rxcordys,需 API Key):**
@@ -88,11 +88,12 @@ rxcordys contracts stat              # 合同金额统计
 | --- | --- | --- | --- |
 | [`@renxqoo/agent-data-cli`](packages/cli-sdk) | `packages/cli-sdk` | — | 框架基础包(鉴权/统一输出/错误/凭证/管道/skill) |
 | [`@renxqoo/rxstock`](apps/a-stock) | `apps/a-stock` | 无 | 公开行情接口(腾讯/东方财富/新浪/同花顺,多源 fallback) |
-| [`@renxqoo/rx60s-cli`](apps/60s) | `apps/60s` | 无 | [vikiboss/60s](https://github.com/vikiboss/60s) 开源项目(新闻/热搜/天气/工具等 60+ 接口) |
+| [`@renxqoo/rxopen-cli`](apps/rxopen) | `apps/rxopen` | 无 | [vikiboss/60s](https://github.com/vikiboss/60s) 开源项目(新闻/热搜/天气/工具等 60+ 接口,6 个域 skill) |
+| [`@renxqoo/rx60s-cli`](apps/60s) | `apps/60s` | 无 | [vikiboss/60s](https://github.com/vikiboss/60s) —— 旧版单 skill(已被 `rxopen` 取代) |
 | [`@renxqoo/rxcordys-cli`](apps/cordys-crm) | `apps/cordys-crm` | 静态双 header | Cordys CRM(线索/客户/商机/合同/审批/统计) |
 | [`@renxqoo/cli`](apps/crm) | `apps/crm` | OAuth device flow | 公司业务网关(订单/商品/发票/账号) |
 
-> **数据归属**:rxstock / rx60s 的数据分别来自公开行情接口和 [vikiboss/60s](https://github.com/vikiboss/60s) 开源项目,版权归原始数据源所有,本项目仅做 CLI 化封装。
+> **数据归属**:rxstock / rxopen 的数据分别来自公开行情接口和 [vikiboss/60s](https://github.com/vikiboss/60s) 开源项目,版权归原始数据源所有,本项目仅做 CLI 化封装。
 
 ---
 
@@ -100,9 +101,9 @@ rxcordys contracts stat              # 合同金额统计
 
 ```
 agent / 终端用户
-    │  rxstock quote 600519  /  rx60s life weather 杭州  /  rxcordys accounts page
+    │  rxstock quote 600519  /  rxopen life weather 杭州  /  rxcordys accounts page
     ▼
-业务包(@renxqoo/rxstock / rx60s-cli / rxcordys-cli / cli)
+业务包(@renxqoo/rxstock / rxopen-cli / rxcordys-cli / cli)
     │  缓存 + 多源 fallback / 响应解包 / 静态密钥鉴权 / OAuth 鉴权 + 续期
     ▼
 @renxqoo/agent-data-cli(框架)
@@ -146,7 +147,7 @@ rxstock skills read rx-stock         # 读 skill 内容
 
 # 方式二:安装到 Agent 扫描目录(推荐)
 rxstock install                      # 一键装到 ~/.agents/skills/(30+ AI 工具发现路径)
-rx60s install                        # 同上
+rxopen install                        # 同上
 ```
 
 装好后,Agent 启动时按 SKILL.md 的 `description` 语义匹配用户意图,自服务发现所有命令。
@@ -211,7 +212,7 @@ pnpm publish:dry-run    # 预览会发布什么(不真发)
 
 ## 致谢
 
-- **[vikiboss/60s](https://github.com/vikiboss/60s)** —— rx60s 的数据源,一系列高质量、开源的开放 API 集合,MIT License © Viki
+- **[vikiboss/60s](https://github.com/vikiboss/60s)** —— rxopen / rx60s 的数据源,一系列高质量、开源的开放 API 集合,MIT License © Viki
 - 公开行情接口(腾讯/东方财富/新浪/同花顺)—— rxstock 的数据源
 
 ---
