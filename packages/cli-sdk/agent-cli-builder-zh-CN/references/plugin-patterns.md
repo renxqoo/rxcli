@@ -232,6 +232,6 @@ const debugPlugin = {
 2. **依赖注册顺序却没测试** —— 同一 `enforce` 档按注册顺序执行；为有先后依赖的插件写生命周期测试。
 3. **`beforeOutput` 返回 string** —— TS 编译会拦(StructuredData 类型排除 string),但运行时报错更糟。
 4. **onError 返回 undefined** —— 错误被吞掉,exit 0,agent 误以为成功。**只有"这是正常分支"才用**。
-5. **plugin 之间共享 state 字段没声明** —— `defineCli<State>` 没声明,ctx.state.X = Y 编译报错。
+5. **plugin 之间共享 state 字段没声明** —— `defineCommands<State>`、`Plugin<State>` 和 `defineCli<State>` 必须使用同一个状态类型；未声明字段访问会编译失败。
 6. **自行实现 route ownership** —— 使用 `provides`；ownership 是框架的 App-local 内部状态，不属于公开 Plugin 字段。
 7. **调试日志输出请求或响应体** —— 可能泄露 token 和业务数据；只记录最小元数据并脱敏。

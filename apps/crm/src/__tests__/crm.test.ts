@@ -26,10 +26,16 @@ function mockCtx(responseByPath: Record<string, { status?: number; data: unknown
 describe("orders", () => {
   it("list 返回订单数组", async () => {
     const ctx = mockCtx({
-      "/proxy/api/orders": { data: { orders: [{ id: "o_1001", total: 199 }] } },
+      "/proxy/api/orders": {
+        data: { orders: [{ id: "o_1001", total: 168 }], hasMore: false, nextCursor: null },
+      },
     });
     const result = await ordersCommands.list.run({}, ctx);
-    expect(result!.data).toEqual({ orders: [{ id: "o_1001", total: 199 }] });
+    expect(result!.data).toEqual({
+      orders: [{ id: "o_1001", total: 168 }],
+      hasMore: false,
+      nextCursor: null,
+    });
   });
 
   it("list --limit 透传 query", async () => {

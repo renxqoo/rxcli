@@ -40,18 +40,16 @@
 │  业务包(独立 npm,@org/rxcli-xxx)                            │
 │  ─ 写 function 风格命令(defineCommand,带 <Args,Result> 泛型)│
 │  ─ 用 ctx.get/post 请求(无 client 层)                       │
-│  ─ 写插件(认证也是 Plugin,用 cli-sdk 基础块自己组装)        │
+│  ─ 写插件(标准认证用 defineAuth,特殊协议组合基础块)          │
 │  ─ 写 SKILL.md(语义部分,命令表自动生成)                     │
 │  ─ 业务知识全在这层,cli-sdk 不懂业务                          │
 ├──────────────────────────────────────────────────────────────┤
-│  @renxqoo/cli-sdk(基础包,本仓维护)                          │
+│  @renxqoo/agent-data-cli(基础包,本仓维护)                          │
 │  ─ ctx 请求方法(get/post/...,带鉴权 + 401 自动续期)         │
 │  ─ 统一输出格式:成功/失败的统一输出契约                                │
 │  ─ 错误分类:9 类 + exit code + 类型化构造器                   │
-│  ─ 认证:auth 是 Plugin,cli-sdk 出基础块(fileStore /        │
-│    defaultProviders / injectAuthHeader / createOn401Hook 等),│
-│    开发者用基础块组装;无封闭工厂                              │
-│  ─ 插件系统:vite 式 Plugin + 5 钩子 + enforce 三档            │
+│  ─ 认证:defineAuth 标准工厂 + 可组合认证基础块                │
+│  ─ 插件系统:vite 式 Plugin + 6 钩子 + enforce 三档            │
 │  ─ 管道:PipeRecord 类型 + stdin/stdout                       │
 │  ─ skill:list/read/sync + 命令文档自动生成                    │
 │  ─ 配置:ConfigStore(按 namespace 隔离凭证,业务包各自 baseUrl) │
@@ -86,14 +84,14 @@
 ├── README.md                    仓库总览
 │
 ├── packages/
-│   └── cli-sdk/                 ★ @renxqoo/cli-sdk(基础库,本仓维护)
+│   └── cli-sdk/                 ★ @renxqoo/agent-data-cli(基础库,本仓维护)
 │       ├── src/                 实现代码(types/define/oauth/credentials/skills/qrcode/...)
 │       ├── docs/                ★ 设计文档(本目录,随包发布)
 │       └── package.json
 │
 └── apps/                        业务应用(独立 npm,用 cli-sdk 构建)
     └── crm/                     ★ 示例应用(多业务域:orders/products/invoices/account + auth)
-        ├── src/                 命令 + 自写 auth Plugin + 入口
+        ├── src/                 命令 + defineAuth + 入口
         ├── skills/              skill 文档(给 agent 读)
         └── package.json         bin: rxcli;"rxcli":{plugin:true}
 ```
@@ -113,7 +111,7 @@
 
 | #   | 维度      | 决策                                                                                                                                                              | 详见文档            |
 | --- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| 1   | 架构      | pnpm monorepo;`@renxqoo/cli-sdk` 基础包 + 业务包独立 npm                                                                                                          | 本文档              |
+| 1   | 架构      | pnpm monorepo;`@renxqoo/agent-data-cli` 基础包 + 业务包独立 npm                                                                                                          | 本文档              |
 | 2   | 装载      | 独立 bin 为主 + 可被 rxcli 主包装载为子命令                                                                                                                       | `02-sdk-guide.md`   |
 | 3   | 编程风格  | **function 风格 + 配置对象声明**(不用 class 继承)                                                                                                                 | `02-sdk-guide.md`   |
 | 4   | 请求      | **取消 client 概念**(无 createClient/Client);请求方法 `get/post/...` 全挂 `ctx`;鉴权归 cli-sdk 内部 + auth 插件                                                   | `02-sdk-guide.md`   |
@@ -122,14 +120,14 @@
 | 7   | 错误      | 类型化错误 + 结构化统一输出格式到 stderr + **9 类 exit code**;throw 进 onError 插件链                                                                                     | `04-errors.md`      |
 | 8   | 统一输出格式      | 成功也统一输出格式 `{ok, data, meta}`;**stdout=数据 / stderr=一切**                                                                                                       | `03-envelopes.md`   |
 | 9   | 分页      | 统一输出格式 `meta.pagination` + `complete` + `nextToken`,**agent 自决续拉**                                                                                              | `03-envelopes.md`   |
-| 10  | 认证      | **auth 是 Plugin**,开发者用 cli-sdk 基础块(provider chain / injectAuthHeader / oauth)自己组装;**无封闭工厂**(无 `createAuthPlugin`);取消 `credentials.register()` | `05-credentials.md` |
+| 10  | 认证      | `defineAuth` 覆盖标准 OAuth/Bearer/API key/Basic；特殊协议通过公开 Plugin 与基础块组合                                                                    | `05-credentials.md` |
 | 11  | 管道      | unix 管道;**传引用+ID**;本地过滤交 jq                                                                                                                             | `01-cli-usage.md`   |
 | 12  | 过滤      | `--limit/--offset` 透传后端;`--filter`/选字段**交 jq**                                                                                                            | `01-cli-usage.md`   |
 | 13  | 全局 flag | `--json` + 服务端查询参数;其余交 jq/sort                                                                                                                          | `01-cli-usage.md`   |
 | 14  | 脱敏      | 前版不做特性;以后经 beforeOutput 插件实现                                                                                                                         | `02-sdk-guide.md`   |
 | 15  | skill     | list/read/sync + **defineCommands 自动生成命令文档**                                                                                                              | `06-skills.md`      |
 | 16  | 测试      | vitest + `createTestCtx`                                                                                                                                          | `02-sdk-guide.md`   |
-| 17  | 类型      | 命令三泛型 `<Args, Result>` + 业务包级 `<State>`;`ctx.state` 强类型防乱塞;请求泛型 `ctx.get<T>()` 可选                                                            | `02-sdk-guide.md`   |
+| 17  | 类型      | 命令三泛型 `<Args, Result, State>` + `defineCommands<State>`;`ctx.state` 强类型防乱塞;请求泛型 `ctx.get<T>()` 可选                                            | `02-sdk-guide.md`   |
 | 18  | 插件钩子  | 6 个:beforeCommand/beforeRequest/afterRequest/onUnauthorized/beforeOutput/onError;**enforce 三档**(pre/normal/post);onError 链式                                  | `02-sdk-guide.md`   |
 | 19  | 前版不做  | resource() 生成器、写入确认、OpenAPI 自动注册                                                                                                                     | 本文档              |
 
@@ -138,7 +136,7 @@
 - **function 而非 class**:框架场景要组合(管道)、要 tree-shaking(发 npm)、要好测(mock 参数),class 继承在这三方面都劣于 function。
 - **取消 client**:client 同时承担"请求能力"和"业务自定义参数"两个职责会混淆;请求挂 ctx 更直接,鉴权归 auth 插件,业务状态归 `ctx.state`(强类型)。少一层间接,少一个混乱源。
 - **vite 式插件而非内联钩子**:插件是独立可复用模块(可发 npm),钩子是插件接口;内联需求写匿名插件。统一一个扩展机制,避免"逻辑该放 run 还是钩子"的困惑。
-- **认证做成 Plugin(用基础块组装,无封闭工厂)**:provider chain 的优先级链语义(逐个尝试、命中即停)由 cli-sdk 的基础块(`defaultProviders`/`resolveWithChain`/`injectAuthHeader`/`createOn401Hook`)提供,开发者自己写 `beforeCommand` + `beforeRequest` 组装 auth Plugin。取消全局 register,也取消封闭的 `createAuthPlugin` 工厂——业务包掌握认证全流程,框架只出可复用基础块(参见 `apps/crm/src/auth.ts` 的 `createCrmAuth` 参考实现)。
+- **认证仍是 Plugin**:`defineAuth` 负责标准场景并返回普通 Plugin；特殊协议仍可用 provider chain、auth session、`injectAuthHeader` 和 `onUnauthorized` 等公开边界组合，不需要依赖框架私有状态。
 - **命令三泛型**:类似 axios 声明请求/响应类型——一个命令把参数类型、返回类型、state 类型都声明清楚,TS 全面检查;渐进式(不写泛型默认 unknown/{}),不强制。
 - **ctx.state 强类型**:`defineCli<State>` 声明才能访问,未声明报错。从结构上消灭"乱塞"——不是开放 bag,是强类型共享渠道(插件间传递数据)。
 - **enforce 三档**:解决"加 header 的先跑、签名最后跑"的顺序问题(pre 加基础参数 → normal 业务 → post 签名收尾)。

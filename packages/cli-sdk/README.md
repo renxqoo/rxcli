@@ -8,6 +8,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
+[![CI](https://github.com/renxqoo/rxcli/actions/workflows/ci.yml/badge.svg)](https://github.com/renxqoo/rxcli/actions/workflows/ci.yml)
 
 ---
 
@@ -39,7 +40,7 @@ When an AI agent (or script, or pipeline) consumes your business data, there's a
 - **🔐 Auth factory `defineAuth`** — OAuth 2.0 device flow (RFC 8628) + 401 singleflight auto-refresh. One line of config and login/status/logout/register commands are injected automatically.
 - **📦 Structured unified output** — JSON mode outputs `{ok, source, data, meta}`, stderr is the error stream, exit codes are categorized; `defaultFormat` can choose JSON, human text, or TTY auto mode.
 - **🏷️ 9 typed error classes** — validation/authentication/permission/config/network/api/not_found/policy/internal, each mapped to an exit code.
-- **🔌 Vite-style plugins** — beforeCommand/beforeRequest/afterRequest/beforeOutput/onError hooks + `provides` for auto-contributing commands.
+- **🔌 Vite-style plugins** — beforeCommand/beforeRequest/afterRequest/onUnauthorized/beforeOutput/onError hooks + `provides` for auto-contributing commands.
 - **🔑 Provider chain** — flag/env/file/oauth four-tier credential resolution priority, with custom credential sources per business.
 - **🚇 Unix pipes** — `rxcli orders list | rxcli report` automatically splits the upstream unified output into a record stream.
 - **📖 Skill system** — SKILL.md command docs auto-generated and synced to installed AI agent discovery dirs (`~/.agents` always + detected tools among `~/.claude`/`~/.codex`/`~/.cursor`/`~/.zcode`/`~/.openclaw`/`~/.pi`) for AI agent self-discovery.
@@ -67,6 +68,8 @@ pnpm add @renxqoo/agent-data-cli
 ```
 
 > **Requires** Node.js >= 20
+>
+> This package is ESM-only. Use `import`/dynamic `import()` from an ESM project; CommonJS `require()` is not supported.
 
 ---
 
@@ -75,7 +78,7 @@ pnpm add @renxqoo/agent-data-cli
 A single command in < 30 lines (no-auth scenario, e.g. public data):
 
 ```ts
-import { defineCli, defineCommand } from "@renxqoo/agent-data-cli";
+import { defineCli, defineCommandFromArgs } from "@renxqoo/agent-data-cli";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -83,12 +86,14 @@ const app = defineCli({
   name: "myapp",
   description: "My data CLI",
   commands: {
-    list: defineCommand({
+    list: defineCommandFromArgs({
       name: "list",
       description: "Query list",
       args: { limit: { type: "number", default: 20, desc: "Maximum number of results" } },
       async run(args, ctx) {
-        const res = await ctx.get<{ items: any[] }>("/items", { limit: args.limit });
+        const res = await ctx.get<{ items: Array<{ id: string; title: string }> }>("/items", {
+          limit: args.limit,
+        });
         return { data: res.data.items, meta: { count: res.data.items.length } };
       },
     }),
@@ -152,10 +157,10 @@ defineCli({
 })
 ```
 
-### `defineCommand(spec)` — Declare a command
+### `defineCommandFromArgs(spec)` / `defineCommand(spec)` — Declare a command
 
 ```ts
-defineCommand({
+defineCommandFromArgs({
   name: "get",
   description: "Query a single order",
   args: {
@@ -170,6 +175,12 @@ defineCommand({
   },
 });
 ```
+
+Use `defineCommandFromArgs` when the argument schema is the source of truth. Use
+`defineCommand<Args, Result, State>` for domain-specific unions or commands that read
+`ctx.state`. For a componentized command group, `defineCommands<State>({...})` contextually
+types every command against the same application state and rejects incompatible groups at
+`defineCli<State>` assembly time.
 
 ### `defineAuth(opts)` — OAuth auth factory
 
@@ -204,6 +215,9 @@ const myPlugin: Plugin = {
   },
   async afterRequest(ctx, res) {
     /* audit */
+  },
+  async onUnauthorized(ctx, req) {
+    /* refresh credentials and return a replacement token */
   },
   async beforeOutput(ctx, data) {
     return transformedData;
@@ -309,6 +323,8 @@ pnpm build          # Build
 pnpm typecheck      # Type checking
 pnpm test           # Run tests (vitest)
 ```
+
+See the [contribution guide](https://github.com/renxqoo/rxcli/blob/main/CONTRIBUTING.md), [security policy](https://github.com/renxqoo/rxcli/blob/main/SECURITY.md), and [support policy](https://github.com/renxqoo/rxcli/blob/main/SUPPORT.md) before opening a pull request or report.
 
 ## License
 

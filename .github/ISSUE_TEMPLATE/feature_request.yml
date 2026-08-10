@@ -1,0 +1,27 @@
+name: Feature request
+description: Propose a user-facing capability or API improvement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: User problem
+      description: Describe the workflow or limitation before proposing an interface.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and compatibility impact
+  - type: textarea
+    id: tests
+    attributes:
+      label: Acceptance criteria
+      description: What observable behavior should tests verify?

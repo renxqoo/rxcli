@@ -149,7 +149,7 @@ rxcli skills gen <name>         # generate/refresh command docs
 $ rxcli orders list --no-json
 id      userId   status   total  currency
 ------  -------  -------  -----  --------
-o_1001  u_alice  paid       199  CNY
+o_1001  u_alice  paid       168  CNY
 o_1002  u_alice  shipped   58.5  CNY
 ```
 
@@ -157,7 +157,7 @@ o_1002  u_alice  shipped   58.5  CNY
 
 ```bash
 $ rxcli orders list --limit 1
-{"ok":true,"identity":"user","data":{"orders":[{"id":"o_1001","status":"paid","total":199}]},"meta":{"count":1,"pagination":{"complete":false,"items":1,"nextToken":"o_1001"}}}
+{"ok":true,"identity":"user","data":{"orders":[{"id":"o_1001","status":"paid","total":168}]},"meta":{"count":1,"pagination":{"complete":false,"items":1,"nextToken":"o_1001"}}}
 ```
 
 ### Pipeline composition

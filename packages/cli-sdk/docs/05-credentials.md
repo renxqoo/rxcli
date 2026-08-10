@@ -11,13 +11,13 @@
 | **拿 token**(凭证) | 从哪取 key/token(flag/env/file/keychain) | provider chain(由 auth Plugin 调 `resolveWithChain`) |
 | **用 token**(注入) | 把 token 塞进请求 header(bearer/api-key) | auth Plugin 的 `beforeRequest` 调 `injectAuthHeader` |
 
-**这两层都由 auth Plugin 编排**,而 cli-sdk 提供可复用基础块。auth Plugin 返回一个 `enforce: 'pre'` 的插件,beforeCommand 跑 provider chain 取 token、包装 store 成 `ctx.credentials`、填 `ctx.state.user`,beforeRequest 注入认证 header。业务包只管把它塞进 `plugins`。
+**这两层都由 auth Plugin 编排**。标准场景由 `defineAuth` 创建完整插件；特殊协议可使用下列基础块自行组合。插件通过 beforeCommand 解析凭证、通过 beforeRequest 注入 header，并用绑定上下文的 auth session 隔离并发请求。
 
 ---
 
 ## cli-sdk 出的基础块
 
-从主包 `@renxqoo/cli-sdk` import,无需子路径:
+从主包 `@renxqoo/agent-data-cli` import,无需子路径:
 
 | 基础块                                                                                                                                                        | 作用                                                                           |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
@@ -31,7 +31,7 @@
 | `deviceAuthorization` / `pollDeviceToken` / `refreshAccessToken` / `getUserInfo` / `revokeToken` / `registerClient`                                           | OAuth device flow 端点                                                         |
 | 类型:`Plugin` / `CredentialsApi` / `CommandContext` / `ProviderContext` / `TokenResult` / `IdentityHint` / `ConfigStore` / `CredentialProvider` / `AuthStyle` | —                                                                              |
 
-**注意:cli-sdk 不再导出 `createAuthPlugin`。** 它只出基础块。
+**优先使用 `defineAuth`。** 下列基础块用于 HMAC、mTLS、复合认证或自定义 provider，不应在普通 OAuth 场景重复造轮子。
 
 ---
 
@@ -54,7 +54,7 @@ import {
   injectAuthHeader,
   createOn401Hook,
   AuthenticationError,
-} from "@renxqoo/cli-sdk";
+} from "@renxqoo/agent-data-cli";
 
 export function createCrmAuth<State extends { user?: unknown }>(opts: {
   namespace: string;
@@ -241,7 +241,7 @@ defineCli({ plugins: [auth, signPlugin], ... })
 
 | 扩展类型                                         | 机制                                                 | 入口                                         |
 | ------------------------------------------------ | ---------------------------------------------------- | -------------------------------------------- |
-| **认证**(取 token、注入 header、填 user)         | provider chain(由 auth Plugin 调 `resolveWithChain`) | 自己写 auth Plugin(用基础块组装)→ 塞 plugins |
+| **认证**(取 token、注入 header、填 user)         | `defineAuth`；特殊协议使用 provider chain            | 把返回的 Plugin 放进 `plugins`                |
 | **非认证横切**(固定参数、签名、格式、错误、审计) | 普通插件钩子                                         | 直接写 Plugin 对象塞 plugins                 |
 
 **provider chain 由 cli-sdk 的 `resolveWithChain`/`resolveIdentityWithChain` 提供**,业务包不直接调 `credentials.register()`(已取消)。认证全部走自写的 auth Plugin(它调 provider chain),非认证横切用普通插件,不走 provider chain。
@@ -380,7 +380,7 @@ $ rxcli-orders list --verbose 2>&1 | grep -i auth
 | 固定优先级链                   | `resolveWithChain` + `defaultProviders()`(默认 4 个 provider)                                                                                              |
 | OAuth token 续期硬编码         | 401 检测 + singleflight 复用在框架**请求层**;refresh 执行能力由 auth Plugin 的 `createOn401Hook` 提供。两者协作(详见 `04-errors.md` 的"关于 401 自动续期") |
 | 单一中间层 baseUrl             | 业务包各自声明 baseUrl(defineCli 配置),ConfigStore 只管凭证                                                                                                |
-| 封闭的 auth 工厂               | **无封闭工厂**:auth 是 Plugin(defineAuth 工厂或手写),开发者用框架基础块组装                                                                                |
+| 固定认证实现                   | `defineAuth` 覆盖标准场景；特殊协议通过公开 Plugin 与基础块扩展                                                                                             |
 
 ---
 

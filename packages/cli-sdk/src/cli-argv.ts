@@ -12,13 +12,13 @@ export interface FrameworkArgs {
   leadingVersion: boolean;
 }
 
-export interface RoutedCommand {
+export interface RoutedCommand<State = unknown> {
   route: string[];
-  spec: CommandSpec;
+  spec: CommandSpec<any, unknown, State>;
 }
 
-export interface MatchResult {
-  matched: RoutedCommand | null;
+export interface MatchResult<State = unknown> {
+  matched: RoutedCommand<State> | null;
   rest: string[];
 }
 
@@ -82,7 +82,10 @@ export function parseFrameworkArgs(argv: string[]): FrameworkArgs {
 }
 
 /** 命令路径必须是去掉框架参数后的 argv 前缀；优先匹配最长路径。 */
-export function matchRoute(argv: string[], routed: RoutedCommand[]): MatchResult {
+export function matchRoute<State>(
+  argv: string[],
+  routed: RoutedCommand<State>[],
+): MatchResult<State> {
   const sorted = [...routed].sort((a, b) => b.route.length - a.route.length);
   for (const candidate of sorted) {
     if (

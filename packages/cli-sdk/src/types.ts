@@ -162,10 +162,10 @@ export interface CommandContext<State = Record<string, never>> {
 // ============================================================================
 
 /**
- * 命令结构。命令级只有 Args/Result 两个泛型;
- * State 由 defineCli<State> 统一注入(ctx.state),命令定义时不写 State。
+ * 命令结构。State 会从 CommandGroup/defineCli 一路传到 ctx.state；
+ * 独立声明且需要读取 state 的命令，应显式声明同一个 State 类型。
  */
-export interface CommandSpec<Args = any, Result = unknown> {
+export interface CommandSpec<Args = any, Result = unknown, State = unknown> {
   /** 必填,缺了编译报错。 */
   name: string;
   description: string;
@@ -178,11 +178,11 @@ export interface CommandSpec<Args = any, Result = unknown> {
    * 不声明时用框架通用兜底 prettyPrint。声明了就用命令的(如表格、特殊排版)。
    */
   humanFormat?: (data: unknown, meta?: Meta) => string;
-  run: (args: Args, ctx: CommandContext<any>) => Promise<CommandResult<Result> | void>;
+  run: (args: Args, ctx: CommandContext<State>) => Promise<CommandResult<Result> | void>;
 }
 
 /** 命令组:key 决定子命令名(defineCommands 的 key 即命令名)。 */
-export type CommandGroup = Record<string, CommandSpec>;
+export type CommandGroup<State = unknown> = Record<string, CommandSpec<any, unknown, State>>;
 
 // ============================================================================
 // 插件(Plugin)
@@ -215,9 +215,9 @@ export interface Plugin<State = Record<string, never>> {
    */
   provides?: {
     /** 贡献命名空间组(同 DefineCliOptions.namespaces 类型)。 */
-    namespaces?: Record<string, CommandGroup>;
+    namespaces?: Record<string, CommandGroup<State>>;
     /** 贡献顶层命令(挂顶层 → rxcli <cmd>)。 */
-    commands?: CommandGroup;
+    commands?: CommandGroup<State>;
   };
   beforeCommand?(ctx: CommandContext<State>): Promise<void>;
   beforeRequest?(ctx: CommandContext<State>, req: RequestOptions): Promise<void>;
@@ -254,9 +254,9 @@ export interface DefineCliOptions<State> {
   /** 可选:所有扩展(含 auth)。入门示例可省略(默认 []);有 auth 需求的业务包传入 auth 插件。 */
   plugins?: Plugin<State>[];
   /** 必填:顶层命令组(key=命令名)→ <binName> <cmd>。 */
-  commands: CommandGroup;
+  commands: CommandGroup<State>;
   /** 可选:子命名空间组(key=子命名空间)→ rxcli-<name> <ns> <cmd>;单业务域不填。 */
-  namespaces?: Record<string, CommandGroup>;
+  namespaces?: Record<string, CommandGroup<State>>;
   /** 可选:skill 目录(默认 ./skills)。 */
   skillsDir?: string;
   /**

@@ -52,7 +52,7 @@ stdout(统一输出格式):
         "id": "inv_2001",
         "orderId": "o_1001",
         "userId": "u_alice",
-        "amount": 199.0,
+        "amount": 168.0,
         "currency": "CNY",
         "status": "paid",
         "issuedAt": "2024-02-10T03:20:00Z"

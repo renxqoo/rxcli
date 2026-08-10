@@ -27,7 +27,7 @@ import { credentialArgsKey } from "./context.js";
 // ============================================================================
 
 export interface RunCommandOptions<State> {
-  spec: CommandSpec;
+  spec: CommandSpec<any, unknown, State>;
   /** 可延迟解析，使参数错误也经过 plugin onError 与统一输出格式。 */
   args: Record<string, unknown> | (() => Record<string, unknown>);
   ctx: CommandContext<State>;

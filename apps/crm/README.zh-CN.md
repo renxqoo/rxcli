@@ -149,7 +149,7 @@ rxcli skills gen <name>         # 生成/刷新命令文档
 $ rxcli orders list --no-json
 id      userId   status   total  currency
 ------  -------  -------  -----  --------
-o_1001  u_alice  paid       199  CNY
+o_1001  u_alice  paid       168  CNY
 o_1002  u_alice  shipped   58.5  CNY
 ```
 
@@ -157,7 +157,7 @@ o_1002  u_alice  shipped   58.5  CNY
 
 ```bash
 $ rxcli orders list
-{"ok":true,"identity":"user","data":{"orders":[{"id":"o_1001","status":"paid","total":199},...]}}
+{"ok":true,"identity":"user","data":{"orders":[{"id":"o_1001","status":"paid","total":168},...]},"meta":{"count":1,"pagination":{"complete":false,"items":1,"nextToken":"o_1001"}}}
 ```
 
 ### 管道组合
@@ -279,7 +279,7 @@ import { defineCli, defineAuth } from "@renxqoo/agent-data-cli";
 const auth = await defineAuth({
   credentialNamespace: "crm",
   baseUrl: AUTH_BASE_URL,
-  scope: "company.api offline_access",
+  scope: "company.api orders:read products:read invoices:read admin offline_access",
 });
 
 export default defineCli({

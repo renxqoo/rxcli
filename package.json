@@ -16,7 +16,7 @@
     "publish:dry-run": "node scripts/publish.mjs --dry-run",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
-    "docs:check": "echo 'TODO: 文档链接检查'",
+    "docs:check": "pnpm --filter @renxqoo/agent-data-cli docs:check",
     "prepare": "husky"
   },
   "devDependencies": {

@@ -48,11 +48,12 @@ import {
 
 /**
  * 声明单个命令。identity 函数(返回 spec 本身)+ 运行时校验 name/run 必填。
- * 泛型:<Args, Result>(State 由 defineCli<State> 统一注入)。
+ * 泛型:<Args, Result, State>。读取 ctx.state 的独立命令必须声明 State；
+ * 也可通过 defineCommands<State> 让命令对象获得上下文类型。
  */
-export function defineCommand<Args = any, Result = unknown>(
-  spec: CommandSpec<Args, Result>,
-): CommandSpec<Args, Result> {
+export function defineCommand<Args = any, Result = unknown, State = unknown>(
+  spec: CommandSpec<Args, Result, State>,
+): CommandSpec<Args, Result, State> {
   if (!spec.name) throw new Error("defineCommand: name is required");
   if (typeof spec.run !== "function")
     throw new Error(`defineCommand(${spec.name}): run is required and must be a function`);
@@ -64,14 +65,18 @@ export function defineCommand<Args = any, Result = unknown>(
  * Schema-first command definition. Use this when the schema itself is the source of truth;
  * optionality and scalar types are inferred from `args` without a handwritten interface.
  */
-export function defineCommandFromArgs<const Schema extends ArgsSpec, Result = unknown>(
-  spec: Omit<CommandSpec<ParsedArgs<Schema>, Result>, "args"> & { args: Schema },
-): CommandSpec<ParsedArgs<Schema>, Result> {
-  return defineCommand<ParsedArgs<Schema>, Result>(spec);
+export function defineCommandFromArgs<
+  const Schema extends ArgsSpec,
+  Result = unknown,
+  State = unknown,
+>(
+  spec: Omit<CommandSpec<ParsedArgs<Schema>, Result, State>, "args"> & { args: Schema },
+): CommandSpec<ParsedArgs<Schema>, Result, State> {
+  return defineCommand<ParsedArgs<Schema>, Result, State>(spec);
 }
 
 /** 声明命令组(key=命令名)。identity 函数。 */
-export function defineCommands(group: CommandGroup): CommandGroup {
+export function defineCommands<State = unknown>(group: CommandGroup<State>): CommandGroup<State> {
   for (const [key, cmd] of Object.entries(group)) {
     if (!cmd.name) throw new Error(`defineCommands(${key}): command is missing name`);
     if (typeof cmd.run !== "function")
@@ -144,8 +149,8 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
   // —— 命令合并:plugin.provides(默认值) + defineCli 显式声明(业务赢) ——
   // 规则:同 namespace 不同命令 → 合并;同 namespace 同命令 → defineCli 覆盖 plugin。
   // plugin 贡献的命令记录在 App-local ownership map，避免修改可复用 plugin 实例。
-  const mergedNamespaces: Record<string, CommandGroup> = {};
-  const mergedCommands: CommandGroup = {};
+  const mergedNamespaces: Record<string, CommandGroup<State>> = {};
+  const mergedCommands: CommandGroup<State> = {};
 
   const routeOwners = new Map<string, Plugin<State>>();
   const routeKey = (route: string[]) => JSON.stringify(route);
@@ -184,7 +189,7 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
   const commands = mergedCommands;
 
   // 收集所有命令(扁平化成"完整命令路径" → CommandSpec),供路由匹配
-  const routed: RoutedCommand[] = [];
+  const routed: RoutedCommand<State>[] = [];
   for (const [cmdName, spec] of Object.entries(commands)) {
     routed.push({ route: [cmdName], spec });
   }
@@ -314,10 +319,10 @@ export function defineCli<State = Record<string, never>>(options: DefineCliOptio
 }
 
 /** 渲染 help 文本(简单版:列出所有命令)。 */
-function renderHelp(
+function renderHelp<State>(
   binName: string,
   description: string,
-  routed: Array<{ route: string[]; spec: CommandSpec }>,
+  routed: Array<{ route: string[]; spec: CommandSpec<any, unknown, State> }>,
 ): string {
   const lines: string[] = [];
   lines.push(`${binName}/${detectVersion()}`);
@@ -349,9 +354,9 @@ function renderHelp(
 }
 
 /** 渲染单个命令的帮助(子命令 -h 时用)。 */
-function renderCommandHelp(
+function renderCommandHelp<State>(
   binName: string,
-  matched: { route: string[]; spec: CommandSpec },
+  matched: { route: string[]; spec: CommandSpec<any, unknown, State> },
 ): string {
   const sig = signatureOfArgs(matched.spec.args);
   const pos = sig.positionals.join(" ");
@@ -494,7 +499,7 @@ export function detectBizPackage(): BizPackageInfo | null {
 }
 
 interface ExecuteOneOptions<State> {
-  spec: CommandSpec;
+  spec: CommandSpec<any, unknown, State>;
   argsSpec: ArgsSpec | undefined;
   rawOptions: Record<string, unknown>;
   rawPositionals: string[];
