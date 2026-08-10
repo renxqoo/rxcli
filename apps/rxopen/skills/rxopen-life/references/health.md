@@ -11,4 +11,4 @@
 
 返回:`{bmi, weight_assessment, metabolism:{bmr, tdee}, body_fat, health_advice, ideal_measurements, disclaimer}`。
 
-注意:四个参数全必填,缺任何一个返回 `invalid_argument`。
+四个参数全必填，缺任何一个返回 `invalid_argument`。BMI、基础代谢和体脂率均为模型估算；回答时保留 `disclaimer` 的含义，不作诊断或治疗建议。
