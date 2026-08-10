@@ -30,7 +30,7 @@ npm install -g @renxqoo/rxopen-cli
 
 **第 2 步:安装 Skill(让 AI 工具发现)**
 
-把 6 个域 skill 同步到你的 AI 工具发现目录(`~/.agents` 始终写 + 已装工具如 `~/.claude`/`~/.cursor`/`~/.zcode` 自动探测——覆盖 Claude Code / Cursor / Codex / ZCode / OpenClaw / Pi / Trae):
+把 8 个 skill 同步到你的 AI 工具发现目录(`~/.agents` 始终写 + 已装工具如 `~/.claude`/`~/.cursor`/`~/.zcode` 自动探测——覆盖 Claude Code / Cursor / Codex / ZCode / OpenClaw / Pi / Trae):
 
 ```bash
 rxopen skills sync
@@ -45,7 +45,7 @@ ls ~/.agents/skills/              # 确认 skill 文件就位(rxopen-news / rxop
 
 ## 功能
 
-覆盖 60+ 类公开数据,按数据域拆成 6 个聚焦 skill:
+覆盖 60+ 类公开数据，提供 6 个查询 skill 和 2 个编排 skill:
 
 | Skill | 覆盖域 | 说明 |
 |------|-------|------|
@@ -55,6 +55,8 @@ ls ~/.agents/skills/              # 确认 skill 文件就位(rxopen-news / rxop
 | `rxopen-tool` | tool / kb / beta | 有道翻译 / Hash / 二维码 / OG / WHOIS / IP / 密码 / 颜色 / 化学 / 百科 / JS题 / QQ |
 | `rxopen-media` | music / movie | 网易云榜单 / 歌词 / 唱鸭 / 猫眼票房 / 豆瓣口碑 / Epic 免费游戏 |
 | `rxopen-fun` | fun / hitokoto / moyu | 一言 / 段子 / 冷笑话 / 发病文学 / KFC 文案 / 答案之书 / 运势 / 摸鱼日历 |
+| `rxopen-morning` | workflow | 天气 / 新闻 / 打工日历 / 黄历 / 历史事件综合晨报 |
+| `rxopen-trending` | workflow | 多平台热搜共现与差异分析 |
 
 顶层快捷命令:`daily` / `bing` / `weibo` / `zhihu` / `toutiao` / `hitokoto` / `moyu`(免去 namespace 前缀)。
 
@@ -96,16 +98,16 @@ pnpm --filter @renxqoo/rxopen-cli test           # 测试
 pnpm --filter @renxqoo/rxopen-cli typecheck      # 类型检查
 ```
 
-Skill 文档:6 个 `skills/rxopen-*/SKILL.md`(frontmatter + 语义内容手写符合 skill-creator 规范,AUTO-GEN 命令块由 `rxopen skills gen <name>` 生成,通过 `skillsScopes` 限定每个 skill 只列自己域的命令)。接口契约见 `docs/API.md`(全接口完整字段级文档)。
+Skill 文档:8 个 `skills/rxopen-*/SKILL.md`。6 个查询 skill 的命令块由 `rxopen skills gen <name>` 生成，2 个工作流 skill 只包含编排指令；共享安装说明由 build 生成到每个 skill 的 `references/install.md`。接口契约见 `docs/API.md`。
 
 ## 技术决策
 
-- **命名**:npm 包 `@renxqoo/rxopen-cli` / bin 命令 `rxopen` / 6 个 skill `rxopen-{news,hot,life,tool,media,fun}` / **无 credentialNamespace**(全公开数据,不挂 auth)。
+- **命名**:npm 包 `@renxqoo/rxopen-cli` / bin 命令 `rxopen` / 8 个独立 skill / **无 credentialNamespace**(全公开数据,不挂 auth)。
 - **无鉴权**:全部接口公开,`plugins: []`,不挂 auth 插件、无需凭证配置。
 - **走 `ctx.get` + baseUrl**:标准 REST(统一响应 `{ code, message, data }`),用框架请求层 + `errorOnStatus`(400/404/429/5xx 自动 throw)。baseUrl 含 `/v2` 前缀。
 - **业务码解包**:个别接口可能 HTTP 200 + `code≠200`,所有命令经 `unwrap()` 解包校验(`src/envelope.ts`)。
 - **强制 json 编码**:所有请求自动带 `?encoding=json` 拿结构化数据;text/markdown 由 CLI 本地 `humanFormat` 渲染。
-- **skill 按 `skillsScopes` 拆分**:CLI 定义 `skillsScopes` 把 6 个 skill 目录映射到各自覆盖的 namespace;`skills gen` 据此只把域内命令写进对应 skill 的 AUTO-GEN 块,让每个 skill 聚焦、触发可靠。
+- **skill 分层**:`skillsScopes` 为 6 个查询 skill 生成域内命令表；`rxopen-morning` 和 `rxopen-trending` 保留工作流指令，不生成命令表。
 
 ## 数据来源与致谢
 

@@ -2,6 +2,10 @@
 
 `rxopen tool` 提供翻译、哈希、二维码、密码、域名、IP 等开发工具。
 
+## 安全边界
+
+除 WHOIS、指定 IP、颜色和随机查询外，多数命令会把用户输入发送到远程公共接口。不要传入真实密码、令牌、私钥、身份证号、内部地址或未公开文本。远程生成的密码仅用于演示；重要账户使用本地可信密码管理器。
+
 ## tool fanyi —— 有道翻译
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -26,6 +30,8 @@
 
 返回:`{source, md5, sha:{sha1,sha256,sha512}, base64:{encoded,decoded}, url:{encoded,decoded}, gzip:{...}, deflate:{...}, brotli:{...}}`。
 
+内容会发送到远程接口，不用于秘密材料或本应在本地完成的完整性校验。
+
 ## tool qrcode —— 二维码生成
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -35,6 +41,8 @@
 | `--level` | string | 否 | M | 纠错级别 L/M/Q/H |
 
 返回:`{text, base64, data_uri}`(base64 不含 data: 前缀;data_uri 可直接用于 img src)。CLI 不直接产图片二进制,用 data_uri 字段。
+
+二维码正文会发送到远程接口，不编码凭证或私密链接。
 
 ## tool og —— Open Graph 解析
 
@@ -73,6 +81,8 @@
 
 返回:`{password, length, config, character_sets, generation_info:{entropy, strength, time_to_crack}}`。
 
+密码由远程服务生成，不用于真实账户。
+
 ## tool password-check —— 密码强度检测
 
 | 参数 | 类型 | 必填 | 说明 |
@@ -80,6 +90,8 @@
 | `<password>`(位置参数) | string | 是 | 待检测密码(≤128) |
 
 返回:`{password, length, score(0-100), strength(极弱/弱/中等/强/极强), entropy, time_to_crack, character_analysis, recommendations[], security_tips[]}`。
+
+不要传入正在使用或准备使用的真实密码；命令行参数还可能出现在 shell 历史和进程列表中。
 
 ## tool color —— 颜色信息
 

@@ -36,7 +36,9 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "generate:skill-references": "node scripts/generate-skill-references.mjs",
+    "check:skill-references": "node scripts/generate-skill-references.mjs --check",
+    "build": "pnpm run generate:skill-references && tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"

@@ -6,7 +6,7 @@
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 | --- | --- | :--: | --- | --- |
-| `--date` | string | 否 | 今天 | 指定日期 YYYY-MM-DD(失败回退昨天/前天) |
+| `--date` | string | 否 | 今天 | 指定日期 YYYY-MM-DD；无数据时可能回退昨天或前天 |
 | `--forceUpdate` | boolean | 否 | — | 跳过缓存强制刷新 |
 
 返回字段:
@@ -21,11 +21,13 @@
 | `lunar_date` | string | 农历日期 |
 | `updated` / `api_updated` | string/number | 更新时间 |
 
+回答时以返回的 `date` 为准；请求今天但返回较早日期时必须明确标注。
+
 ## news ai —— AI 资讯快报
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 | --- | --- | :--: | --- | --- |
-| `--date` | string | 否 | 昨天 | 指定日期 YYYY-MM-DD |
+| `--date` | string | 否 | 昨天 | 指定日期 YYYY-MM-DD；用户明确问今天时显式传入今天 |
 | `--all` | boolean | 否 | — | 返回全部日期(忽略 date) |
 
 返回:`{ date, news: [{title, detail, link, source?}] }`

@@ -392,6 +392,7 @@ const result = await todosCommands.list.run({ limit: 20 }, ctx);
 | 分页 / 管道下游 / humanFormat | `references/patterns.md` |
 | 自定义插件(钩子/enforce/onError) | `references/plugin-patterns.md` |
 | 生成 SKILL.md | `references/skill-gen.md`(模板 / AUTO-GEN / frontmatter 规范) |
+| 优化现有 skill 到生产可用 | `references/skill-optimization.md`(TRACE / 精简 / 安装生成 / 验收) |
 | 生成 README | `references/readme-gen.md`(结构 / 模板 / 鉴权三分支) |
 | 全部 30+ subtype 速查 | `references/error-catalog.md` |
 | 测试(createTestCtx / 端到端) | `references/testing.md` |
@@ -406,6 +407,7 @@ const result = await todosCommands.list.run({ limit: 20 }, ctx);
 - [ ] 测试用例完善:覆盖正常路径 + 错误路径(参数缺失/类型错/边界值)
 - [ ] 跑 `skills gen <name> --init` 生成 SKILL.md 并填了语义部分(见 §7)
 - [ ] **SKILL.md description 触发质量**:覆盖用户多种说法(不止命令名)、划清边界防误触发(见 `references/skill-gen.md` §4)
+- [ ] 用 `references/skill-optimization.md` 完成 TRACE 审查与生产验收
 - [ ] 按 `references/readme-gen.md` 生成 README(含安装步骤)
 - [ ] 发布前至少跑过一轮真实任务评估(见 `references/testing.md`)
 

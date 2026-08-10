@@ -20,7 +20,7 @@
 | `--days` | number | 否 | 7 | 预报天数(日预报上限 8,日出日落上限 15) |
 | `--city` / `--province` | string | 否 | — | 精确匹配 |
 
-返回:`{location, hourly_forecast[], daily_forecast[], sunrise_sunset[]}`。
+返回:`{location, hourly_forecast[], daily_forecast[], sunrise_sunset[]}`。日预报项包含 `date`、`day_condition`、`night_condition`、`max_temperature`、`min_temperature`、日夜风向和风力；小时预报项包含 `datetime`、`temperature`、`condition` 和风力。
 
 ## life fuel-price —— 今日油价
 
@@ -42,6 +42,8 @@
 | `--currency` | string | 否 | CNY | 基准货币(ISO 4217,如 USD/EUR/JPY) |
 
 返回:`{base_code, updated, rates:[{currency, rate}]}`(按天缓存)。
+
+`rate` 表示 1 单位 `base_code` 可兑换多少目标货币。例如人民币兑日元使用基准 CNY，并从 `rates` 选择 JPY；日元兑人民币使用基准 JPY，并选择 CNY。
 
 ## life lunar —— 老黄历/万年历
 
