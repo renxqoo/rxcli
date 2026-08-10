@@ -195,13 +195,15 @@ pnpm build              # Build all packages
 pnpm typecheck          # Type checking
 pnpm test               # Run tests (vitest)
 pnpm lint               # oxlint checks
+pnpm publish            # Publish all packages to npm (interactive)
+pnpm publish:dry-run    # Preview what would be published
 ```
 
 ### Add a new business package
 
 1. `pnpm init` under `apps/<your-package>/`, depend on `@renxqoo/agent-data-cli`
 2. Write `src/index.ts` (`defineCli`) + `src/commands/*.ts` (`defineCommand`)
-3. `pnpm build` + `<bin> skills gen <name> --init` to scaffold the skill
+3. `pnpm build` + `<bin> skills gen <name> --init` to scaffold the skill (add `--lang zh` for Chinese skeleton)
 4. Hand-write the semantic parts of SKILL.md (when to use / error handling / prerequisites)
 5. See the [agent-cli-builder skill](packages/cli-sdk/skills/agent-cli-builder/SKILL.md)
 

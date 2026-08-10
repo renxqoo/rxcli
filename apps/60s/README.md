@@ -97,7 +97,7 @@ export RX60S_BASE_URL=https://your-60s.example.com/v2
 
 ```bash
 pnpm --filter @renxqoo/rx60s-cli build          # build
-pnpm --filter @renxqoo/rx60s-cli test           # test (17 cases)
+pnpm --filter @renxqoo/rx60s-cli test           # test (21 cases)
 pnpm --filter @renxqoo/rx60s-cli typecheck      # type check
 ```
 

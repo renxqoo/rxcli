@@ -133,7 +133,7 @@ rxcli skills gen <name>         # 生成/刷新命令文档
 ### 全局选项
 
 ```bash
---json          强制 JSON 统一输出输出
+--json          强制 JSON 统一输出
 --no-json       强制人类可读文本输出(终端用)
 -h, --help      查看帮助
 -v, --version   查看版本

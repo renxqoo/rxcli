@@ -195,13 +195,15 @@ pnpm build              # 构建所有包
 pnpm typecheck          # 类型检查
 pnpm test               # 跑测试(vitest)
 pnpm lint               # oxlint 检查
+pnpm publish            # 一键发布所有包到 npm(交互确认)
+pnpm publish:dry-run    # 预览会发布什么(不真发)
 ```
 
 ### 添加新业务包
 
 1. `apps/<你的包>/` 下 `pnpm init`,依赖 `@renxqoo/agent-data-cli`
 2. 写 `src/index.ts`(`defineCli`)+ `src/commands/*.ts`(`defineCommand`)
-3. `pnpm build` + `<bin> skills gen <name> --init` 生成 skill 骨架
+3. `pnpm build` + `<bin> skills gen <name> --init` 生成 skill 骨架(中文骨架加 `--lang zh`)
 4. 手写 SKILL.md 语义部分(何时用 / 错误处理 / 前置条件)
 5. 详见 [agent-cli-builder skill](packages/cli-sdk/skills/agent-cli-builder/SKILL.md)
 

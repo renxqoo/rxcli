@@ -101,7 +101,7 @@ Follows the unified agent-data-cli output format: `{ ok, source, data, meta }`. 
 
 ```bash
 pnpm --filter @renxqoo/rxcordys-cli build       # Compile
-pnpm --filter @renxqoo/rxcordys-cli test         # Test (61 cases)
+pnpm --filter @renxqoo/rxcordys-cli test         # Test (64 cases)
 pnpm --filter @renxqoo/rxcordys-cli typecheck    # Type check
 ```
 
