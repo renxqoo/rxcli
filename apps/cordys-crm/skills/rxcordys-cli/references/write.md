@@ -1,8 +1,6 @@
 # 写入操作规范
 
-> SKILL.md「写入操作」节讲了确认机制(--yes/--dryRun/exit 10)。本文件讲写入的完整规范:两阶段写入、字段推断、批量约束、转化映射。
->
-> 写入是最容易踩坑的场景。所有写入遵循本规范,避免盲写、漏字段、覆盖式更新。
+> SKILL.md「写入操作」节讲了确认机制(--yes/exit 10)。本文件讲写入的完整规范:两阶段写入、字段推断、批量约束、转化映射。所有写入命令统一用 `--dry-run` 预览、`--yes` 执行。
 
 ---
 
@@ -12,7 +10,7 @@
 
 ```bash
 rxcordys <ns> form          # 先看必填字段 + 字段类型 + 合法枚举值
-rxcordys <ns> add '<json>' --dryRun   # 校验,不发请求(meta.dryRun:true)
+rxcordys <ns> add '<json>' --dry-run   # 校验参数,不提交
 rxcordys <ns> add '<json>' --yes      # 确认后执行
 ```
 
@@ -33,7 +31,7 @@ rxcordys <ns> add '<json>' --yes      # 确认后执行
   ├─ 2. 未加载表单 → rxcordys <ns> form 取表单定义
   ├─ 3. 分析用户输入 → 提取字段值映射到表单字段
   ├─ 4. 校验输入(必填/类型/枚举)→ 失败则提示修正
-  ├─ 5. --dryRun 预览 → 用户确认
+  ├─ 5. --dry-run 预览 → 用户确认
   ├─ 6. --yes 执行写入
   ├─ 7. 验证结果(page 查刚创建/更新的记录)
   └─ 8. 输出(创建摘要 / 更新变更对比,见 output.md)
@@ -132,7 +130,7 @@ Cordys **不提供批量创建(batch-add)**端点。需要批量创建时,逐条
 ## fieldId 陷阱(batch-update)
 
 `batch-update` 的 `fieldId`:
-- ✅ 用表单定义中的实际字段 ID(如 `"635449004900372"`)
+- ✅ 用表单定义中的实际字段 ID(形如 `"<fieldId>"`,**部署相关,从 `form` 命令取真实值,勿照抄任何示例数字**)
 - ✅ 用系统字段的内部 key(如 `"owner"`)
 - ❌ **不能用系统字段的 businessKey**(如 `name`、`phone`)
 
@@ -182,7 +180,7 @@ rxcordys leads transform '{"clueId":"xxx","oppCreated":false}' --yes
 |------|------|
 | 先取表单 | 创建/更新前 `form` 取定义,不盲写 |
 | 校验输入 | 必填/类型/枚举校验,失败提示修正 |
-| 预览确认 | `--dryRun` 或展示预览,用户确认后 `--yes` |
+| 预览确认 | `--dry-run` 或展示预览,用户确认后 `--yes` |
 | 变更对比 | 更新后输出旧值→新值(见 output.md) |
 | 验证结果 | 写入后 `page` 确认数据落库 |
 

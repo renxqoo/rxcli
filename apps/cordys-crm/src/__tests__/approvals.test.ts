@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { errs } from "@renxqoo/agent-data-cli";
-import { createTestCtx } from "@renxqoo/agent-data-cli";
+import { errs, createTestCtx } from "@renxqoo/agent-data-cli";
 import { approvalsCommands } from "../commands/approvals.js";
 
 function ok(data: unknown) {
@@ -28,14 +27,14 @@ function captureCtx() {
 describe("approvals todo", () => {
   it("pending 走 POST /approval-todo/pending/page", async () => {
     const { ctx, getLast } = captureCtx();
-    await approvalsCommands.todo.run({ kind: "pending", payload: "" }, ctx);
+    await approvalsCommands.todo.run(ctx, { kind: "pending", payload: "" });
     expect(getLast()?.method).toBe("POST");
     expect(getLast()?.path).toBe("/approval-todo/pending/page");
   });
 
   it("count 走 GET /approval-todo/pending/count", async () => {
     const { ctx, getLast } = captureCtx();
-    await approvalsCommands.todo.run({ kind: "count", payload: "" }, ctx);
+    await approvalsCommands.todo.run(ctx, { kind: "count", payload: "" });
     expect(getLast()?.method).toBe("GET");
     expect(getLast()?.path).toBe("/approval-todo/pending/count");
   });
@@ -43,7 +42,7 @@ describe("approvals todo", () => {
   it("非法 kind 抛 ValidationError", async () => {
     const { ctx } = captureCtx();
     await expect(
-      approvalsCommands.todo.run({ kind: "invalid", payload: "" }, ctx),
+      approvalsCommands.todo.run(ctx, { kind: "invalid", payload: "" }),
     ).rejects.toMatchObject({
       subtype: "invalid_argument",
     });
@@ -51,105 +50,103 @@ describe("approvals todo", () => {
 });
 
 describe("approvals action", () => {
-  it("缺 --yes 抛 ConfirmationRequiredError", async () => {
+  // 注:--dry-run / --yes 由 cli-sdk write policy 接管,直接调用 run 走真实执行路径。
+
+  it("approve → POST /approval-action/approve", async () => {
+    const { ctx, getLast } = captureCtx();
+    await approvalsCommands.action.run(ctx, { action: "approve", data: '{"id":"X"}' });
+    expect(getLast()?.path).toBe("/approval-action/approve");
+  });
+
+  it("非法 action 抛 ValidationError", async () => {
     const { ctx } = captureCtx();
     await expect(
-      approvalsCommands.action.run(
-        { action: "approve", data: '{"id":"X"}', dryRun: false, yes: false },
-        ctx,
-      ),
-    ).rejects.toMatchObject({ category: "confirmation" });
-  });
-
-  it("--dry-run 不发请求", async () => {
-    const { ctx, getLast } = captureCtx();
-    const result = await approvalsCommands.action.run(
-      { action: "approve", data: '{"id":"X"}', dryRun: true, yes: false },
-      ctx,
-    );
-    expect(result!.data).toBeNull();
-    expect(getLast()).toBeNull();
-  });
-
-  it("approve + --yes → POST /approval-action/approve", async () => {
-    const { ctx, getLast } = captureCtx();
-    await approvalsCommands.action.run(
-      { action: "approve", data: '{"id":"X"}', dryRun: false, yes: true },
-      ctx,
-    );
-    expect(getLast()?.path).toBe("/approval-action/approve");
+      approvalsCommands.action.run(ctx, { action: "bogus", data: '{"id":"X"}' }),
+    ).rejects.toMatchObject({ subtype: "invalid_argument" });
   });
 });
 
 describe("approvals flow", () => {
+  // flow 是读/写混合 dispatch(命令级 policy 无法对部分 action 生效),此处验证路径分发。
   it("page → POST /approval-flow/page", async () => {
     const { ctx, getLast } = captureCtx();
-    await approvalsCommands.flow.run(
-      { action: "page", arg: "", payload: "", dryRun: false, yes: false },
-      ctx,
-    );
+    await approvalsCommands.flow.run(ctx, { action: "page", arg: "", payload: "" });
     expect(getLast()?.path).toBe("/approval-flow/page");
   });
 
   it("enable F1 → GET /approval-flow/enable/F1?enable=true", async () => {
     const { ctx, getLast } = captureCtx();
-    await approvalsCommands.flow.run(
-      { action: "enable", arg: "F1", payload: "", dryRun: false, yes: false },
-      ctx,
-    );
+    await approvalsCommands.flow.run(ctx, { action: "enable", arg: "F1", payload: "" });
     expect(getLast()?.method).toBe("GET");
     expect(getLast()?.path).toBe("/approval-flow/enable/F1?enable=true");
   });
 
   it("disable F1 → /enable/F1?enable=false", async () => {
     const { ctx, getLast } = captureCtx();
-    await approvalsCommands.flow.run(
-      { action: "disable", arg: "F1", payload: "", dryRun: false, yes: false },
-      ctx,
-    );
+    await approvalsCommands.flow.run(ctx, { action: "disable", arg: "F1", payload: "" });
     expect(getLast()?.path).toBe("/approval-flow/enable/F1?enable=false");
   });
 
   it("by-form → GET /approval-flow/get-by-form-type/{formType}", async () => {
     const { ctx, getLast } = captureCtx();
-    await approvalsCommands.flow.run(
-      { action: "by-form", arg: "CONTRACT", payload: "", dryRun: false, yes: false },
-      ctx,
-    );
+    await approvalsCommands.flow.run(ctx, { action: "by-form", arg: "CONTRACT", payload: "" });
     expect(getLast()?.path).toBe("/approval-flow/get-by-form-type/CONTRACT");
   });
 
   it("setting → GET /approval-flow/status-permission/setting/{formType}", async () => {
     const { ctx, getLast } = captureCtx();
-    await approvalsCommands.flow.run(
-      { action: "setting", arg: "ORDER", payload: "", dryRun: false, yes: false },
-      ctx,
-    );
+    await approvalsCommands.flow.run(ctx, { action: "setting", arg: "ORDER", payload: "" });
     expect(getLast()?.path).toBe("/approval-flow/status-permission/setting/ORDER");
   });
 
   it("缺 arg 抛 missing_required", async () => {
     const { ctx } = captureCtx();
     await expect(
-      approvalsCommands.flow.run(
-        { action: "enable", arg: "", payload: "", dryRun: false, yes: false },
-        ctx,
-      ),
+      approvalsCommands.flow.run(ctx, { action: "enable", arg: "", payload: "" }),
     ).rejects.toMatchObject({ subtype: "missing_required" });
+  });
+
+  it("add/update/webhook-test 已拆出 → flow 抛 invalid_argument 迁移提示", async () => {
+    const { ctx } = captureCtx();
+    await expect(
+      approvalsCommands.flow.run(ctx, { action: "add", arg: "", payload: '{"name":"flow1"}' }),
+    ).rejects.toMatchObject({ subtype: "invalid_argument" });
+  });
+});
+
+describe("approvals flow-add / flow-update / flow-webhook-test", () => {
+  // 写操作从 flow 拆出为独立命令,各自套用 write policy(--dry-run / --yes 由框架接管)。
+  it("flow-add → POST /approval-flow/add", async () => {
+    const { ctx, getLast } = captureCtx();
+    await approvalsCommands["flow-add"].run(ctx, { data: '{"name":"flow1"}' });
+    expect(getLast()?.method).toBe("POST");
+    expect(getLast()?.path).toBe("/approval-flow/add");
+  });
+
+  it("flow-update → POST /approval-flow/update", async () => {
+    const { ctx, getLast } = captureCtx();
+    await approvalsCommands["flow-update"].run(ctx, { data: '{"id":"F1"}' });
+    expect(getLast()?.path).toBe("/approval-flow/update");
+  });
+
+  it("flow-webhook-test → POST /approval-flow/webhook/test", async () => {
+    const { ctx, getLast } = captureCtx();
+    await approvalsCommands["flow-webhook-test"].run(ctx, { data: "{}" });
+    expect(getLast()?.path).toBe("/approval-flow/webhook/test");
   });
 });
 
 describe("approvals resource", () => {
   it("push → POST /approval-resource/push", async () => {
     const { ctx, getLast } = captureCtx();
-    await approvalsCommands.resource.run({ action: "push", arg: '{"resourceId":"R1"}' }, ctx);
+    await approvalsCommands.resource.run(ctx, { action: "push", arg: '{"resourceId":"R1"}' });
     expect(getLast()?.method).toBe("POST");
     expect(getLast()?.path).toBe("/approval-resource/push");
   });
 
   it("simple-detail → GET /approval-resource/simple-detail/{id}", async () => {
     const { ctx, getLast } = captureCtx();
-    await approvalsCommands.resource.run({ action: "simple-detail", arg: "R1" }, ctx);
+    await approvalsCommands.resource.run(ctx, { action: "simple-detail", arg: "R1" });
     expect(getLast()?.method).toBe("GET");
     expect(getLast()?.path).toBe("/approval-resource/simple-detail/R1");
   });
@@ -157,7 +154,7 @@ describe("approvals resource", () => {
   it("simple-detail 缺 arg 抛 missing_required", async () => {
     const { ctx } = captureCtx();
     await expect(
-      approvalsCommands.resource.run({ action: "simple-detail", arg: "" }, ctx),
+      approvalsCommands.resource.run(ctx, { action: "simple-detail", arg: "" }),
     ).rejects.toBeInstanceOf(errs.ValidationError);
   });
 });

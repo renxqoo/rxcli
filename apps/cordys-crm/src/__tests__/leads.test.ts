@@ -31,7 +31,7 @@ describe("leads page", () => {
         data: ok({ list: [{ id: "L1" }, { id: "L2" }], total: 2, current: 1, pageSize: 30 }),
       },
     ]);
-    const result = await leadsCommands.page.run({ payload: "" }, ctx);
+    const result = await leadsCommands.page.run(ctx, { payload: "" });
     expect(result!.data).toEqual([{ id: "L1" }, { id: "L2" }]);
     expect(result!.meta?.pagination?.complete).toBe(true);
     expect(result!.meta?.count).toBe(2);
@@ -49,7 +49,7 @@ describe("leads page", () => {
         };
       },
     });
-    await leadsCommands.page.run({ payload: "张三" }, ctx);
+    await leadsCommands.page.run(ctx, { payload: "张三" });
     expect((captured as { keyword: string }).keyword).toBe("张三");
   });
 
@@ -60,42 +60,36 @@ describe("leads page", () => {
         data: ok({ list: [{ id: "L1" }], total: 50, current: 1, pageSize: 30 }),
       },
     ]);
-    const result = await leadsCommands.page.run({ payload: "" }, ctx);
+    const result = await leadsCommands.page.run(ctx, { payload: "" });
     expect(result!.meta?.pagination?.complete).toBe(false);
     expect(result!.meta?.pagination?.nextToken).toBe("2");
   });
 });
 
 describe("leads get", () => {
-  it("拼路径 /lead/{id} 返回详情", async () => {
+  it("拼路径 /lead/get/{id} 返回详情", async () => {
     const ctx = mockCtx([
-      { match: (m, p) => m === "GET" && p === "/lead/L1", data: ok({ id: "L1", name: "线索1" }) },
+      {
+        match: (m, p) => m === "GET" && p === "/lead/get/L1",
+        data: ok({ id: "L1", name: "线索1" }),
+      },
     ]);
-    const result = await leadsCommands.get.run({ id: "L1" }, ctx);
+    const result = await leadsCommands.get.run(ctx, { id: "L1" });
     expect(result!.data).toEqual({ id: "L1", name: "线索1" });
   });
 });
 
 describe("leads add", () => {
-  it("缺 --yes 抛 ConfirmationRequiredError", async () => {
+  // 注:--dry-run / --yes 的预览与确认由 cli-sdk write policy 在 run 前接管,
+  // 直接调用 run 走真实执行路径(此处只验证 run 内的业务逻辑:body 校验 + 请求)。
+
+  it("缺 name 字段抛 ValidationError(missing_required)", async () => {
     await expect(
-      leadsCommands.add.run({ data: '{"name":"X"}', dryRun: false, yes: false }, mockCtx([])),
-    ).rejects.toMatchObject({
-      category: "confirmation",
-      subtype: "high_risk_write",
-    });
+      leadsCommands.add.run(ctx_for_empty(), { data: '{"phone":"x"}' }),
+    ).rejects.toMatchObject({ subtype: "missing_required", param: "name" });
   });
 
-  it("--dry-run 不发请求,返回 dryRun meta", async () => {
-    const result = await leadsCommands.add.run(
-      { data: '{"name":"X"}', dryRun: true, yes: false },
-      mockCtx([]),
-    );
-    expect(result!.data).toBeNull();
-    expect(result!.meta?.dryRun).toBe(true);
-  });
-
-  it("--yes 发 POST /lead/add", async () => {
+  it("完整数据 → 发 POST /lead/add", async () => {
     let capturedBody: unknown;
     const ctx = createTestCtx({
       request: async (opts) => {
@@ -103,19 +97,21 @@ describe("leads add", () => {
         return { status: 200, data: ok({ id: "L_new" }), headers: {} };
       },
     });
-    const result = await leadsCommands.add.run(
-      { data: '{"name":"X"}', dryRun: false, yes: true },
-      ctx,
-    );
+    const result = await leadsCommands.add.run(ctx, { data: '{"name":"X"}' });
     expect(capturedBody).toEqual({ name: "X" });
     expect(result!.data).toEqual({ id: "L_new" });
   });
 });
 
+/** 不会触发真实请求的 ctx(add 校验失败前不会发请求)。 */
+function ctx_for_empty() {
+  return createTestCtx({ request: async () => ({ status: 200, data: {}, headers: {} }) });
+}
+
 describe("leads update", () => {
   it("缺 id 字段抛 ValidationError(missing_required)", async () => {
     await expect(
-      leadsCommands.update.run({ data: '{"name":"X"}', dryRun: true, yes: false }, mockCtx([])),
+      leadsCommands.update.run(ctx_for_empty(), { data: '{"name":"X"}' }),
     ).rejects.toMatchObject({ subtype: "missing_required", param: "id" });
   });
 });
@@ -123,23 +119,17 @@ describe("leads update", () => {
 describe("leads transition", () => {
   it("缺 clueId 抛 ValidationError", async () => {
     await expect(
-      leadsCommands.transition.run(
-        { data: '{"name":"客户A"}', dryRun: true, yes: false },
-        mockCtx([]),
-      ),
+      leadsCommands.transition.run(ctx_for_empty(), { data: '{"name":"客户A"}' }),
     ).rejects.toMatchObject({ subtype: "missing_required", param: "clueId" });
   });
 
   it("缺 name 抛 ValidationError", async () => {
     await expect(
-      leadsCommands.transition.run(
-        { data: '{"clueId":"L1"}', dryRun: true, yes: false },
-        mockCtx([]),
-      ),
+      leadsCommands.transition.run(ctx_for_empty(), { data: '{"clueId":"L1"}' }),
     ).rejects.toMatchObject({ subtype: "missing_required", param: "name" });
   });
 
-  it("完整字段 + --yes 发 POST /lead/transition/account", async () => {
+  it("完整字段 → 发 POST /lead/transition/account", async () => {
     let capturedPath = "";
     let capturedBody: unknown;
     const ctx = createTestCtx({
@@ -149,10 +139,9 @@ describe("leads transition", () => {
         return { status: 200, data: ok({ id: "A_new" }), headers: {} };
       },
     });
-    const result = await leadsCommands.transition.run(
-      { data: '{"clueId":"L1","name":"客户A"}', dryRun: false, yes: true },
-      ctx,
-    );
+    const result = await leadsCommands.transition.run(ctx, {
+      data: '{"clueId":"L1","name":"客户A"}',
+    });
     expect(capturedPath).toBe("/lead/transition/account");
     expect(capturedBody).toEqual({ clueId: "L1", name: "客户A" });
     expect(result!.data).toEqual({ id: "A_new" });
@@ -162,14 +151,11 @@ describe("leads transition", () => {
 describe("leads transform", () => {
   it("缺 clueId 抛 ValidationError", async () => {
     await expect(
-      leadsCommands.transform.run(
-        { data: '{"oppName":"X"}', dryRun: true, yes: false },
-        mockCtx([]),
-      ),
+      leadsCommands.transform.run(ctx_for_empty(), { data: '{"oppName":"X"}' }),
     ).rejects.toMatchObject({ subtype: "missing_required", param: "clueId" });
   });
 
-  it("完整字段 + --yes 发 POST /lead/transform", async () => {
+  it("完整字段 → 发 POST /lead/transform", async () => {
     let capturedPath = "";
     const ctx = createTestCtx({
       request: async (opts) => {
@@ -177,10 +163,9 @@ describe("leads transform", () => {
         return { status: 200, data: ok({ id: "O_new" }), headers: {} };
       },
     });
-    await leadsCommands.transform.run(
-      { data: '{"clueId":"L1","oppCreated":true,"oppName":"商机X"}', dryRun: false, yes: true },
-      ctx,
-    );
+    await leadsCommands.transform.run(ctx, {
+      data: '{"clueId":"L1","oppCreated":true,"oppName":"商机X"}',
+    });
     expect(capturedPath).toBe("/lead/transform");
   });
 });
@@ -189,11 +174,11 @@ describe("业务错误码解包", () => {
   it("code≠100200 抛 APIError", async () => {
     const ctx = mockCtx([
       {
-        match: (m, p) => m === "GET" && p === "/lead/L1",
+        match: (m, p) => m === "GET" && p === "/lead/get/L1",
         data: { code: 100404, message: "线索不存在", messageDetail: null },
         status: 200,
       },
     ]);
-    await expect(leadsCommands.get.run({ id: "L1" }, ctx)).rejects.toBeInstanceOf(errs.APIError);
+    await expect(leadsCommands.get.run(ctx, { id: "L1" })).rejects.toBeInstanceOf(errs.APIError);
   });
 });

@@ -1,6 +1,7 @@
 {
   "name": "@renxqoo/rxx-cli",
   "version": "0.2.0",
+  "private": true,
   "description": "rxx — a dynamic agent-native CLI runtime: manifest → executable skill + multi-agent distribution, built on @renxqoo/agent-data-cli",
   "keywords": [
     "agent",
@@ -54,13 +55,15 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && chmod +x dist/index.js",
     "build:server": "pnpm --dir server run build",
-    "build:bin": "bun build ./src/index.ts --compile --outfile dist/rxx",
+    "build:bin": "bun build ./src/index.ts --compile --minify --outfile dist/rxx",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "pnpm run build:server && vitest run",
     "test:watch": "pnpm run build:server && vitest"
   },
   "dependencies": {
-    "@renxqoo/agent-data-cli": "workspace:*"
+    "@renxqoo/agent-data-cli": "workspace:*",
+    "ajv": "^8.17.1",
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
@@ -73,6 +76,5 @@
   },
   "rxcli": {
     "plugin": true
-  },
-  "private": true
+  }
 }

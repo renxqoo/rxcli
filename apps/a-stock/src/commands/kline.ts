@@ -7,6 +7,7 @@
  *   - tick <code>   当日分笔成交
  */
 
+import * as z from "zod";
 import { defineCommands, defineCommand, errs } from "@renxqoo/agent-data-cli";
 import { getKline, getIndicators, type KlineAdjust, type KlinePeriod } from "../services/kline.js";
 import { getMinute, getTicks } from "../services/intraday.js";
@@ -15,48 +16,21 @@ const VALID_PERIODS: KlinePeriod[] = ["m1", "m5", "m15", "m30", "m60", "day", "w
 const VALID_ADJUST: KlineAdjust[] = ["none", "qfq", "hfq"];
 
 export const klineCommands = defineCommands({
-  get: defineCommand<
-    {
-      code: string;
-      period?: string;
-      adjust?: string;
-      limit?: number;
-      start?: string;
-      end?: string;
-    },
-    unknown[]
-  >({
+  get: defineCommand({
     name: "get",
     description: "查询 K 线(支持日/周/月/分钟级 + 前/后复权)",
     args: {
-      code: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "股票/指数代码",
-      },
-      period: {
-        type: "string",
-        desc: "周期:day|week|month|m1|m5|m15|m30|m60 (默认 day)",
-      },
-      adjust: {
-        type: "string",
-        desc: "复权:none|qfq|hfq (默认 none)",
-      },
-      limit: {
-        type: "number",
-        desc: "返回根数(默认 320,最大 ~800)",
-      },
-      start: {
-        type: "string",
-        desc: "起始日期 YYYY-MM-DD",
-      },
-      end: {
-        type: "string",
-        desc: "结束日期 YYYY-MM-DD",
-      },
+      schema: z.object({
+        code: z.string().describe("股票/指数代码"),
+        period: z.string().describe("周期:day|week|month|m1|m5|m15|m30|m60 (默认 day)").optional(),
+        adjust: z.string().describe("复权:none|qfq|hfq (默认 none)").optional(),
+        limit: z.coerce.number().describe("返回根数(默认 320,最大 ~800)").optional(),
+        start: z.string().describe("起始日期 YYYY-MM-DD").optional(),
+        end: z.string().describe("结束日期 YYYY-MM-DD").optional(),
+      }),
+      pos: ["code"],
     },
-    async run({ code, period, adjust, limit, start, end }) {
+    async run(_ctx, { code, period, adjust, limit, start, end }) {
       const p = (period ?? "day") as KlinePeriod;
       if (!VALID_PERIODS.includes(p)) {
         throw new errs.ValidationError({
@@ -91,18 +65,14 @@ export const klineCommands = defineCommands({
     },
   }),
 
-  minute: defineCommand<{ code: string }, unknown[]>({
+  minute: defineCommand({
     name: "minute",
     description: "当日分时走势(分钟级,含均价)",
     args: {
-      code: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "股票/指数代码",
-      },
+      schema: z.object({ code: z.string().describe("股票/指数代码") }),
+      pos: ["code"],
     },
-    async run({ code }) {
+    async run(_ctx, { code }) {
       const data = await getMinute(code);
       return {
         data,
@@ -114,22 +84,17 @@ export const klineCommands = defineCommands({
     },
   }),
 
-  tick: defineCommand<{ code: string; limit?: number }, unknown[]>({
+  tick: defineCommand({
     name: "tick",
     description: "当日分笔成交(tick 级,数据量大)",
     args: {
-      code: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "股票/指数代码",
-      },
-      limit: {
-        type: "number",
-        desc: "返回条数(默认 100,最大 ~5000)",
-      },
+      schema: z.object({
+        code: z.string().describe("股票/指数代码"),
+        limit: z.coerce.number().describe("返回条数(默认 100,最大 ~5000)").optional(),
+      }),
+      pos: ["code"],
     },
-    async run({ code, limit }) {
+    async run(_ctx, { code, limit }) {
       const data = await getTicks(code, limit ?? 100);
       return {
         data,
@@ -141,26 +106,21 @@ export const klineCommands = defineCommands({
     },
   }),
 
-  indicator: defineCommand<{ code: string; types?: string; limit?: number }, unknown[]>({
+  indicator: defineCommand({
     name: "indicator",
     description: "技术指标计算(MA均线/MACD/RSI/KDJ/布林带/ATR,本地基于日K计算)",
     args: {
-      code: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "股票代码",
-      },
-      types: {
-        type: "string",
-        desc: "指标类型,逗号分隔:ma,macd,rsi,kdj,boll,atr (默认全部)",
-      },
-      limit: {
-        type: "number",
-        desc: "基于的历史日K根数(默认 120,越大越准但越慢)",
-      },
+      schema: z.object({
+        code: z.string().describe("股票代码"),
+        types: z
+          .string()
+          .describe("指标类型,逗号分隔:ma,macd,rsi,kdj,boll,atr (默认全部)")
+          .optional(),
+        limit: z.coerce.number().describe("基于的历史日K根数(默认 120,越大越准但越慢)").optional(),
+      }),
+      pos: ["code"],
     },
-    async run({ code, types, limit }) {
+    async run(_ctx, { code, types, limit }) {
       const typeList = (types ?? "ma,macd,rsi,kdj,boll,atr")
         .split(",")
         .map((t) => t.trim())

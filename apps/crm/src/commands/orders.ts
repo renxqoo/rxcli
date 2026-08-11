@@ -5,25 +5,23 @@
  * v1 的 printGatewayJson 固定 GET → v2 用 ctx.get;美化打印用框架兜底(--no-json 自动表格)。
  */
 
-import {
-  defineCommands,
-  defineCommand,
-  errs,
-  defineCommandFromArgs,
-} from "@renxqoo/agent-data-cli";
+import * as z from "zod";
+import { defineCommands, defineCommand, errs } from "@renxqoo/agent-data-cli";
 
 export const ordersCommands = defineCommands({
-  list: defineCommandFromArgs({
+  list: defineCommand({
     name: "list",
     description: "查询订单列表(仅本人订单)",
     args: {
-      limit: { type: "number", desc: "返回数量上限" },
-      cursor: { type: "string", desc: "续拉游标（使用上次 meta.pagination.next_token）" },
+      schema: z.object({
+        limit: z.coerce.number().describe("返回数量上限").optional(),
+        cursor: z.string().describe("续拉游标（使用上次 meta.pagination.next_token）").optional(),
+      }),
     },
-    async run(args, ctx) {
+    async run(ctx, { limit, cursor }) {
       const query = {
-        ...(args.limit ? { limit: args.limit } : {}),
-        ...(args.cursor ? { cursor: args.cursor } : {}),
+        ...(limit ? { limit } : {}),
+        ...(cursor ? { cursor } : {}),
       };
       const res = await ctx.get<{
         orders: unknown[];
@@ -44,11 +42,14 @@ export const ordersCommands = defineCommands({
     },
   }),
 
-  get: defineCommand<{ id: string }>({
+  get: defineCommand({
     name: "get",
     description: "查询单个订单详情(仅本人订单可见)",
-    args: { id: { type: "string", required: true, positional: true, desc: "订单 ID" } },
-    async run({ id }, ctx) {
+    args: {
+      schema: z.object({ id: z.string().describe("订单 ID") }),
+      pos: ["id"],
+    },
+    async run(ctx, { id }) {
       const res = await ctx.get(`/proxy/api/orders/${encodeURIComponent(id)}`);
       if (res.status === 404) throw new errs.NotFoundError(`Order ${id} not found`);
       return { data: res.data };

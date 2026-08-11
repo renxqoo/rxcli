@@ -8,6 +8,7 @@
  * 上游 /v2/beta/ 前缀,接口可能不稳定。
  */
 
+import * as z from "zod";
 import { defineCommands, defineCommand, printTable } from "@renxqoo/agent-data-cli";
 import { unwrap, withQuery, countMeta } from "../envelope.js";
 
@@ -22,20 +23,23 @@ export const betaCommands = defineCommands({
         { header: "热度", value: (r: { hotness: number }) => String(r.hotness), align: "right" },
       ]);
     },
-    async run(_args, ctx) {
+    async run(ctx) {
       const res = await ctx.get("/beta/kuan", withQuery());
       return { data: unwrap<unknown>(res) };
     },
   }),
 
-  qq: defineCommand<{ qq: string; size?: number }>({
+  qq: defineCommand({
     name: "qq",
     description: "QQ 用户信息(昵称 + 头像,实验性)",
     args: {
-      qq: { type: "string", required: true, positional: true, desc: "QQ 号(5-11 位数字)" },
-      size: { type: "number", desc: "头像尺寸:0 | 40 | 100 | 160 | 640(默认 0)" },
+      schema: z.object({
+        qq: z.string().describe("QQ 号(5-11 位数字)"),
+        size: z.coerce.number().describe("头像尺寸:0 | 40 | 100 | 160 | 640(默认 0)").optional(),
+      }),
+      pos: ["qq"],
     },
-    async run({ qq, size }, ctx) {
+    async run(ctx, { qq, size }) {
       const res = await ctx.get("/beta/qq/profile", withQuery({ qq, size }));
       const info = unwrap<{
         qq: string;

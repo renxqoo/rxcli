@@ -11,7 +11,7 @@ export const invoicesCommands = defineCommands({
   list: defineCommand({
     name: "list",
     description: "查询发票列表(仅本人发票)",
-    async run(_args, ctx) {
+    async run(ctx) {
       const res = await ctx.get("/proxy/api/invoices");
       return { data: res.data };
     },

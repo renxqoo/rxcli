@@ -1,5 +1,5 @@
 /**
- * rxcordys bug-hunt 测试 —— 复现已发现的 bug(预期 FAIL,作为 TDD red)。
+ * rxcordys bug-hunt 测试 —— 回归已修复的 bug。
  *
  * 用 createTestCtx mock 请求层,模拟真实异常场景。
  * 每个测试注释标明 bug 编号和根因。
@@ -7,7 +7,6 @@
 import { describe, it, expect } from "vitest";
 import { createTestCtx } from "@renxqoo/agent-data-cli";
 import { utilCommands } from "../commands/util.js";
-import { leadsCommands } from "../commands/leads.js";
 
 // ============================================================================
 // BUG-RX-1 [严重]: util raw 空响应体(200 + 空 body)→ contract_violation
@@ -22,27 +21,11 @@ describe("BUG-RX-1: util raw 空响应体不应 contract_violation", () => {
     const ctx = createTestCtx({
       request: async () => ({ status: 200, data: undefined, headers: {} }),
     });
-    // 当前:throw contract_violation;期望:返回 data:null
-    const result = await utilCommands.raw.run(
-      { method: "GET", path: "/nonexistent", body: "" },
-      ctx,
-    );
+    const result = await utilCommands.raw.run(ctx, { method: "GET", path: "/nonexistent" });
     expect(result!.data).toBeNull();
   });
 });
 
-// ============================================================================
-// BUG-RX-2 [中]: leads add dryRun 不校验必填字段
-// 根因: add 命令的 dryRun 在字段校验之前 return,跳过了 name/phone/products 校验
-// 期望: dryRun 也应校验必填字段(返回 validation 错误而非 dryRun:true)
-// ============================================================================
-describe("BUG-RX-2: leads add --dryRun 应校验必填字段", () => {
-  it("dryRun + 空 JSON → 应报缺 name(非 dryRun:true)", async () => {
-    const ctx = createTestCtx({ request: async () => ({ status: 200, data: {}, headers: {} }) });
-    // 当前:dryRun 直接返回 { data:null, meta:{dryRun:true} }，不校验 name
-    // 期望:报 missing_required(name)
-    await expect(
-      leadsCommands.add.run({ data: "{}", dryRun: true, yes: false }, ctx),
-    ).rejects.toMatchObject({ subtype: "missing_required", param: "name" });
-  });
-});
+// 注:原 BUG-RX-2(leads add --dryRun 应校验必填字段)已随 cli-sdk 统一 Zod 输入契约移除——
+// --dry-run 现由框架在 run 前接管(仅做 Zod 参数校验 + 脱敏,不调 run),
+// body 深校验改在 run 内的真实执行路径完成(见 leads.test.ts 的 add 缺 name 用例)。

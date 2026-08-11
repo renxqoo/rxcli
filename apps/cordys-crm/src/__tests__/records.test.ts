@@ -17,7 +17,7 @@ describe("records view", () => {
         return { status: 200, data: ok({ list: [] }), headers: {} };
       },
     });
-    await recordsCommands.view.run({ module: "lead", opts: '{"pageSize":10}' }, ctx);
+    await recordsCommands.view.run(ctx, { module: "lead", opts: '{"pageSize":10}' });
     expect(capturedPath).toBe("/lead/view/list");
     expect(capturedQuery.pageSize).toBe(10);
   });
@@ -25,7 +25,7 @@ describe("records view", () => {
   it("不支持模块抛 ValidationError", async () => {
     const ctx = createTestCtx({ request: async () => ({ status: 200, data: {}, headers: {} }) });
     await expect(
-      recordsCommands.view.run({ module: "invoice", opts: "" }, ctx),
+      recordsCommands.view.run(ctx, { module: "invoice", opts: "" }),
     ).rejects.toMatchObject({
       subtype: "invalid_argument",
       param: "<module>",
@@ -34,7 +34,7 @@ describe("records view", () => {
 });
 
 describe("records get", () => {
-  it("普通模块 /{module}/{id}", async () => {
+  it("普通模块 /{module}/get/{id}", async () => {
     let capturedPath = "";
     const ctx = createTestCtx({
       request: async (opts) => {
@@ -42,11 +42,11 @@ describe("records get", () => {
         return { status: 200, data: ok({ id: "A1" }), headers: {} };
       },
     });
-    await recordsCommands.get.run({ module: "account", id: "A1" }, ctx);
-    expect(capturedPath).toBe("/account/A1");
+    await recordsCommands.get.run(ctx, { module: "account", id: "A1" });
+    expect(capturedPath).toBe("/account/get/A1");
   });
 
-  it("opportunity/quotation special-case 用 /get/ 前缀", async () => {
+  it("opportunity/quotation 同样走 /get/{id}(无特例)", async () => {
     let capturedPath = "";
     const ctx = createTestCtx({
       request: async (opts) => {
@@ -54,7 +54,7 @@ describe("records get", () => {
         return { status: 200, data: ok({ id: "Q1" }), headers: {} };
       },
     });
-    await recordsCommands.get.run({ module: "opportunity/quotation", id: "Q1" }, ctx);
+    await recordsCommands.get.run(ctx, { module: "opportunity/quotation", id: "Q1" });
     expect(capturedPath).toBe("/opportunity/quotation/get/Q1");
   });
 });
@@ -74,7 +74,7 @@ describe("records page", () => {
         };
       },
     });
-    const result = await recordsCommands.page.run({ module: "contract", payload: "" }, ctx);
+    const result = await recordsCommands.page.run(ctx, { module: "contract", payload: "" });
     expect(capturedPath).toBe("/contract/page");
     expect((capturedBody as { current: number }).current).toBe(1);
     expect(result!.data).toEqual([{ id: "X" }]);
@@ -94,7 +94,7 @@ describe("records search", () => {
         };
       },
     });
-    await recordsCommands.search.run({ module: "account", payload: "测试" }, ctx);
+    await recordsCommands.search.run(ctx, { module: "account", payload: "测试" });
     expect(capturedPath).toBe("/global/search/account");
   });
 
@@ -110,7 +110,7 @@ describe("records search", () => {
         };
       },
     });
-    await recordsCommands.search.run({ module: "opportunity/quotation", payload: "测试" }, ctx);
+    await recordsCommands.search.run(ctx, { module: "opportunity/quotation", payload: "测试" });
     expect(capturedPath).toBe("/opportunity/quotation/page");
   });
 });
@@ -124,14 +124,14 @@ describe("records contact", () => {
         return { status: 200, data: ok([]), headers: {} };
       },
     });
-    await recordsCommands.contact.run({ module: "account", id: "A1" }, ctx);
+    await recordsCommands.contact.run(ctx, { module: "account", id: "A1" });
     expect(capturedPath).toBe("/account/contact/list/A1");
   });
 
   it("不支持模块抛 ValidationError", async () => {
     const ctx = createTestCtx({ request: async () => ({ status: 200, data: {}, headers: {} }) });
     await expect(
-      recordsCommands.contact.run({ module: "contract", id: "X" }, ctx),
+      recordsCommands.contact.run(ctx, { module: "contract", id: "X" }),
     ).rejects.toBeInstanceOf(errs.ValidationError);
   });
 });
@@ -145,7 +145,7 @@ describe("records form", () => {
         return { status: 200, data: ok({ fields: [] }), headers: {} };
       },
     });
-    await recordsCommands.form.run({ module: "lead/follow/plan" }, ctx);
+    await recordsCommands.form.run(ctx, { module: "lead/follow/plan" });
     expect(capturedPath).toBe("/lead/follow/plan/module/form");
   });
 });

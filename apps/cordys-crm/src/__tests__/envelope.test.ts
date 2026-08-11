@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { unwrap, buildPagePayload, pagedMeta, parseJsonBody, type PagedData } from "../envelope.js";
+import {
+  unwrap,
+  unwrapPaged,
+  detailPath,
+  buildPagePayload,
+  pagedMeta,
+  parseJsonBody,
+  type PagedData,
+} from "../envelope.js";
 import { errs } from "@renxqoo/agent-data-cli";
 
 describe("unwrap", () => {
@@ -36,6 +44,54 @@ describe("unwrap", () => {
   it("data 为 null 时返回 null", () => {
     const res = { status: 200, data: { code: 100200, data: null }, headers: {} };
     expect(unwrap(res)).toBeNull();
+  });
+});
+
+describe("detailPath", () => {
+  it("统一生成 /{module}/get/{id}", () => {
+    expect(detailPath("lead", "L1")).toBe("/lead/get/L1");
+    expect(detailPath("account", "A1")).toBe("/account/get/A1");
+    expect(detailPath("account/contact", "C1")).toBe("/account/contact/get/C1");
+    expect(detailPath("contract/payment-plan", "P1")).toBe("/contract/payment-plan/get/P1");
+    expect(detailPath("opportunity/quotation", "Q1")).toBe("/opportunity/quotation/get/Q1");
+  });
+
+  it("编码 id 特殊字符", () => {
+    expect(detailPath("lead", "a/b")).toBe("/lead/get/a%2Fb");
+  });
+});
+
+describe("unwrapPaged", () => {
+  it("正常分页响应返回 {list,...}", () => {
+    const res = {
+      status: 200,
+      data: {
+        code: 100200,
+        message: null,
+        messageDetail: null,
+        data: { list: [{ id: "X" }], total: 1, current: 1, pageSize: 30 },
+      },
+      headers: {},
+    };
+    expect(unwrapPaged(res)).toEqual({ list: [{ id: "X" }], total: 1, current: 1, pageSize: 30 });
+  });
+
+  it("data:null → 空 page(不崩)", () => {
+    const res = {
+      status: 200,
+      data: { code: 100200, message: null, messageDetail: null, data: null },
+      headers: {},
+    };
+    expect(unwrapPaged(res)).toEqual({ list: [], total: 0, current: 1, pageSize: 0 });
+  });
+
+  it("data 非 {list} 形状 → 空 page", () => {
+    const res = {
+      status: 200,
+      data: { code: 100200, message: null, messageDetail: null, data: "oops" },
+      headers: {},
+    };
+    expect(unwrapPaged(res)).toEqual({ list: [], total: 0, current: 1, pageSize: 0 });
   });
 });
 

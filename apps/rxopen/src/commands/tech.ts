@@ -8,6 +8,7 @@
  * 与 /top 结果相同。CLI 文档已标注,这里如实封装。
  */
 
+import * as z from "zod";
 import { defineCommands, defineCommand, printTable } from "@renxqoo/agent-data-cli";
 import { unwrap, withQuery, countMeta } from "../envelope.js";
 
@@ -22,17 +23,18 @@ interface HNItem {
 }
 
 export const techCommands = defineCommands({
-  hackernews: defineCommand<{ type?: string; limit?: number; forceUpdate?: boolean }>({
+  hackernews: defineCommand({
     name: "hackernews",
     description: "Hacker News 文章(top / best)",
     args: {
-      type: {
-        type: "string",
-        default: "top",
-        desc: "文章类型:top(热门) | best(精选)| new(⚠️上游 bug,等同 top)",
-      },
-      limit: { type: "number", default: 10, desc: "返回数量(默认 10,上限 35)" },
-      forceUpdate: { type: "boolean", desc: "跳过缓存强制刷新(缓存 10 分钟)" },
+      schema: z.object({
+        type: z
+          .string()
+          .describe("文章类型:top(热门) | best(精选)| new(⚠️上游 bug,等同 top)")
+          .default("top"),
+        limit: z.coerce.number().describe("返回数量(默认 10,上限 35)").default(10),
+        forceUpdate: z.boolean().describe("跳过缓存强制刷新(缓存 10 分钟)").optional(),
+      }),
     },
     humanFormat(data) {
       return printTable(data as HNItem[], [
@@ -41,7 +43,7 @@ export const techCommands = defineCommands({
         { header: "作者", value: (r: HNItem) => r.author },
       ]);
     },
-    async run({ type, limit, forceUpdate }, ctx) {
+    async run(ctx, { type, limit, forceUpdate }) {
       const res = await ctx.get(
         `/hacker-news/${type}`,
         withQuery({ limit, "force-update": forceUpdate }),

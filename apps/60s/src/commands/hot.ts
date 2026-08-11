@@ -38,7 +38,7 @@ function hotListCommand(name: string, path: string, desc: string) {
         },
       ]);
     },
-    async run(_args, ctx) {
+    async run(ctx) {
       const res = await ctx.get(path, withQuery());
       const list = unwrap<HotItem[]>(res);
       return { data: list, meta: countMeta(list) };

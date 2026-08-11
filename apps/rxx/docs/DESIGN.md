@@ -340,8 +340,8 @@ export function manifestToCommand(name: string, mc: ManifestCommand): CommandSpe
   return defineCommand({
     name,
     description: mc.description,
-    args: mc.args,                    // manifest.args 直接就是 ArgsSpec,零转换
-    async run(args, ctx): Promise<CommandResult | void> {
+    args: manifestArgsToZod(mc.args),  // manifest ManifestArgsSpec → Zod schema(cli-sdk 统一输入契约)
+    async run(ctx, args): Promise<CommandResult | void> {
       // 1. 占位符替换 + 安全编码
       const path = fillPath(mc.http.path, args);
       const query = mc.http.query ? fillMap(mc.http.query, args) : undefined;

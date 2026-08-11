@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
+import * as z from "zod";
 import { createTestCtx } from "@renxqoo/agent-data-cli";
 import { ordersCommands } from "../commands/orders.js";
 import { productsCommands } from "../commands/products.js";
@@ -26,7 +27,10 @@ function mockCtx(responseByPath: Record<string, { status?: number; data: unknown
 
 describe("orders", () => {
   it("cursor 帮助引用统一 JSON wire 字段 next_token", () => {
-    expect(ordersCommands.list.args.cursor.desc).toContain("meta.pagination.next_token");
+    const jsonSchema = z.toJSONSchema(ordersCommands.list.args!.schema as z.ZodObject, {
+      io: "input",
+    }) as { properties: Record<string, { description?: string }> };
+    expect(jsonSchema.properties.cursor?.description).toContain("meta.pagination.next_token");
   });
 
   it("list 返回订单数组", async () => {
@@ -35,7 +39,7 @@ describe("orders", () => {
         data: { orders: [{ id: "o_1001", total: 168 }], hasMore: false, nextCursor: null },
       },
     });
-    const result = await ordersCommands.list.run({}, ctx);
+    const result = await ordersCommands.list.run(ctx, {});
     expect(result!.data).toEqual({
       orders: [{ id: "o_1001", total: 168 }],
       hasMore: false,
@@ -51,7 +55,7 @@ describe("orders", () => {
         return { status: 200, data: { orders: [] }, headers: {} };
       },
     });
-    await ordersCommands.list.run({ limit: 5 }, ctx);
+    await ordersCommands.list.run(ctx, { limit: 5 });
     expect(capturedQuery.limit).toBe(5);
   });
 
@@ -72,7 +76,7 @@ describe("orders", () => {
       },
     });
 
-    const result = await ordersCommands.list.run({ limit: 1, cursor: "o_1001" }, ctx);
+    const result = await ordersCommands.list.run(ctx, { limit: 1, cursor: "o_1001" });
 
     expect(capturedQuery).toEqual({ limit: 1, cursor: "o_1001" });
     expect(result!.meta).toEqual({
@@ -87,7 +91,7 @@ describe("orders", () => {
 
   it("get 404 → NotFoundError", async () => {
     const ctx = mockCtx({ "/proxy/api/orders/o_x": { status: 404, data: {} } });
-    await expect(ordersCommands.get.run({ id: "o_x" }, ctx)).rejects.toMatchObject({
+    await expect(ordersCommands.get.run(ctx, { id: "o_x" })).rejects.toMatchObject({
       category: "api",
       subtype: "not_found",
     });
@@ -103,7 +107,7 @@ describe("products", () => {
         return { status: 200, data: { products: [] }, headers: {} };
       },
     });
-    await productsCommands.list.run({ category: "电脑外设" }, ctx);
+    await productsCommands.list.run(ctx, { category: "电脑外设" });
     expect(capturedQuery.category).toBe("电脑外设");
   });
 
@@ -111,7 +115,7 @@ describe("products", () => {
     const ctx = mockCtx({
       "/proxy/api/products/p_002": { data: { id: "p_002", name: "机械键盘" } },
     });
-    const result = await productsCommands.get.run({ id: "p_002" }, ctx);
+    const result = await productsCommands.get.run(ctx, { id: "p_002" });
     expect(result!.data).toMatchObject({ id: "p_002", name: "机械键盘" });
   });
 });
@@ -119,7 +123,7 @@ describe("products", () => {
 describe("invoices", () => {
   it("list 返回发票列表", async () => {
     const ctx = mockCtx({ "/proxy/api/invoices": { data: { invoices: [{ id: "inv_2001" }] } } });
-    const result = await invoicesCommands.list.run({}, ctx);
+    const result = await invoicesCommands.list.run(ctx, {});
     expect(result!.data).toEqual({ invoices: [{ id: "inv_2001" }] });
   });
 });
@@ -129,13 +133,13 @@ describe("account", () => {
     const ctx = mockCtx({
       "/proxy/api/profile": { data: { id: "u_alice", email: "alice@example.com" } },
     });
-    const result = await accountCommands.profile.run({}, ctx);
+    const result = await accountCommands.profile.run(ctx, {});
     expect(result!.data).toMatchObject({ id: "u_alice" });
   });
 
   it("admin-users 返回全量用户(权限由服务端 403 拦截,本地不预检)", async () => {
     const ctx = mockCtx({ "/proxy/api/admin/users": { data: { users: [{ id: "u_alice" }] } } });
-    const result = await accountCommands["admin-users"].run({}, ctx);
+    const result = await accountCommands["admin-users"].run(ctx, {});
     expect(result!.data).toEqual({ users: [{ id: "u_alice" }] });
   });
 });

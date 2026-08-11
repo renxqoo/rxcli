@@ -7,7 +7,7 @@
  *   - C5:只拉取一次 manifest,确认信息和实际安装内容一致(无双 fetch race)
  *   - C7:公钥指纹变更时高亮提示
  *   - 事务化:任一步失败 → 补偿清理已写产物,目标位置无残留
- *   - 非 TTY 无 --yes → 抛 ConfirmationRequiredError(非 success envelope)
+ *   - 非 TTY 无 --auto-confirm → 抛 ConfirmationRequiredError(非 success envelope)
  */
 
 import { errs, type CliError, type CommandResult } from "@renxqoo/agent-data-cli";
@@ -82,12 +82,12 @@ export async function installFlow(
 
   if (!opts.yes) {
     if (!process.stdin.isTTY) {
-      // 非 TTY 无 --yes → 抛 ConfirmationRequiredError(非 success envelope)
+      // 非 TTY 无 --auto-confirm → 抛 ConfirmationRequiredError(非 success envelope)
       // agent 可按 subtype:"high_risk_write"(exit 10)匹配,而非误读 installed:false
       throw new errs.ConfirmationRequiredError({
         subtype: "high_risk_write",
         message: `Install of "${manifest.name}" requires confirmation in non-interactive mode.`,
-        hint: `Re-run with --yes to skip confirmation. Review the install details:\n${info.join("\n")}`,
+        hint: `Re-run with --auto-confirm to skip confirmation. Review the install details:\n${info.join("\n")}`,
       });
     }
     process.stderr.write("\n⚠️  Confirm install:\n" + info.join("\n") + "\n\nInstall? [y/N] ");

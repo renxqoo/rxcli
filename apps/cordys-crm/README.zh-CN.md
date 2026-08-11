@@ -91,7 +91,7 @@ rxcordys approvals todo pending                        # 待我审批
 rxcordys util raw GET /lead/view/view                  # 透传未覆盖端点
 ```
 
-加 `--dryRun` 仅校验不提交;完整命令见 `rxcordys --help`。
+加 `--dry-run` 仅校验不提交;完整命令见 `rxcordys --help`。
 
 ## 输出契约
 

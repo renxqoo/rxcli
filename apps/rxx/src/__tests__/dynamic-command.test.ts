@@ -81,7 +81,7 @@ describe("manifestToCommand", () => {
       },
     });
     const cmd = manifestToCommand("list", testManifest.namespaces!.orders!.list);
-    const result = await cmd.run({ limit: 2 }, ctx as any);
+    const result = await cmd.run(ctx as any, { limit: 2 });
     expect(result!.data).toEqual([{ id: "ord_001" }, { id: "ord_002" }]);
     expect(result!.meta?.pagination).toEqual({
       complete: false,
@@ -100,7 +100,7 @@ describe("manifestToCommand", () => {
       },
     });
     const cmd = manifestToCommand("get", testManifest.namespaces!.orders!.get);
-    const result = await cmd.run({ id: "ord_001" }, ctx as any);
+    const result = await cmd.run(ctx as any, { id: "ord_001" });
     expect(capturedPath).toBe("/api/orders/ord_001");
     expect(result!.data).toEqual({ id: "ord_001", amount: 100 });
   });
@@ -114,7 +114,7 @@ describe("manifestToCommand", () => {
       },
     });
     const cmd = manifestToCommand("create", testManifest.namespaces!.orders!.create);
-    const result = await cmd.run({ amount: 990, customer: "alice" }, ctx as any);
+    const result = await cmd.run(ctx as any, { amount: 990, customer: "alice" });
     expect(capturedBody).toEqual({ amount: "990", customer: "alice" });
     expect(result!.data).toEqual({ id: "new_1", amount: 990 });
   });
@@ -122,7 +122,44 @@ describe("manifestToCommand", () => {
   it("path traversal 被拒", async () => {
     const ctx = mockCtx({});
     const cmd = manifestToCommand("get", testManifest.namespaces!.orders!.get);
-    await expect(cmd.run({ id: "../../etc/passwd" }, ctx as any)).rejects.toThrow();
+    await expect(cmd.run(ctx as any, { id: "../../etc/passwd" })).rejects.toThrow();
+  });
+
+  it("structured input uses JSON Schema and maps the validated payload as HTTP body", async () => {
+    let capturedBody: unknown;
+    const ctx = createTestCtx({
+      request: async (opts) => {
+        capturedBody = opts.body;
+        return { status: 201, data: { id: "new-1" } };
+      },
+    });
+    const cmd = manifestToCommand("create", {
+      description: "create order",
+      input: {
+        id: "orders.create",
+        version: "1.0.0",
+        jsonSchema: {
+          $schema: "https://json-schema.org/draft/2020-12/schema",
+          type: "object",
+          additionalProperties: false,
+          required: ["customerId"],
+          properties: { customerId: { type: "string" } },
+        },
+      },
+      operation: { kind: "write", confirmation: "required" },
+      http: { method: "POST", path: "/api/orders", body: { kind: "input" } },
+      response: { data: "." },
+    });
+    // JSON Schema 桥接校验:合法文档通过、缺字段被拒
+    const schema = cmd.args!.schema;
+    await expect(schema.parseAsync({ customerId: "c1" })).resolves.toMatchObject({
+      customerId: "c1",
+    });
+    await expect(schema.parseAsync({})).rejects.toBeDefined();
+    // JSON 模式下 run 的第二参数即校验后的整份文档,作为 HTTP body
+    const result = await cmd.run(ctx as any, { customerId: "c1" });
+    expect(capturedBody).toEqual({ customerId: "c1" });
+    expect(result!.data).toEqual({ id: "new-1" });
   });
 });
 
@@ -159,12 +196,12 @@ describe("参数范围校验 validateArgValues", () => {
 
   it("limit 在范围内 → 通过", async () => {
     const cmd = manifestToCommand("list", constrainedCmd);
-    await expect(cmd.run({ limit: 50 }, noopCtx as any)).resolves.toBeDefined();
+    await expect(cmd.run(noopCtx as any, { limit: 50 })).resolves.toBeDefined();
   });
 
   it("limit 超大数(精度丢失)→ out_of_range(Number.isFinite 拦不住,但 max 拦)", async () => {
     const cmd = manifestToCommand("list", constrainedCmd);
-    await expect(cmd.run({ limit: 999999999999999999999 }, noopCtx as any)).rejects.toMatchObject({
+    await expect(cmd.run(noopCtx as any, { limit: 999999999999999999999 })).rejects.toMatchObject({
       category: "validation",
       subtype: "out_of_range",
       param: "limit",
@@ -173,7 +210,7 @@ describe("参数范围校验 validateArgValues", () => {
 
   it("limit 负数(< min)→ out_of_range", async () => {
     const cmd = manifestToCommand("list", constrainedCmd);
-    await expect(cmd.run({ limit: -5 }, noopCtx as any)).rejects.toMatchObject({
+    await expect(cmd.run(noopCtx as any, { limit: -5 })).rejects.toMatchObject({
       subtype: "out_of_range",
       param: "limit",
     });
@@ -181,7 +218,7 @@ describe("参数范围校验 validateArgValues", () => {
 
   it("limit = 0(< min:1)→ out_of_range", async () => {
     const cmd = manifestToCommand("list", constrainedCmd);
-    await expect(cmd.run({ limit: 0 }, noopCtx as any)).rejects.toMatchObject({
+    await expect(cmd.run(noopCtx as any, { limit: 0 })).rejects.toMatchObject({
       subtype: "out_of_range",
       param: "limit",
     });
@@ -189,7 +226,7 @@ describe("参数范围校验 validateArgValues", () => {
 
   it("limit 小数(默认 integer:true)→ out_of_range", async () => {
     const cmd = manifestToCommand("list", constrainedCmd);
-    await expect(cmd.run({ limit: 3.5 }, noopCtx as any)).rejects.toMatchObject({
+    await expect(cmd.run(noopCtx as any, { limit: 3.5 })).rejects.toMatchObject({
       subtype: "out_of_range",
       param: "limit",
     });
@@ -197,12 +234,12 @@ describe("参数范围校验 validateArgValues", () => {
 
   it("ratio 小数(integer:false 声明)→ 通过", async () => {
     const cmd = manifestToCommand("list", constrainedCmd);
-    await expect(cmd.run({ ratio: 0.5 }, noopCtx as any)).resolves.toBeDefined();
+    await expect(cmd.run(noopCtx as any, { ratio: 0.5 })).resolves.toBeDefined();
   });
 
   it("limit 超过 max:100 → out_of_range", async () => {
     const cmd = manifestToCommand("list", constrainedCmd);
-    await expect(cmd.run({ limit: 101 }, noopCtx as any)).rejects.toMatchObject({
+    await expect(cmd.run(noopCtx as any, { limit: 101 })).rejects.toMatchObject({
       subtype: "out_of_range",
       param: "limit",
     });
@@ -210,7 +247,7 @@ describe("参数范围校验 validateArgValues", () => {
 
   it("limit = Infinity → out_of_range(非有限数)", async () => {
     const cmd = manifestToCommand("list", constrainedCmd);
-    await expect(cmd.run({ limit: Infinity }, noopCtx as any)).rejects.toMatchObject({
+    await expect(cmd.run(noopCtx as any, { limit: Infinity })).rejects.toMatchObject({
       subtype: "out_of_range",
       param: "limit",
     });
@@ -218,7 +255,7 @@ describe("参数范围校验 validateArgValues", () => {
 
   it("limit = NaN → out_of_range", async () => {
     const cmd = manifestToCommand("list", constrainedCmd);
-    await expect(cmd.run({ limit: NaN }, noopCtx as any)).rejects.toMatchObject({
+    await expect(cmd.run(noopCtx as any, { limit: NaN })).rejects.toMatchObject({
       subtype: "out_of_range",
       param: "limit",
     });
@@ -231,8 +268,8 @@ describe("参数范围校验 validateArgValues", () => {
       http: { method: "GET", path: "/x", query: { n: "{n}" } },
       response: { data: "." },
     });
-    await expect(cmd.run({ n: 42 }, noopCtx as any)).resolves.toBeDefined();
-    await expect(cmd.run({ n: 3.14 }, noopCtx as any)).rejects.toMatchObject({
+    await expect(cmd.run(noopCtx as any, { n: 42 })).resolves.toBeDefined();
+    await expect(cmd.run(noopCtx as any, { n: 3.14 })).rejects.toMatchObject({
       subtype: "out_of_range",
     });
   });
@@ -240,7 +277,7 @@ describe("参数范围校验 validateArgValues", () => {
   it("错误信息含 param 名(AI 可据此纠正)", async () => {
     const cmd = manifestToCommand("list", constrainedCmd);
     try {
-      await cmd.run({ limit: -5 }, noopCtx as any);
+      await cmd.run(noopCtx as any, { limit: -5 });
       throw new Error("should throw");
     } catch (e: any) {
       expect(e.param).toBe("limit");

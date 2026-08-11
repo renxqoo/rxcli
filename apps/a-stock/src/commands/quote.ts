@@ -8,24 +8,23 @@
  * 数据:优先腾讯,失败回落东财(见 services/quote.ts)
  */
 
+import * as z from "zod";
 import { defineCommands, defineCommand, errs } from "@renxqoo/agent-data-cli";
 import { getQuote, getQuotes } from "../services/quote.js";
 
 export const quoteCommands = defineCommands({
-  get: defineCommand<{ code: string; source?: string }, unknown>({
+  get: defineCommand({
     name: "get",
     description: "查询单只股票/指数实时行情",
     args: {
-      code: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "代码(支持 600519 / sh600519 / 600519.SH 等多种格式)",
-      },
-      source: { type: "string", desc: "指定数据源:tencent | eastmoney(默认自动 fallback)" },
+      schema: z.object({
+        code: z.string().describe("代码(支持 600519 / sh600519 / 600519.SH 等多种格式)"),
+        source: z.string().describe("指定数据源:tencent | eastmoney(默认自动 fallback)").optional(),
+      }),
+      pos: ["code"],
     },
     humanFormat: formatQuoteHuman,
-    async run({ code, source }) {
+    async run(_ctx, { code, source }) {
       let data: unknown;
       if (source === "tencent" || source === "eastmoney" || source === "sina") {
         const { getQuoteFromSource } = await import("../services/quote.js");
@@ -42,18 +41,16 @@ export const quoteCommands = defineCommands({
     },
   }),
 
-  batch: defineCommand<{ codes: string; size?: number }, unknown[]>({
+  batch: defineCommand({
     name: "batch",
     description: "批量查询多只股票实时行情(逗号分隔,最多 100 只)",
     args: {
-      codes: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "代码列表,用逗号分隔,如 600519,000001,300750",
-      },
+      schema: z.object({
+        codes: z.string().describe("代码列表,用逗号分隔,如 600519,000001,300750"),
+      }),
+      pos: ["codes"],
     },
-    async run({ codes }) {
+    async run(_ctx, { codes }) {
       const list = codes
         .split(",")
         .map((c) => c.trim())

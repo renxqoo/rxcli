@@ -5,32 +5,32 @@
  * 美化打印用框架兜底(--no-json 自动表格)。
  */
 
-import {
-  defineCommands,
-  defineCommand,
-  errs,
-  defineCommandFromArgs,
-} from "@renxqoo/agent-data-cli";
+import * as z from "zod";
+import { defineCommands, defineCommand, errs } from "@renxqoo/agent-data-cli";
 
 export const productsCommands = defineCommands({
-  list: defineCommandFromArgs({
+  list: defineCommand({
     name: "list",
     description: "查询商品列表",
-    args: { category: { type: "string", desc: "按分类精确过滤,如:电脑外设" } },
-    async run(args, ctx) {
-      const res = await ctx.get(
-        "/proxy/api/products",
-        args.category ? { category: args.category } : {},
-      );
+    args: {
+      schema: z.object({
+        category: z.string().describe("按分类精确过滤,如:电脑外设").optional(),
+      }),
+    },
+    async run(ctx, { category }) {
+      const res = await ctx.get("/proxy/api/products", category ? { category } : {});
       return { data: res.data };
     },
   }),
 
-  get: defineCommand<{ id: string }>({
+  get: defineCommand({
     name: "get",
     description: "查询单个商品详情",
-    args: { id: { type: "string", required: true, positional: true, desc: "商品 ID" } },
-    async run({ id }, ctx) {
+    args: {
+      schema: z.object({ id: z.string().describe("商品 ID") }),
+      pos: ["id"],
+    },
+    async run(ctx, { id }) {
       const res = await ctx.get(`/proxy/api/products/${encodeURIComponent(id)}`);
       if (res.status === 404) throw new errs.NotFoundError(`Product ${id} not found`);
       return { data: res.data };

@@ -78,7 +78,10 @@ describe("manage.ts", () => {
   describe("updateCommand", () => {
     it("未装服务 → updated:false/reason:not installed", async () => {
       const { updateCommand } = await import("../commands/manage.js");
-      const result = await updateCommand.run!({ name: "nope", yes: true } as any, {} as any);
+      const result = await updateCommand.run!(
+        {} as any,
+        { name: "nope", autoConfirm: true } as any,
+      );
       expect(result.data).toMatchObject({ updated: false, reason: "not installed" });
     });
 
@@ -122,7 +125,10 @@ describe("manage.ts", () => {
       vi.spyOn(process.stderr, "write").mockImplementation(() => true);
 
       const { updateCommand } = await import("../commands/manage.js");
-      const result = await updateCommand.run!({ name: "svc-up", yes: true } as any, {} as any);
+      const result = await updateCommand.run!(
+        {} as any,
+        { name: "svc-up", autoConfirm: true } as any,
+      );
       expect(result.data).toMatchObject({
         updated: true,
         fromVersion: "1.0.0",
@@ -137,7 +143,7 @@ describe("manage.ts", () => {
   describe("removeCommand", () => {
     it("未装服务 → removed:false", async () => {
       const { removeCommand } = await import("../commands/manage.js");
-      const result = await removeCommand.run!({ name: "nope" } as any, {} as any);
+      const result = await removeCommand.run!({} as any, { name: "nope" } as any);
       expect(result.data).toMatchObject({ removed: false });
     });
 
@@ -157,7 +163,7 @@ describe("manage.ts", () => {
         sourceUrl: "https://a.example.com/m",
         signatureVerified: true,
       });
-      const result = await removeCommand.run!({ name: "svc-rm" } as any, {} as any);
+      const result = await removeCommand.run!({} as any, { name: "svc-rm" } as any);
       expect(result.data).toMatchObject({ removed: true });
       expect((result.data as any).steps).toHaveLength(3);
       expect((result.data as any).steps.every((s: any) => s.ok)).toBe(true);
@@ -188,7 +194,7 @@ describe("manage.ts", () => {
         collectHosts: () => ({}),
       }));
       const { removeCommand } = await import("../commands/manage.js");
-      const result = await removeCommand.run!({ name: "svc-partial" } as any, {} as any);
+      const result = await removeCommand.run!({} as any, { name: "svc-partial" } as any);
       expect(result.data).toMatchObject({ partial: true });
       expect((result.data as any).failedSteps).toContain("skill");
       expect((result.data as any).failedSteps).not.toContain("registry");
@@ -197,7 +203,7 @@ describe("manage.ts", () => {
 
     it("非法 name(大写)→ ValidationError(param:name)", async () => {
       const { removeCommand } = await import("../commands/manage.js");
-      await expect(removeCommand.run!({ name: "BadName" } as any, {} as any)).rejects.toMatchObject(
+      await expect(removeCommand.run!({} as any, { name: "BadName" } as any)).rejects.toMatchObject(
         {
           category: "validation",
           subtype: "invalid_argument",
@@ -207,7 +213,7 @@ describe("manage.ts", () => {
 
     it("非法 name(路径穿越)→ ValidationError", async () => {
       const { removeCommand } = await import("../commands/manage.js");
-      await expect(removeCommand.run!({ name: "../etc" } as any, {} as any)).rejects.toMatchObject({
+      await expect(removeCommand.run!({} as any, { name: "../etc" } as any)).rejects.toMatchObject({
         category: "validation",
       });
     });

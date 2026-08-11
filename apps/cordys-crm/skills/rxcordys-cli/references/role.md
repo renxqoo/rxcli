@@ -20,20 +20,13 @@ rxcordys util whoami   # GET /personal/center/info
 
 从 `position`(岗位)推断角色;`position` 为空时看 `roles[].name`。
 
-### 身份持久化的设计决策(不做落盘)
+### 身份不落盘(会话内缓存)
 
-**本 skill 不做身份持久化文件**(不写 user-role.md),理由:
+本 skill 不写身份持久化文件(`whoami` 是轻量 GET,无性能负担;落盘会引入失效检测/刷新/换账号清理等复杂度,且易与换账号后的真实身份不一致)。会话内策略:
 
-- `whoami` 是一次轻量 GET(/personal/center/info),几十毫秒,无性能负担
-- 落盘带来额外复杂度:失效检测、刷新条件(7 天过期)、文件损坏处理、换账号清理——得不偿失
-- CLI 无状态最可靠,避免"文件说你是销售但实际账号已换"的不一致
-
-**会话内缓存策略**(轻量,替代落盘):
-- 会话首次跑 `whoami` 后,角色推断结果在**本次会话内记住**,后续不再重复跑 whoami 也不重复推断
+- 首次跑 `whoami` 后,角色推断结果在**本次会话内记住**,后续不重复跑
 - 用户说"换账号""刷新身份"→ 重跑 whoami 重新推断
-- 连续 3 次 API 返回 401/403 → 提示用户检查密钥,建议刷新身份
-
-> 这是有意的选择,不是遗漏。跨会话保身份的需求,靠每次会话首条业务命令前跑一次 whoami 即可满足。
+- 连续 3 次 API 返回 401/403 → 提示用户检查密钥
 
 ---
 
@@ -67,7 +60,7 @@ rxcordys util whoami   # GET /personal/center/info
 ```bash
 # 格式:岗位关键词|岗位关键词...=角色ID,多组逗号分隔
 # 角色 ID 对应上表的角色名(长关键词优先匹配)
-export ROLE_MAP="总经理|VP=executive,总监|经理=sales-manager,区域经理=territory-manager,财务|会计=finance"
+export ROLE_MAP="总经理|VP=executive,总监|经理|区域经理=sales-manager,财务|会计=finance"
 ```
 
 **规则**:
@@ -148,7 +141,7 @@ export ROLE_MAP="总经理|VP=executive,总监|经理=sales-manager,区域经理
 
 | 频率 | 触发语 | 执行 |
 |------|--------|------|
-| 晨会 | "团队今天" | ① `util org` 拿部门树 → ② `util members --payload '{"departmentId":"<id>"}'` 成员数 → ③ `stats home-lead --payload '{"searchType":"DEPARTMENT","deptIds":["<id>"]}'`(部门线索) |
+| 晨会 | "团队今天" | ① `util org` 拿部门树 → ② `util members '{"departmentIds":["<id>"]}'` 成员数 → ③ `stats home-lead --payload '{"searchType":"DEPARTMENT","deptIds":["<id>"]}'`(部门线索) |
 | 周会 | "团队这周" | ① 本周 L2C 漏斗(`stats home-*` DEPARTMENT) → ② 成员排名(线索量/签约量/签约金额) → ③ 周环比 |
 | 月会 | "本月复盘" | ① 本月漏斗(线索→客户→商机→合同→回款) → ② 团队成员月度排名 → ③ 赢单/输单分析(商机按 stage 分组) |
 | 预测 | "下月预测" | ① `stats home-opportunity --payload '{"searchType":"DEPARTMENT","deptIds":["<id>"]}' --type underway`(进行中商机金额) → ② 按阶段分组 × 历史转化率 |

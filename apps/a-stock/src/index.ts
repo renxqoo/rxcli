@@ -42,8 +42,8 @@ const app = defineCli<RxStockState>({
   plugins: [],
   // 顶层命令
   commands: {
-    quote: quoteCommands.get as any, // rxstock quote <code>(快速访问)
-    search: stockCommands.search as any, // rxstock search <keyword>
+    quote: { ...quoteCommands.get!, name: "quote" }, // rxstock quote <code>(快速访问,等同 quote get)
+    search: stockCommands.search!, // rxstock search <keyword>(name 已是 search,route 匹配)
   },
   // 多业务域聚合
   namespaces: {

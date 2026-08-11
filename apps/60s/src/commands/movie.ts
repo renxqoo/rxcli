@@ -8,6 +8,7 @@
  *   epic                    Epic Games 免费游戏
  */
 
+import * as z from "zod";
 import { defineCommands, defineCommand, printTable } from "@renxqoo/agent-data-cli";
 import { unwrap, withQuery, countMeta } from "../envelope.js";
 
@@ -34,22 +35,23 @@ export const movieCommands = defineCommands({
         { header: "票房", value: (r: RankItem) => r.box_office_desc ?? "", align: "right" },
       ]);
     },
-    async run(_args, ctx) {
+    async run(ctx) {
       const res = await ctx.get("/maoyan/all/movie", withQuery());
       return { data: unwrap<unknown>(res) };
     },
   }),
 
-  "maoyan-realtime": defineCommand<{ type?: string; date?: string }>({
+  "maoyan-realtime": defineCommand({
     name: "maoyan-realtime",
     description: "猫眼今日实时票房/收视/网播榜",
     args: {
-      type: {
-        type: "string",
-        default: "movie",
-        desc: "类型:movie(实时票房) | tv(电视收视) | web(网播热度)",
-      },
-      date: { type: "string", desc: "日期 YYYYMMDD(默认今天)" },
+      schema: z.object({
+        type: z
+          .string()
+          .describe("类型:movie(实时票房) | tv(电视收视) | web(网播热度)")
+          .default("movie"),
+        date: z.string().describe("日期 YYYYMMDD(默认今天)").optional(),
+      }),
     },
     humanFormat(data) {
       const d = data as { list: RankItem[] };
@@ -60,21 +62,24 @@ export const movieCommands = defineCommands({
         },
       ]);
     },
-    async run({ type, date }, ctx) {
+    async run(ctx, { type, date }) {
       const res = await ctx.get(`/maoyan/realtime/${type}`, withQuery({ date }));
       return { data: unwrap<unknown>(res) };
     },
   }),
 
-  douban: defineCommand<{ cat?: string }>({
+  douban: defineCommand({
     name: "douban",
     description: "豆瓣一周口碑榜",
     args: {
-      cat: {
-        type: "string",
-        default: "movie",
-        desc: "分类:movie(电影) | tv_chinese(国内剧) | tv_global(全球剧) | show_chinese(国内综艺) | show_global(全球综艺)",
-      },
+      schema: z.object({
+        cat: z
+          .string()
+          .describe(
+            "分类:movie(电影) | tv_chinese(国内剧) | tv_global(全球剧) | show_chinese(国内综艺) | show_global(全球综艺)",
+          )
+          .default("movie"),
+      }),
     },
     humanFormat(data) {
       return printTable(data as RankItem[], [
@@ -87,7 +92,7 @@ export const movieCommands = defineCommands({
         },
       ]);
     },
-    async run({ cat }, ctx) {
+    async run(ctx, { cat }) {
       const res = await ctx.get(`/douban/weekly/${cat}`, withQuery());
       const list = unwrap<RankItem[]>(res);
       return { data: list, meta: countMeta(list) };
@@ -107,7 +112,7 @@ export const movieCommands = defineCommands({
         },
       ]);
     },
-    async run(_args, ctx) {
+    async run(ctx) {
       const res = await ctx.get("/epic", withQuery());
       const list = unwrap<unknown[]>(res);
       return { data: list, meta: countMeta(list) };

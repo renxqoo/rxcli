@@ -33,13 +33,14 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "build:bin": "bun build ./src/index.ts --compile --outfile dist/rxcordys",
+    "build:bin": "bun build ./src/index.ts --compile --minify --outfile dist/rxcordys",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@renxqoo/agent-data-cli": "workspace:*"
+    "@renxqoo/agent-data-cli": "workspace:*",
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

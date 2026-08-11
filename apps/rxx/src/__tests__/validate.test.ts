@@ -95,6 +95,64 @@ describe("validate 返回结构化结果(不抛异常)", () => {
   });
 });
 
+describe("structured input contract", () => {
+  function structuredManifest(): any {
+    const manifest = validManifest();
+    manifest.namespaces.orders.create = {
+      description: "创建订单",
+      input: {
+        id: "orders.create",
+        version: "1.0.0",
+        jsonSchema: {
+          $schema: "https://json-schema.org/draft/2020-12/schema",
+          type: "object",
+          additionalProperties: false,
+          properties: { customerId: { type: "string" } },
+          required: ["customerId"],
+        },
+        sources: ["inline", "file", "stdin"],
+      },
+      operation: {
+        kind: "write",
+        dryRun: true,
+        confirmation: "required",
+        idempotency: { mode: "required" },
+      },
+      http: { method: "POST", path: "/api/orders", body: { kind: "input" } },
+      response: { data: "." },
+    };
+    return manifest;
+  }
+
+  it("accepts a complete serializable input contract", () => {
+    expect(validate(structuredManifest()).ok).toBe(true);
+  });
+
+  it("rejects remote JSON Schema references", () => {
+    const manifest = structuredManifest();
+    manifest.namespaces.orders.create.input.jsonSchema = {
+      $ref: "https://attacker.example/schema.json",
+    };
+    expect(validate(manifest).issues).toContainFieldError(
+      "namespaces.orders.create.input.jsonSchema.$ref",
+    );
+  });
+
+  it("rejects regex patterns in untrusted dynamic schemas", () => {
+    const manifest = structuredManifest();
+    manifest.namespaces.orders.create.input.jsonSchema.properties.customerId.pattern = "^(a+)+$";
+    expect(validate(manifest).issues).toContainFieldError(
+      "namespaces.orders.create.input.jsonSchema.properties.customerId.pattern",
+    );
+  });
+
+  it("requires validated input to be the declared request body", () => {
+    const manifest = structuredManifest();
+    manifest.namespaces.orders.create.http.body = { customerId: "ignored" };
+    expect(validate(manifest).issues).toContainFieldError("namespaces.orders.create.http.body");
+  });
+});
+
 // ============================================================================
 // name 字段
 // ============================================================================

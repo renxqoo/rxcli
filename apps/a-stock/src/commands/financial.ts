@@ -15,6 +15,7 @@
  *   - announcements <code> 公告
  */
 
+import * as z from "zod";
 import { defineCommands, defineCommand } from "@renxqoo/agent-data-cli";
 import {
   getFinancialMain,
@@ -34,91 +35,68 @@ import {
 } from "../services/advanced.js";
 
 export const financialCommands = defineCommands({
-  main: defineCommand<{ code: string; limit?: number }, unknown[]>({
+  main: defineCommand({
     name: "main",
     description: "查询主要财务指标(连续多期,默认 20 期)",
     args: {
-      code: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "股票代码",
-      },
-      limit: {
-        type: "number",
-        desc: "返回条数(默认 20,最大 ~50)",
-      },
+      schema: z.object({
+        code: z.string().describe("股票代码"),
+        limit: z.coerce.number().describe("返回条数(默认 20,最大 ~50)").optional(),
+      }),
+      pos: ["code"],
     },
     humanFormat: formatFinancialHuman,
-    async run({ code, limit }) {
+    async run(_ctx, { code, limit }) {
       const data = await getFinancialMain(code, limit ?? 20);
       return { data, meta: { count: data.length, type: "main" } };
     },
   }),
 
-  forecast: defineCommand<{ code: string; limit?: number }, unknown[]>({
+  forecast: defineCommand({
     name: "forecast",
     description: "查询业绩预告(净利润预增/预减 区间)",
     args: {
-      code: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "股票代码",
-      },
-      limit: {
-        type: "number",
-        desc: "返回条数(默认 20)",
-      },
+      schema: z.object({
+        code: z.string().describe("股票代码"),
+        limit: z.coerce.number().describe("返回条数(默认 20)").optional(),
+      }),
+      pos: ["code"],
     },
-    async run({ code, limit }) {
+    async run(_ctx, { code, limit }) {
       const data = await getFinancialForecast(code, limit ?? 20);
       return { data, meta: { count: data.length, type: "forecast" } };
     },
   }),
 
-  fundflow: defineCommand<{ code: string; limit?: number }, unknown[]>({
+  fundflow: defineCommand({
     name: "fundflow",
     description: "查询资金流向(主力 / 大单 / 中单 / 小单 净流入)",
     args: {
-      code: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "股票代码",
-      },
-      limit: {
-        type: "number",
-        desc: "返回天数(默认 30)",
-      },
+      schema: z.object({
+        code: z.string().describe("股票代码"),
+        limit: z.coerce.number().describe("返回天数(默认 30)").optional(),
+      }),
+      pos: ["code"],
     },
     humanFormat: formatFundFlowHuman,
-    async run({ code, limit }) {
+    async run(_ctx, { code, limit }) {
       const data = await getFundFlow(code, limit ?? 30);
       return { data, meta: { count: data.length, type: "fundflow" } };
     },
   }),
 
-  announcements: defineCommand<{ code: string; page?: number; size?: number }, unknown[]>({
+  announcements: defineCommand({
     name: "announcements",
     description: "查询个股公告",
     args: {
-      code: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "股票代码",
-      },
-      page: {
-        type: "number",
-        desc: "页码(默认 1)",
-      },
-      size: {
-        type: "number",
-        desc: "单页条数(默认 20,最大 50)",
-      },
+      schema: z.object({
+        code: z.string().describe("股票代码"),
+        page: z.coerce.number().describe("页码(默认 1)").optional(),
+        size: z.coerce.number().describe("单页条数(默认 20,最大 50)").optional(),
+      }),
+      pos: ["code"],
     },
-    async run({ code, page, size }) {
+    async run(_ctx, { code, page, size }) {
       const data = await getAnnouncements(code, {
         page: page ?? 1,
         size: Math.min(size ?? 20, 50),
@@ -127,106 +105,129 @@ export const financialCommands = defineCommands({
     },
   }),
 
-  dividend: defineCommand<{ code: string; limit?: number }, unknown[]>({
+  dividend: defineCommand({
     name: "dividend",
     description: "查询分红送配历史(送股/转增/派息)",
     args: {
-      code: { type: "string", required: true, positional: true, desc: "股票代码" },
-      limit: { type: "number", desc: "返回条数(默认 20)" },
+      schema: z.object({
+        code: z.string().describe("股票代码"),
+        limit: z.coerce.number().describe("返回条数(默认 20)").optional(),
+      }),
+      pos: ["code"],
     },
-    async run({ code, limit }) {
+    async run(_ctx, { code, limit }) {
       const data = await getDividend(code, limit ?? 20);
       return { data, meta: { count: data.length, type: "dividend" } };
     },
   }),
 
-  holders: defineCommand<{ code: string; limit?: number }, unknown[]>({
+  holders: defineCommand({
     name: "holders",
     description: "查询十大股东(最新一期,持股数/比例/变动)",
     args: {
-      code: { type: "string", required: true, positional: true, desc: "股票代码" },
-      limit: { type: "number", desc: "返回条数(默认 10,即十大股东)" },
+      schema: z.object({
+        code: z.string().describe("股票代码"),
+        limit: z.coerce.number().describe("返回条数(默认 10,即十大股东)").optional(),
+      }),
+      pos: ["code"],
     },
-    async run({ code, limit }) {
+    async run(_ctx, { code, limit }) {
       const data = await getHolders(code, limit ?? 10);
       return { data, meta: { count: data.length, type: "holders" } };
     },
   }),
 
-  holdercount: defineCommand<{ code: string; limit?: number }, unknown[]>({
+  holdercount: defineCommand({
     name: "holdercount",
     description: "查询股东人数变化(筹码集中度趋势)",
     args: {
-      code: { type: "string", required: true, positional: true, desc: "股票代码" },
-      limit: { type: "number", desc: "返回期数(默认 10)" },
+      schema: z.object({
+        code: z.string().describe("股票代码"),
+        limit: z.coerce.number().describe("返回期数(默认 10)").optional(),
+      }),
+      pos: ["code"],
     },
-    async run({ code, limit }) {
+    async run(_ctx, { code, limit }) {
       const data = await getHolderCount(code, limit ?? 10);
       return { data, meta: { count: data.length, type: "holdercount" } };
     },
   }),
 
-  margin: defineCommand<{ code: string; limit?: number }, unknown[]>({
+  margin: defineCommand({
     name: "margin",
     description: "查询融资融券明细(融资余额/融券余额/买入额)",
     args: {
-      code: { type: "string", required: true, positional: true, desc: "股票代码" },
-      limit: { type: "number", desc: "返回天数(默认 30)" },
+      schema: z.object({
+        code: z.string().describe("股票代码"),
+        limit: z.coerce.number().describe("返回天数(默认 30)").optional(),
+      }),
+      pos: ["code"],
     },
-    async run({ code, limit }) {
+    async run(_ctx, { code, limit }) {
       const data = await getMargin(code, limit ?? 30);
       return { data, meta: { count: data.length, type: "margin" } };
     },
   }),
 
-  balancesheet: defineCommand<{ code: string; limit?: number }, unknown[]>({
+  balancesheet: defineCommand({
     name: "balancesheet",
     description: "查询资产负债表(资产/负债/股东权益明细)",
     args: {
-      code: { type: "string", required: true, positional: true, desc: "股票代码" },
-      limit: { type: "number", desc: "返回期数(默认 8)" },
+      schema: z.object({
+        code: z.string().describe("股票代码"),
+        limit: z.coerce.number().describe("返回期数(默认 8)").optional(),
+      }),
+      pos: ["code"],
     },
-    async run({ code, limit }) {
+    async run(_ctx, { code, limit }) {
       const data = await getBalanceSheet(code, limit ?? 8);
       return { data, meta: { count: data.length, type: "balancesheet" } };
     },
   }),
 
-  income: defineCommand<{ code: string; limit?: number }, unknown[]>({
+  income: defineCommand({
     name: "income",
     description: "查询利润表(营收/成本/费用/利润明细)",
     args: {
-      code: { type: "string", required: true, positional: true, desc: "股票代码" },
-      limit: { type: "number", desc: "返回期数(默认 8)" },
+      schema: z.object({
+        code: z.string().describe("股票代码"),
+        limit: z.coerce.number().describe("返回期数(默认 8)").optional(),
+      }),
+      pos: ["code"],
     },
-    async run({ code, limit }) {
+    async run(_ctx, { code, limit }) {
       const data = await getIncome(code, limit ?? 8);
       return { data, meta: { count: data.length, type: "income" } };
     },
   }),
 
-  cashflow: defineCommand<{ code: string; limit?: number }, unknown[]>({
+  cashflow: defineCommand({
     name: "cashflow",
     description: "查询现金流量表(经营/投资/筹资活动现金流)",
     args: {
-      code: { type: "string", required: true, positional: true, desc: "股票代码" },
-      limit: { type: "number", desc: "返回期数(默认 8)" },
+      schema: z.object({
+        code: z.string().describe("股票代码"),
+        limit: z.coerce.number().describe("返回期数(默认 8)").optional(),
+      }),
+      pos: ["code"],
     },
-    async run({ code, limit }) {
+    async run(_ctx, { code, limit }) {
       const data = await getCashFlow(code, limit ?? 8);
       return { data, meta: { count: data.length, type: "cashflow" } };
     },
   }),
 
-  lhb: defineCommand<{ date?: string; code?: string; pageSize?: number }, unknown[]>({
+  lhb: defineCommand({
     name: "lhb",
     description: "查询龙虎榜(当日/历史个股上榜,买入卖出净额)",
     args: {
-      date: { type: "string", desc: "交易日期 YYYY-MM-DD(默认最新)" },
-      code: { type: "string", desc: "指定个股代码(查该股上榜历史)" },
-      pageSize: { type: "number", desc: "返回条数(默认 30)" },
+      schema: z.object({
+        date: z.string().describe("交易日期 YYYY-MM-DD(默认最新)").optional(),
+        code: z.string().describe("指定个股代码(查该股上榜历史)").optional(),
+        pageSize: z.coerce.number().describe("返回条数(默认 30)").optional(),
+      }),
     },
-    async run({ date, code, pageSize }) {
+    async run(_ctx, { date, code, pageSize }) {
       const data = await getDragonTiger({ date, code, pageSize: pageSize ?? 30 });
       return {
         data,

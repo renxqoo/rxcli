@@ -7,6 +7,7 @@
  *   - info <code>             公司基本信息
  */
 
+import * as z from "zod";
 import { defineCommands, defineCommand, errs } from "@renxqoo/agent-data-cli";
 import { searchStocks, getStockList, getCompanyProfile } from "../services/stock.js";
 import { getValuation } from "../services/kline.js";
@@ -17,22 +18,17 @@ const VALID_MARKETS: ListMarket[] = ["sh", "sz", "bj", "all"];
 const VALID_SORTS: ListSort[] = ["changePercent", "change", "amount", "volume", "code", "name"];
 
 export const stockCommands = defineCommands({
-  search: defineCommand<{ keyword: string; limit?: number }, unknown[]>({
+  search: defineCommand({
     name: "search",
     description: "搜索股票(支持代码 / 中文名称 / 拼音首字母)",
     args: {
-      keyword: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "搜索关键字(代码如 600519 / 名称如 茅台 / 拼音如 gzmt)",
-      },
-      limit: {
-        type: "number",
-        desc: "返回条数(默认 20)",
-      },
+      schema: z.object({
+        keyword: z.string().describe("搜索关键字(代码如 600519 / 名称如 茅台 / 拼音如 gzmt)"),
+        limit: z.coerce.number().describe("返回条数(默认 20)").optional(),
+      }),
+      pos: ["keyword"],
     },
-    async run({ keyword, limit }) {
+    async run(_ctx, { keyword, limit }) {
       const data = await searchStocks(keyword);
       const capped = limit ? data.slice(0, limit) : data.slice(0, 20);
       return {
@@ -46,41 +42,22 @@ export const stockCommands = defineCommands({
     },
   }),
 
-  list: defineCommand<
-    {
-      market?: string;
-      page?: number;
-      size?: number;
-      sort?: string;
-      desc?: boolean;
-    },
-    unknown[]
-  >({
+  list: defineCommand({
     name: "list",
     description: "查询股票列表(全市场 / 按市场过滤 / 排序 / 分页)",
     args: {
-      market: {
-        type: "string",
-        desc: "市场:sh|sz|bj|all (默认 all)",
-      },
-      page: {
-        type: "number",
-        desc: "页码(默认 1)",
-      },
-      size: {
-        type: "number",
-        desc: "单页条数(默认 100,最大 1000)",
-      },
-      sort: {
-        type: "string",
-        desc: "排序字段:changePercent|change|amount|volume|code|name (默认 changePercent)",
-      },
-      desc: {
-        type: "boolean",
-        desc: "是否降序(默认 true)",
-      },
+      schema: z.object({
+        market: z.string().describe("市场:sh|sz|bj|all (默认 all)").optional(),
+        page: z.coerce.number().describe("页码(默认 1)").optional(),
+        size: z.coerce.number().describe("单页条数(默认 100,最大 1000)").optional(),
+        sort: z
+          .string()
+          .describe("排序字段:changePercent|change|amount|volume|code|name (默认 changePercent)")
+          .optional(),
+        desc: z.boolean().describe("是否降序(默认 true)").optional(),
+      }),
     },
-    async run({ market, page, size, sort, desc }) {
+    async run(_ctx, { market, page, size, sort, desc }) {
       const m = (market ?? "all") as ListMarket;
       if (!VALID_MARKETS.includes(m)) {
         throw new errs.ValidationError({
@@ -120,41 +97,32 @@ export const stockCommands = defineCommands({
     },
   }),
 
-  info: defineCommand<{ code: string }, unknown>({
+  info: defineCommand({
     name: "info",
     description: "查询公司基本信息(总股本 / 流通股本 / 上市日期 等)",
     args: {
-      code: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "股票代码",
-      },
+      schema: z.object({ code: z.string().describe("股票代码") }),
+      pos: ["code"],
     },
     humanFormat: formatProfileHuman,
-    async run({ code }) {
+    async run(_ctx, { code }) {
       const data = await getCompanyProfile(code);
       if (!data) throw new errs.NotFoundError(`Company info not found for ${code}`);
       return { data };
     },
   }),
 
-  valuation: defineCommand<{ code: string; days?: number }, unknown>({
+  valuation: defineCommand({
     name: "valuation",
     description: "估值分位(PE/PB 在历史区间的百分位,判断当前贵不贵)",
     args: {
-      code: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "股票代码",
-      },
-      days: {
-        type: "number",
-        desc: "历史回溯天数(默认 250,约一年)",
-      },
+      schema: z.object({
+        code: z.string().describe("股票代码"),
+        days: z.coerce.number().describe("历史回溯天数(默认 250,约一年)").optional(),
+      }),
+      pos: ["code"],
     },
-    async run({ code, days }) {
+    async run(_ctx, { code, days }) {
       const data = await getValuation(code, days ?? 250);
       if (!data)
         throw new errs.NotFoundError(
@@ -169,18 +137,14 @@ export const stockCommands = defineCommands({
     },
   }),
 
-  diagnosis: defineCommand<{ code: string }, unknown>({
+  diagnosis: defineCommand({
     name: "diagnosis",
     description: "个股综合诊断(一次性聚合基本面+技术面+股东+估值,深度分析用)",
     args: {
-      code: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "股票代码",
-      },
+      schema: z.object({ code: z.string().describe("股票代码") }),
+      pos: ["code"],
     },
-    async run({ code }) {
+    async run(_ctx, { code }) {
       const data = await getDiagnosis(code);
       return {
         data,

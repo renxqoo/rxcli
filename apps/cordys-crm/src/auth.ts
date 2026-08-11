@@ -15,7 +15,6 @@
 
 import {
   defineCommand,
-  defineCommandFromArgs,
   defineCommands,
   errs,
   fileStore,
@@ -23,6 +22,7 @@ import {
   type Plugin,
   type TransportResponse,
 } from "@renxqoo/agent-data-cli";
+import * as z from "zod";
 import { CREDENTIAL_NAMESPACE, RXCLI_DIR, isBaseUrlConfigured } from "./config.js";
 
 /** 运行时凭证(accessKey + secretKey)。 */
@@ -78,17 +78,19 @@ async function readFromStore(authStore: AuthStore): Promise<CordysCredentials | 
 function createAuthCommands(authStore: AuthStore) {
   return defineCommands({
     /** login:保存密钥对到凭证文件(直接用 store 落盘,不依赖 ctx.credentials——后者因路由豁免是 no-op)。 */
-    login: defineCommand<{ accessKey: string; secretKey: string }>({
+    login: defineCommand({
       name: "login",
       description: "保存 Cordys 密钥对到凭证文件(~/.rxcli/credentials/cordys.json)",
       args: {
-        accessKey: { type: "string", required: true, desc: "Cordys Access Key" },
-        secretKey: { type: "string", required: true, desc: "Cordys Secret Key" },
+        schema: z.object({
+          accessKey: z.string().describe("Cordys Access Key"),
+          secretKey: z.string().describe("Cordys Secret Key"),
+        }),
       },
-      async run(args, _ctx) {
+      async run(_ctx, { accessKey, secretKey }) {
         await authStore.saveCredentials(CREDENTIAL_NAMESPACE, {
-          accessKey: args.accessKey,
-          secretKey: args.secretKey,
+          accessKey,
+          secretKey,
         });
         return {
           data: { namespace: CREDENTIAL_NAMESPACE, saved: true },
@@ -98,11 +100,10 @@ function createAuthCommands(authStore: AuthStore) {
     }),
 
     /** status:显示当前凭证来源(env / file / 未配置)。 */
-    status: defineCommandFromArgs({
+    status: defineCommand({
       name: "status",
       description: "显示当前凭证来源(环境变量 / 凭证文件 / 未配置)",
-      args: {},
-      async run(_args, _ctx) {
+      async run(_ctx) {
         // status 被 auth plugin 豁免 beforeCommand,故不依赖 ctx.state,自行读取凭证状态。
         const envCreds = readFromEnv();
         let source: "env" | "file" | null = null;
@@ -141,11 +142,10 @@ function createAuthCommands(authStore: AuthStore) {
     }),
 
     /** logout:清除凭证文件(直接用 store,不依赖 ctx.credentials)。 */
-    logout: defineCommandFromArgs({
+    logout: defineCommand({
       name: "logout",
       description: "清除已保存的凭证文件(不影响环境变量)",
-      args: {},
-      async run(_args, _ctx) {
+      async run(_ctx) {
         await authStore.clearCredentials(CREDENTIAL_NAMESPACE);
         return { data: { namespace: CREDENTIAL_NAMESPACE, cleared: true } };
       },

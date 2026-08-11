@@ -6,15 +6,19 @@
  *   js-question    JavaScript 面试题(随机或指定 id)
  */
 
+import * as z from "zod";
 import { defineCommands, defineCommand } from "@renxqoo/agent-data-cli";
 import { unwrap, withQuery } from "../envelope.js";
 
 export const kbCommands = defineCommands({
-  baike: defineCommand<{ word: string }>({
+  baike: defineCommand({
     name: "baike",
     description: "百度百科词条摘要(标题/描述/封面/链接)",
-    args: { word: { type: "string", required: true, positional: true, desc: "词条关键词" } },
-    async run({ word }, ctx) {
+    args: {
+      schema: z.object({ word: z.string().describe("词条关键词") }),
+      pos: ["word"],
+    },
+    async run(ctx, { word }) {
       const res = await ctx.get("/baike", withQuery({ word }));
       return {
         data: unwrap<{
@@ -28,11 +32,15 @@ export const kbCommands = defineCommands({
     },
   }),
 
-  "js-question": defineCommand<{ id?: number }>({
+  "js-question": defineCommand({
     name: "js-question",
     description: "JavaScript 面试题(含选项/答案/解析)",
-    args: { id: { type: "number", desc: "指定题目 ID(省略随机)" } },
-    async run({ id }, ctx) {
+    args: {
+      schema: z.object({
+        id: z.coerce.number().describe("指定题目 ID(省略随机)").optional(),
+      }),
+    },
+    async run(ctx, { id }) {
       const res = await ctx.get("/awesome-js", withQuery({ id }));
       return {
         data: unwrap<{

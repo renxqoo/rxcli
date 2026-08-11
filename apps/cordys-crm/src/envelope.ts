@@ -47,6 +47,38 @@ export function unwrap<T = unknown>(res: TransportResponse): T {
   return env.data as T;
 }
 
+/**
+ * 构造详情端点路径:Cordys 所有模块的详情统一为 GET /{module}/get/{id}(带 /get/ 段)。
+ * 经实测 GET /{module}/{id} 一律返回 null,只有 /get/{id} 才有数据(lead/account/contact/
+ * opportunity/contract/order/invoice/quotation/payment-plan/payment-record 全一致)。
+ * 单点定义,避免散落在各命令里写错路径。
+ */
+export function detailPath(module: string, id: string): string {
+  return `/${module}/get/${encodeURIComponent(id)}`;
+}
+
+/** 列表分页响应的 data 结构。 */
+export interface PagedData<T = unknown> {
+  list: T[];
+  total: number;
+  current: number;
+  pageSize: number;
+}
+
+/**
+ * 解包分页响应,并对 null/异常形状兜底成空 page。
+ * 部分模块的搜索 / 子资源端点对"无结果"会返回 data:null(而非 {list:[]}),
+ * 直接 .list 会触发 `Cannot read properties of null (reading 'list')` 崩溃;
+ * 统一在此兜底,所有 page/search/sub 列表命令共用。
+ */
+export function unwrapPaged<T = unknown>(res: TransportResponse): PagedData<T> {
+  const data = unwrap<unknown>(res);
+  if (data && typeof data === "object" && Array.isArray((data as PagedData).list)) {
+    return data as PagedData<T>;
+  }
+  return { list: [], total: 0, current: 1, pageSize: 0 } as PagedData<T>;
+}
+
 /** Cordys 业务码 → cli-sdk subtype 映射(常见的几个)。 */
 function mapCordysCodeToSubtype(code: number): string {
   // Cordys 文档枚举:ACCESS_DENIED / INVALID_KEY / INVALID_REQUEST / INVALID_FILTER
@@ -56,14 +88,6 @@ function mapCordysCodeToSubtype(code: number): string {
   if (code === 429) return "rate_limited";
   if (code >= 500) return "server_error";
   return "server_error";
-}
-
-/** 列表分页响应的 data 结构。 */
-export interface PagedData<T = unknown> {
-  list: T[];
-  total: number;
-  current: number;
-  pageSize: number;
 }
 
 /**

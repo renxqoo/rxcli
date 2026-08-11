@@ -32,9 +32,10 @@ With `@renxqoo/agent-data-cli`, a business package declares its commands and API
 | **One CLI for agents and humans**       | Pipes and CI receive JSON automatically; an interactive terminal receives readable text or CJK-width-aware tables. `--json` and `--no-json` make the choice explicit. |
 | **Self-discovering Agent Skills**       | A CLI can list, read, generate, and sync its own `SKILL.md` documentation so agents know when and how to call it.                                                     |
 | **Authentication as a component**       | Reuse credential providers, OAuth device flow, token refresh, generated auth commands, or plug in a business-specific scheme such as dual headers or HMAC.            |
-| **Schema-first, type-safe commands**    | `defineCommandFromArgs` infers required, optional, defaulted, and scalar argument types directly from the command schema.                                             |
+| **Schema-first, type-safe commands**    | `defineCommand` infers required, optional, defaulted, and scalar argument types directly from the command schema.                                             |
+| **Direct Zod structured input**         | Large and nested payloads use a Zod 4 schema directly for type inference, validation, discovery, redaction, dry-run, confirmation, and idempotency.          |
 | **Composable by design**                | Structured stdout stays clean, diagnostics stay on stderr, and one command's envelope can become downstream pipe records.                                             |
-| **Extensible without a framework fork** | Six lifecycle hooks and plugin-contributed commands cover authentication, auditing, request transformation, retries, output shaping, and error normalization.         |
+| **Extensible without a framework fork** | Eight lifecycle hooks and plugin-contributed commands cover authentication, input auditing, request transformation, retries, output shaping, and error normalization. |
 
 The repository includes public-data, financial-data, CRM, and OAuth-backed applications. They demonstrate that the same framework works across no-auth APIs, static multi-header authentication, and interactive OAuth—not just a toy example.
 
@@ -128,13 +129,13 @@ pnpm add @renxqoo/agent-data-cli
 Define a schema and implement only the business operation:
 
 ```ts
-import { defineCli, defineCommandFromArgs } from "@renxqoo/agent-data-cli";
+import { defineCli, defineCommand } from "@renxqoo/agent-data-cli";
 
 interface TodoListResponse {
   items: Array<{ id: string; title: string; completed: boolean }>;
 }
 
-const list = defineCommandFromArgs({
+const list = defineCommand({
   name: "list",
   description: "List todos",
   args: {

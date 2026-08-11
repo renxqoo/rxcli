@@ -42,6 +42,12 @@ export type ManifestArgsSpec = Record<string, ManifestArgSpec>;
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
+export interface ManifestInputBody {
+  kind: "input";
+  /** Optional RFC 6901 pointer into the validated structured input. */
+  pointer?: string;
+}
+
 /**
  * HTTP 请求映射。值含 `{argName}` 占位符,运行时用 args 替换。
  *
@@ -55,7 +61,7 @@ export interface HttpMapping {
   /** 值含 `{argName}` 占位符;空值的键省略。 */
   query?: Record<string, string>;
   /** 仅 POST/PUT/PATCH;值含 `{argName}` 占位符。 */
-  body?: Record<string, unknown>;
+  body?: Record<string, unknown> | ManifestInputBody;
   /** 值含 `{argName}` 占位符。 */
   headers?: Record<string, string>;
 }
@@ -98,11 +104,40 @@ export interface ManifestCommand {
   description: string;
   /** 参数定义,结构对齐 cli-sdk ArgsSpec。 */
   args?: ManifestArgsSpec;
+  /** Serializable counterpart of cli-sdk StructuredInputSpec. */
+  input?: ManifestStructuredInput;
+  operation?: ManifestOperationPolicy;
   /** HTTP 请求映射。 */
   http: HttpMapping;
   /** 响应映射。 */
   response: ResponseMapping;
 }
+
+export interface ManifestStructuredInput {
+  id?: string;
+  version?: string;
+  mediaType?: "application/json";
+  jsonSchema: Record<string, unknown>;
+  sources?: Array<"inline" | "file" | "stdin">;
+  limits?: Partial<{
+    maxBytes: number;
+    maxDepth: number;
+    maxProperties: number;
+    maxArrayItems: number;
+    maxIssues: number;
+  }>;
+  sensitive?: string[];
+  examples?: unknown[];
+}
+
+export type ManifestOperationPolicy =
+  | { kind: "read" }
+  | {
+      kind: "write";
+      dryRun?: boolean;
+      confirmation?: "required" | "none";
+      idempotency?: { mode: "required" | "optional"; header?: string };
+    };
 
 /** 命令组:key=命令名。 */
 export type ManifestCommandGroup = Record<string, ManifestCommand>;
