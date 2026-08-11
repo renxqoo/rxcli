@@ -10,22 +10,11 @@
  *   - read:**输出契约例外**(stdout 吐 SKILL.md 原文,见 03-envelopes.md)
  */
 
-import { defineCommand, defineCommands } from "../define.js";
-import {
-  listSkills,
-  listPath,
-  readSkill,
-  readReference,
-  splitArg,
-  prepareSkillDir,
-} from "./reader.js";
-import { syncSkills } from "./sync.js";
-import { refreshAutogen, generateSkillSkeleton } from "./gen.js";
 import { type SkillTarget } from "./targets.js";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import type { DefineCliOptions } from "../types.js";
+import type { CommandGroup, DefineCliOptions } from "../types.js";
 import { ConfigError } from "../errs/index.js";
+import { rawText } from "../output.js";
+import { SkillRepository } from "./repository.js";
 
 /**
  * 创建内置 skills 命令组(注入 defineCli 的 namespaces.skills)。
@@ -42,26 +31,33 @@ export function createBuiltinSkillsCommands(
   cliOptions: Pick<DefineCliOptions<any>, "commands" | "namespaces" | "name" | "binName">,
   skillsTargets?: SkillTarget[],
   skillsScopes?: Record<string, string[]>,
-) {
-  return defineCommands({
+): CommandGroup {
+  const repository = new SkillRepository({
+    root: skillsDir,
+    binName,
+    cli: cliOptions,
+    ...(skillsTargets ? { targets: skillsTargets } : {}),
+    ...(skillsScopes ? { scopes: skillsScopes } : {}),
+  });
+  return {
     // list:列出所有 skill(统一输出格式),或列举一层(带 name/path 参数)
-    list: defineCommand<any, unknown>({
+    list: {
       name: "list",
       description: "List all skills, or list one level under a skill",
       internal: true,
       args: { name: { type: "string", positional: true, desc: "skill name or name/subpath" } },
       async run(args) {
         if (!args.name) {
-          const all = listSkills(skillsDir);
+          const all = repository.list();
           return { data: all, meta: { count: all.length } };
         }
-        const { entries, listed } = listPath(skillsDir, args.name);
+        const { entries, listed } = repository.listAt(args.name);
         return { data: entries, meta: { count: entries.length, path: listed } };
       },
-    }),
+    },
 
     // read:读 SKILL.md 或 reference。**输出契约例外**:stdout 吐原文
-    read: defineCommand<any, unknown>({
+    read: {
       name: "read",
       description:
         "Read a skill's SKILL.md or reference (raw content to stdout, output contract exception)",
@@ -75,34 +71,21 @@ export function createBuiltinSkillsCommands(
         },
       },
       async run(args) {
-        const [skillName, rest] = splitArg(args.name);
-        let content: string;
-        let pathLabel: string;
-        if (!rest) {
-          content = readSkill(skillsDir, skillName).toString("utf8");
-          pathLabel = "SKILL.md";
-        } else {
-          const r = readReference(skillsDir, skillName, rest);
-          content = r.content.toString("utf8");
-          pathLabel = r.cleaned;
-        }
-        // 输出契约例外:meta._rawOutput=true 让 pipeline 直接吐 data 原文(不走统一输出格式)
-        return { data: content, meta: { skill: skillName, path: pathLabel, _rawOutput: true } };
+        return rawText(repository.read(args.name));
       },
-    }),
+    },
 
     // sync:同步到已装的 AI agent 工具发现目录(探测模式)
     //   - 默认(未配 skillsTargets):~/.agents 始终写 + 探测到的已装工具
     //   - 配了 skillsTargets:完全按业务包列表(强制全写,不探测)
-    sync: defineCommand<any, unknown>({
+    sync: {
       name: "sync",
       description:
         "Sync skills to installed AI agent discovery dirs (~/.agents always + detected: .claude/.codex/.cursor/.zcode/.openclaw/.pi)",
       internal: true,
       async run() {
         // skillsTargets 未配 → 省略 opts,走探测模式;配了 → 显式传,强制全写。
-        const opts = skillsTargets ? { targets: skillsTargets } : undefined;
-        const { count, targets, destDir } = syncSkills(skillsDir, opts);
+        const { count, targets } = repository.sync();
         const written = targets.filter((t) => t.ok);
         const skipped = targets.filter((t) => t.skipped);
         const failed = targets.filter((t) => !t.ok && !t.skipped);
@@ -125,7 +108,6 @@ export function createBuiltinSkillsCommands(
               ...(t.skipped ? { skipped: true } : {}),
               ...(t.error ? { error: t.error } : {}),
             })),
-            destDir,
           },
           meta: {
             synced: count,
@@ -153,10 +135,10 @@ export function createBuiltinSkillsCommands(
         }
         return lines.join("\n");
       },
-    }),
+    },
 
     // gen:自动生成命令文档(刷新 AUTO-GEN 块 / --init 吐骨架)
-    gen: defineCommand<any, unknown>({
+    gen: {
       name: "gen",
       description:
         "Generate SKILL.md command docs from defineCommands (refreshes the AUTO-GEN block)",
@@ -170,31 +152,28 @@ export function createBuiltinSkillsCommands(
         },
         init: {
           type: "boolean",
-          desc: "Generate the full SKILL.md skeleton on first run (with {{FILL}} placeholders)",
+          desc: "Generate the full SKILL.md skeleton (with {{FILL}} placeholders). Requires --force when SKILL.md already exists.",
+        },
+        force: {
+          type: "boolean",
+          desc: "With --init, overwrite an existing SKILL.md (otherwise --init on an existing file is refused to protect hand-written content).",
         },
         lang: { type: "string", desc: "Skeleton language: 'en' (default) or 'zh'", default: "en" },
       },
       async run(args) {
-        const skillName = args.name;
-        const skillDir = prepareSkillDir(skillsDir, skillName);
-        const skillMdPath = join(skillDir, "SKILL.md");
-        const lang = args.lang === "zh" ? "zh" : "en";
-        const scope = skillsScopes?.[skillName];
-
-        if (args.init || !existsSync(skillMdPath)) {
-          // 策略 B:吐整份骨架
-          const desc = `${binName} business skill`;
-          const content = generateSkillSkeleton(skillName, desc, binName, cliOptions, lang, scope);
-          writeFileSync(skillMdPath, content);
-          return { data: { generated: skillMdPath, mode: "init" } };
-        }
-
-        // 策略 A:刷新 AUTO-GEN 块(块外语义内容保留)
-        const existing = readFileSync(skillMdPath, "utf8");
-        const updated = refreshAutogen(existing, binName, cliOptions, lang, scope);
-        writeFileSync(skillMdPath, updated);
-        return { data: { refreshed: skillMdPath, mode: "refresh" } };
+        const result = repository.generate({
+          name: args.name,
+          initialize: Boolean(args.init),
+          force: Boolean(args.force),
+          language: args.lang === "zh" ? "zh" : "en",
+        });
+        return {
+          data:
+            result.mode === "init"
+              ? { generated: result.path, mode: result.mode }
+              : { refreshed: result.path, mode: result.mode },
+        };
       },
-    }),
-  });
+    },
+  };
 }

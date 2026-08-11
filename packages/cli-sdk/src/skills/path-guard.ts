@@ -4,7 +4,7 @@ import { InternalError, NotFoundError } from "../errs/index.js";
 
 /** Validate a skill identifier before using it as a path segment. */
 export function validateSkillName(name: string): void {
-  if (!name || /[\\/]/.test(name) || name === "." || name === ".." || name.includes("\0")) {
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name)) {
     throw new NotFoundError(
       `unknown skill "${name}". run 'rxcli skills list' to see available skills`,
     );

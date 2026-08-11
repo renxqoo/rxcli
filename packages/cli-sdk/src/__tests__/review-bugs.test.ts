@@ -5,8 +5,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defineCli, defineCommand } from "../define.js";
 import { prettyPrint } from "../pretty.js";
-import { runCommand } from "../pipeline.js";
+import { runCommand as executeCommand, type RunCommandOptions } from "../pipeline.js";
 import { createTestCtx } from "../test-utils.js";
+import { rawText } from "../output.js";
+
+function runCommand<State>(
+  options: Omit<RunCommandOptions<State>, "source" | "route"> & { route?: string[] },
+): Promise<number> {
+  return executeCommand({
+    ...options,
+    route: options.route ?? [options.spec.name],
+    source: "test",
+  });
+}
 
 // helper:捕获 stdout/stderr + exitCode
 async function captureRun(app: { run: (a: string[]) => Promise<void> }, argv: string[]) {
@@ -207,13 +218,11 @@ describe("BUG-R12: run 返回 {data: 标量} 应报 contract_violation", () => {
     expect(JSON.parse(errOut).error.subtype).toBe("contract_violation");
   });
 
-  // 回归守卫:_rawOutput 命令(如 skills read)合法地用 string data 吐原文,
-  // R12 的 StructuredData 检查必须豁免它,否则会误杀(真实场景:rxcli skills read 触发 contract_violation)。
-  it("{data:string, meta:{_rawOutput:true}} 应正常吐原文,不被 R12 拦截", async () => {
+  it("rawText() 正式结果类型应原样输出", async () => {
     const cmd = defineCommand({
       name: "read",
       async run() {
-        return { data: "# SKILL.md 原文", meta: { _rawOutput: true } };
+        return rawText("# SKILL.md 原文");
       },
     });
     let out = "";

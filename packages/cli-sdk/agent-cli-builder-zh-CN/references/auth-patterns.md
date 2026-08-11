@@ -14,18 +14,18 @@
 
 `defineAuth({ ... })` 一行同时给你:
 
-| 贡献                   | 说明                                                                                                      |
-| ---------------------- | --------------------------------------------------------------------------------------------------------- |
-| **4 个 auth 命令**     | `login` / `status` / `logout` / `register`(通过 `provides.namespaces.auth` 自动注入到 `<bin> auth <cmd>`) |
-| **login 三分支**       | 默认阻塞轮询(人类)/ `--no-wait --json`(发起,立即返回)/ `--device-code <code>`(完成轮询)                   |
-| **register 命令**      | 用注册令牌 + client_metadata 换独立 client(RFC 7591 snake_case 响应),写 `~/.rxcli/config.json`            |
-| **beforeCommand 钩子** | 跑 provider chain 取 token → 填 `ctx.credentials` / `ctx.state.user`                                      |
+| 贡献                    | 说明                                                                                                      |
+| ----------------------- | --------------------------------------------------------------------------------------------------------- |
+| **4 个 auth 命令**      | `login` / `status` / `logout` / `register`(通过 `provides.namespaces.auth` 自动注入到 `<bin> auth <cmd>`) |
+| **login 三分支**        | 默认阻塞轮询(人类)/ `--no-wait --json`(发起,立即返回)/ `--device-code <code>`(完成轮询)                   |
+| **register 命令**       | 用注册令牌 + client_metadata 换独立 client(RFC 7591 snake_case 响应),写 `~/.rxcli/config.json`            |
+| **beforeCommand 钩子**  | 跑 provider chain 取 token → 填 `ctx.credentials` / `ctx.state.user`                                      |
 | **beforeRequest 钩子** | 按 `authStyle` 注入 header(bearer/x-api-key/basic)                                                        |
-| **401 续期 hook**      | 公开的 `onUnauthorized`(singleflight refresh + 落盘 + 重跑 request hooks 后重试一次)                      |
-| **精确豁免**           | `auth login/register` 等自动跳过自身 `beforeCommand`(不会被"必须登录"拦截)                                |
-| **多 flow 支持**       | `flow` 选项:device(默认)/ authorization_code+PKCE / client_credentials                                    |
-| **动态 scope**         | `scopeFromMetadata: true` → 读取并采用 metadata 的全部 `scopes_supported`                                 |
-| **sandbox 注入**       | `bearerToken` 一行注入预签发 JWT(priority 2,允许 --api-key 覆盖)                                          |
+| **401 续期 hook**       | 公开的 `handleUnauthorized`(singleflight refresh + 落盘 + 重跑 request hooks 后重试一次)                  |
+| **精确豁免**            | `auth login/register` 等自动跳过自身 `beforeCommand`(不会被"必须登录"拦截)                                |
+| **多 flow 支持**        | `flow` 选项:device(默认)/ authorization_code+PKCE / client_credentials                                    |
+| **动态 scope**          | `scopeFromMetadata: true` → 读取并采用 metadata 的全部 `scopes_supported`                                 |
+| **sandbox 注入**        | `bearerToken` 一行注入预签发 JWT(priority 0,显式配置优先级最高)                                           |
 
 ### defineAuth 全部选项
 

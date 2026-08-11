@@ -1,8 +1,7 @@
 import type { ArgsSpec, CommandSpec } from "./types.js";
 import { MISSING_FLAG_VALUE } from "./args.js";
-import { ValidationError } from "./errs/index.js";
-
-export const RESERVED_FRAMEWORK_ARGS = new Set(["json", "api-key", "help", "version"]);
+import { compileCommandSchema, type CompiledCommandSchema } from "./command-schema.js";
+export { RESERVED_FRAMEWORK_ARGS } from "./command-registry.js";
 
 export interface FrameworkArgs {
   commandArgv: string[];
@@ -15,6 +14,7 @@ export interface FrameworkArgs {
 export interface RoutedCommand<State = unknown> {
   route: string[];
   spec: CommandSpec<any, unknown, State>;
+  schema: CompiledCommandSchema;
 }
 
 export interface MatchResult<State = unknown> {
@@ -103,75 +103,7 @@ export function parseCommandFlags(
   tokens: string[],
   argsSpec: ArgsSpec | undefined,
 ): { options: Record<string, unknown>; positionals: string[] } {
-  const options: Record<string, unknown> = {};
-  const positionals: string[] = [];
-  const booleanKeys = new Set<string>();
-  const valueKeys = new Set<string>();
-  const arrayKeys = new Set<string>();
-
-  for (const [key, spec] of Object.entries(argsSpec ?? {})) {
-    if (spec.type === "boolean") booleanKeys.add(key);
-    else {
-      valueKeys.add(key);
-      if (spec.type === "array") arrayKeys.add(key);
-    }
-  }
-
-  let onlyPositionals = false;
-  for (let i = 0; i < tokens.length; i++) {
-    const token = tokens[i]!;
-    if (!onlyPositionals && token === "--") {
-      onlyPositionals = true;
-      continue;
-    }
-    if (onlyPositionals) {
-      positionals.push(token);
-      continue;
-    }
-    if (!token.startsWith("--")) {
-      if (token.startsWith("-") && token.length > 1 && !isNegativeNumber(token)) {
-        throw new ValidationError({
-          subtype: "invalid_argument",
-          param: token,
-          message: `Unknown short flag ${token} (this framework only supports long flags --xxx)`,
-          hint: `To pass a negative number, use -- as a separator: command -- ${token}`,
-        });
-      }
-      positionals.push(token);
-      continue;
-    }
-
-    const equalsIndex = token.indexOf("=");
-    if (equalsIndex >= 0) {
-      const key = token.slice(2, equalsIndex);
-      setParsedOption(options, key, token.slice(equalsIndex + 1), arrayKeys);
-      continue;
-    }
-
-    const key = token.slice(2);
-    if (key.startsWith("no-") && booleanKeys.has(key.slice(3))) {
-      options[key.slice(3)] = false;
-      continue;
-    }
-    if (booleanKeys.has(key)) {
-      options[key] = true;
-      continue;
-    }
-    const next = tokens[i + 1];
-    if (valueKeys.has(key) && next !== undefined && isNegativeNumber(next)) {
-      setParsedOption(options, key, next, arrayKeys);
-      i++;
-      continue;
-    }
-    if (next !== undefined && !next.startsWith("-")) {
-      setParsedOption(options, key, next, arrayKeys);
-      i++;
-    } else {
-      options[key] = valueKeys.has(key) ? MISSING_FLAG_VALUE : true;
-    }
-  }
-
-  return { options, positionals };
+  return compileCommandSchema("command", argsSpec).tokenize(tokens);
 }
 
 export function hasCommandHelp(argv: string[]): boolean {
@@ -191,25 +123,4 @@ function isFrameworkFlag(token: string): boolean {
     token === "--version" ||
     token === "-v"
   );
-}
-
-function setParsedOption(
-  options: Record<string, unknown>,
-  key: string,
-  value: unknown,
-  arrayKeys: Set<string>,
-): void {
-  if (!arrayKeys.has(key)) {
-    options[key] = value;
-    return;
-  }
-  const existing = options[key];
-  options[key] =
-    existing === undefined
-      ? [value]
-      : [...(Array.isArray(existing) ? existing : [existing]), value];
-}
-
-function isNegativeNumber(token: string): boolean {
-  return /^-\d+(\.\d+)?$/.test(token);
 }

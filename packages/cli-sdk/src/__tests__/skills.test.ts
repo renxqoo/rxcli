@@ -403,13 +403,13 @@ describe("M4: syncSkills 全量同步(清理源端已删除的 skill)", () => {
     // 初始:src 有 alpha + beta
     makeSkill(tmpRoot, "alpha");
     makeSkill(tmpRoot, "beta");
-    syncSkills(tmpRoot, tmpDest);
+    syncSkills(tmpRoot, { targets: [{ key: "test", dir: tmpDest }] });
     expect(existsSync(join(tmpDest, "alpha"))).toBe(true);
     expect(existsSync(join(tmpDest, "beta"))).toBe(true);
 
     // 第二次:src 删掉 beta,只留 alpha
     rmSync(join(tmpRoot, "beta"), { recursive: true, force: true });
-    syncSkills(tmpRoot, tmpDest);
+    syncSkills(tmpRoot, { targets: [{ key: "test", dir: tmpDest }] });
 
     // 期望:destDir 的 beta 也被清理(全量同步语义),alpha 仍在
     expect(existsSync(join(tmpDest, "alpha"))).toBe(true);
@@ -418,9 +418,9 @@ describe("M4: syncSkills 全量同步(清理源端已删除的 skill)", () => {
 
   it("新增的 skill 被同步过来", () => {
     makeSkill(tmpRoot, "alpha");
-    syncSkills(tmpRoot, tmpDest);
+    syncSkills(tmpRoot, { targets: [{ key: "test", dir: tmpDest }] });
     makeSkill(tmpRoot, "gamma");
-    syncSkills(tmpRoot, tmpDest);
+    syncSkills(tmpRoot, { targets: [{ key: "test", dir: tmpDest }] });
     expect(existsSync(join(tmpDest, "alpha"))).toBe(true);
     expect(existsSync(join(tmpDest, "gamma"))).toBe(true);
   });
@@ -428,7 +428,7 @@ describe("M4: syncSkills 全量同步(清理源端已删除的 skill)", () => {
   it("返回同步数量", () => {
     makeSkill(tmpRoot, "a");
     makeSkill(tmpRoot, "b");
-    const { count } = syncSkills(tmpRoot, tmpDest);
+    const { count } = syncSkills(tmpRoot, { targets: [{ key: "test", dir: tmpDest }] });
     expect(count).toBe(2);
   });
 
@@ -436,7 +436,7 @@ describe("M4: syncSkills 全量同步(清理源端已删除的 skill)", () => {
     // destDir 里有个非 skill 的目录(其他工具放的),sync 不该删它
     mkdirSync(join(tmpDest, "other-tool-data"), { recursive: true });
     makeSkill(tmpRoot, "alpha");
-    syncSkills(tmpRoot, tmpDest);
+    syncSkills(tmpRoot, { targets: [{ key: "test", dir: tmpDest }] });
     expect(existsSync(join(tmpDest, "other-tool-data"))).toBe(true);
   });
 
@@ -445,8 +445,8 @@ describe("M4: syncSkills 全量同步(清理源端已删除的 skill)", () => {
     try {
       makeSkill(tmpRoot, "orders");
       makeSkill(otherRoot, "products");
-      syncSkills(tmpRoot, tmpDest);
-      syncSkills(otherRoot, tmpDest);
+      syncSkills(tmpRoot, { targets: [{ key: "test", dir: tmpDest }] });
+      syncSkills(otherRoot, { targets: [{ key: "test", dir: tmpDest }] });
       expect(existsSync(join(tmpDest, "orders", "SKILL.md"))).toBe(true);
       expect(existsSync(join(tmpDest, "products", "SKILL.md"))).toBe(true);
     } finally {
@@ -459,10 +459,10 @@ describe("M4: syncSkills 全量同步(清理源端已删除的 skill)", () => {
     try {
       makeSkill(tmpRoot, "shared", "from-a");
       makeSkill(otherRoot, "shared", "from-b");
-      syncSkills(otherRoot, tmpDest);
-      syncSkills(tmpRoot, tmpDest);
+      syncSkills(otherRoot, { targets: [{ key: "test", dir: tmpDest }] });
+      syncSkills(tmpRoot, { targets: [{ key: "test", dir: tmpDest }] });
       rmSync(join(tmpRoot, "shared"), { recursive: true, force: true });
-      syncSkills(tmpRoot, tmpDest);
+      syncSkills(tmpRoot, { targets: [{ key: "test", dir: tmpDest }] });
       expect(readFileSync(join(tmpDest, "shared", "SKILL.md"), "utf8")).toContain("from-b");
     } finally {
       rmSync(otherRoot, { recursive: true, force: true });
@@ -566,8 +566,6 @@ describe("多 target 同步:syncSkills({ targets })", () => {
       // 两个目录都有 skill
       expect(existsSync(join(dirA, "alpha", "SKILL.md"))).toBe(true);
       expect(existsSync(join(dirB, "alpha", "SKILL.md"))).toBe(true);
-      // destDir 是第一个成功 target
-      expect(res.destDir).toBe(dirA);
     } finally {
       rmSync(dirA, { recursive: true, force: true });
       rmSync(dirB, { recursive: true, force: true });
@@ -592,8 +590,6 @@ describe("多 target 同步:syncSkills({ targets })", () => {
       expect(okRes?.ok).toBe(true);
       // 失败 target 不影响成功 target:ok 目录有 skill
       expect(existsSync(join(dirOk, "beta", "SKILL.md"))).toBe(true);
-      // destDir 是成功 target(跳过失败的)
-      expect(res.destDir).toBe(dirOk);
     } finally {
       rmSync(dirOk, { recursive: true, force: true });
     }
@@ -624,14 +620,13 @@ describe("多 target 同步:syncSkills({ targets })", () => {
     }
   });
 
-  it("{ destDir } 等价于只同步到一个目录", () => {
+  it("单元素 targets 只同步到一个目录", () => {
     makeSkill(tmpRoot, "delta");
     const only = mkdtempSync(join(tmpdir(), "rxcli-only-"));
     try {
-      const res = syncSkills(tmpRoot, { destDir: only });
+      const res = syncSkills(tmpRoot, { targets: [{ key: "custom", dir: only }] });
       expect(res.targets).toHaveLength(1);
       expect(res.targets[0]!.ok).toBe(true);
-      expect(res.destDir).toBe(only);
       expect(existsSync(join(only, "delta", "SKILL.md"))).toBe(true);
     } finally {
       rmSync(only, { recursive: true, force: true });

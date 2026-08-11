@@ -81,12 +81,12 @@ describe("buildProviderChain", () => {
     expect(chain).toHaveLength(5); // flag/env/envBearer/file/oauth
   });
 
-  it("有 bearerToken → 插入 injected-bearer(priority 2)", () => {
+  it("有 bearerToken → 插入 injected-bearer(priority 0,最高)", () => {
     const chain = buildProviderChain({ bearerToken: "jwt-xxx" });
     const names = chain.map((p) => p.name());
     expect(names).toContain("injected-bearer");
     const injected = chain.find((p) => p.name() === "injected-bearer")!;
-    expect(injected.priority?.()).toBe(2);
+    expect(injected.priority?.()).toBe(0);
   });
 
   it("有 providers → 用自定义的(不掺入 defaultProviders)", () => {
@@ -160,5 +160,38 @@ describe("buildOn401Handler", () => {
     });
     const result = await handler();
     expect(result).toBeNull();
+  });
+
+  // BUG-12:client_credentials 的 flow.refresh 必须有 singleflight,
+  // 并发 401 不能各自换 token(与默认 refresh_token 路径行为对齐)。
+  it("BUG-12: 并发调用 handler 时 flow.refresh 只执行一次(singleflight)", async () => {
+    const oauth = { baseUrl: "http://t", clientId: "c", clientSecret: "s" };
+    const store = memoryStore();
+    let calls = 0;
+    const refreshFn = vi.fn().mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          calls++;
+          // 模拟网络延迟,让并发请求在 in-flight 期间到达
+          setTimeout(
+            () =>
+              resolve({ access_token: `AT_${calls}`, refresh_token: undefined, expires_in: 3600 }),
+            20,
+          );
+        }),
+    );
+    const handler = buildOn401Handler({
+      flow: { type: "client_credentials", login: vi.fn(), refresh: refreshFn },
+      oauth,
+      store,
+      namespace: "test",
+      flowDeps: { cfg: oauth },
+    });
+    // 并发 3 次
+    const results = await Promise.all([handler(), handler(), handler()]);
+    expect(refreshFn).toHaveBeenCalledTimes(1);
+    // 三次拿到同一个 token
+    expect(results.every((r) => r === results[0])).toBe(true);
+    expect(results[0]).toBe("AT_1");
   });
 });

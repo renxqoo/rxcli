@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,9 +9,15 @@ import { fileURLToPath } from "node:url";
 const packageDir = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = join(packageDir, "..", "..");
 const temporaryDir = mkdtempSync(join(tmpdir(), "agent-data-cli-package-"));
+const subprocessEnv = { ...process.env, npm_config_cache: join(temporaryDir, "npm-cache") };
 
 function run(command, args, cwd = packageDir) {
-  return execFileSync(command, args, { cwd, encoding: "utf8", stdio: "pipe" }).trim();
+  return execFileSync(command, args, {
+    cwd,
+    encoding: "utf8",
+    stdio: "pipe",
+    env: subprocessEnv,
+  }).trim();
 }
 
 function assert(condition, message) {
@@ -19,7 +25,12 @@ function assert(condition, message) {
 }
 
 try {
-  const packedOutput = run("pnpm", ["pack", "--pack-destination", temporaryDir]);
+  run(process.execPath, [
+    join(packageDir, "node_modules/typescript/bin/tsc"),
+    "-p",
+    "tsconfig.json",
+  ]);
+  const packedOutput = run("npm", ["pack", "--ignore-scripts", "--pack-destination", temporaryDir]);
   const tarballName = packedOutput.split(/\r?\n/).at(-1);
   assert(tarballName, "pnpm pack did not return a tarball name");
 
@@ -56,12 +67,27 @@ try {
   );
 
   const consumerDir = join(temporaryDir, "consumer");
-  mkdirSync(consumerDir);
+  const consumerModules = join(consumerDir, "node_modules");
+  const installedPackage = join(consumerModules, "@renxqoo", "agent-data-cli");
+  mkdirSync(installedPackage, { recursive: true });
+  run("tar", ["-xzf", tarballPath, "-C", installedPackage, "--strip-components=1"]);
+  for (const dependency of ["qrcode", "yaml"]) {
+    symlinkSync(
+      join(packageDir, "node_modules", dependency),
+      join(consumerModules, dependency),
+      "dir",
+    );
+  }
+  mkdirSync(join(consumerModules, "@clack"), { recursive: true });
+  symlinkSync(
+    join(packageDir, "node_modules", "@clack", "prompts"),
+    join(consumerModules, "@clack", "prompts"),
+    "dir",
+  );
   writeFileSync(
     join(consumerDir, "package.json"),
     JSON.stringify({ private: true, type: "module" }, null, 2),
   );
-  run("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", tarballPath], consumerDir);
   writeFileSync(
     join(consumerDir, "smoke.mjs"),
     [

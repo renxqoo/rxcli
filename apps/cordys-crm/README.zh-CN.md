@@ -63,20 +63,20 @@ export CORDYS_SECRET_KEY=<SecretKey>
 
 覆盖线索 → 客户 → 商机 → 合同 → 回款 → 发票 → 订单的 L2C 全流程:
 
-| 模块 | 说明 |
-|------|------|
-| `leads` | 线索 CRUD + 转客户(transition)/ 转商机(transform) |
-| `accounts` | 客户 CRUD + 客户 360(合同/商机/订单/回款/发票子资源 + 统计) |
-| `opportunities` | 商机 CRUD + 报价单(quotation) |
-| `contacts` | 联系人 CRUD |
-| `contracts` | 合同 + 回款计划/记录 + 工商抬头 + 统计 |
-| `invoices` | 发票 |
-| `orders` | 订单 + 统计 |
-| `follows` | 跟进计划/记录(跨 lead/account/opportunity) |
-| `approvals` | 审批待办/动作/资源/流程配置 |
-| `stats` | 模块金额统计 + 首页看板 |
-| `records` | 跨模块通用(view/get/page/search/contact/product/form) |
-| `util` | whoami/org/members/glocount/raw 透传 |
+| 模块            | 说明                                                        |
+| --------------- | ----------------------------------------------------------- |
+| `leads`         | 线索 CRUD + 转客户(transition)/ 转商机(transform)           |
+| `accounts`      | 客户 CRUD + 客户 360(合同/商机/订单/回款/发票子资源 + 统计) |
+| `opportunities` | 商机 CRUD + 报价单(quotation)                               |
+| `contacts`      | 联系人 CRUD                                                 |
+| `contracts`     | 合同 + 回款计划/记录 + 工商抬头 + 统计                      |
+| `invoices`      | 发票                                                        |
+| `orders`        | 订单 + 统计                                                 |
+| `follows`       | 跟进计划/记录(跨 lead/account/opportunity)                  |
+| `approvals`     | 审批待办/动作/资源/流程配置                                 |
+| `stats`         | 模块金额统计 + 首页看板                                     |
+| `records`       | 跨模块通用(view/get/page/search/contact/product/form)       |
+| `util`          | whoami/org/members/glocount/raw 透传                        |
 
 ## 常用命令
 

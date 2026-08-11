@@ -70,15 +70,15 @@ Synced 5 skill(s) to 2 target(s):
 
 #### 内置默认 target 列表(`DEFAULT_SKILL_TARGETS`)
 
-| key       | 目录                | 工具                |
-| --------- | ------------------- | ------------------- |
-| `agents`  | `~/.agents/skills`  | Agent Skills 标准(始终写) |
-| `claude`  | `~/.claude/skills`  | Claude Code         |
-| `codex`   | `~/.codex/skills`   | OpenAI Codex        |
-| `cursor`  | `~/.cursor/skills`  | Cursor              |
-| `zcode`   | `~/.zcode/skills`   | ZCode               |
-| `openclaw`| `~/.openclaw/skills`| OpenClaw            |
-| `pi`      | `~/.pi/agent/skills`| Pi Coding Agent     |
+| key        | 目录                 | 工具                      |
+| ---------- | -------------------- | ------------------------- |
+| `agents`   | `~/.agents/skills`   | Agent Skills 标准(始终写) |
+| `claude`   | `~/.claude/skills`   | Claude Code               |
+| `codex`    | `~/.codex/skills`    | OpenAI Codex              |
+| `cursor`   | `~/.cursor/skills`   | Cursor                    |
+| `zcode`    | `~/.zcode/skills`    | ZCode                     |
+| `openclaw` | `~/.openclaw/skills` | OpenClaw                  |
+| `pi`       | `~/.pi/agent/skills` | Pi Coding Agent           |
 
 业务包可通过 `defineCli({ skillsTargets })` 覆盖这份列表——**配了 skillsTargets 时强制全写指定目录,不走探测**(业务包显式指定 = 强制)。见下文"自定义同步目标"。
 
@@ -235,14 +235,14 @@ rxcli-orders skills gen orders --init --lang zh
 ```ts
 defineCli({
   // …
-  skillsDir: './skills',
+  skillsDir: "./skills",
   skillsScopes: {
     // key = skill 目录名,value = 该 skill 覆盖的 namespace / 顶层命令名
-    'myapp-news': ['news', 'tech', 'daily'],   // news.* / tech.* / 顶层 daily 命令
-    'myapp-life': ['life', 'health'],
-    'myapp-tool': ['tool', 'kb'],
+    "myapp-news": ["news", "tech", "daily"], // news.* / tech.* / 顶层 daily 命令
+    "myapp-life": ["life", "health"],
+    "myapp-tool": ["tool", "kb"],
   },
-})
+});
 ```
 
 `skills gen myapp-news` 据此只把 scope 内的命令写进 `myapp-news/SKILL.md` 的 AUTO-GEN 块。scope 匹配命令路径的**第一段**(namespace 名,或顶层命令名本身):
@@ -332,18 +332,18 @@ rxcli skills sync
 框架内置 7 个默认 target(见上表 `DEFAULT_SKILL_TARGETS`),默认走探测。业务包可完全覆盖:
 
 ```ts
-import { defineCli } from '@renxqoo/agent-data-cli'
+import { defineCli } from "@renxqoo/agent-data-cli";
 
 defineCli({
   // …
   // 只同步到 Claude Code 和 ZCode(覆盖默认 7 个)
   // 注意:配了 skillsTargets 后【强制全写指定目录,不走探测】
   skillsTargets: [
-    { key: 'claude', dir: '~/.claude/skills' },
-    { key: 'zcode', dir: '~/.zcode/skills' },
+    { key: "claude", dir: "~/.claude/skills" },
+    { key: "zcode", dir: "~/.zcode/skills" },
   ],
   // [] 空数组 → 关闭多 target(仅 install 向导的 npx 路径生效)
-})
+});
 ```
 
 `dir` 支持 `~/` 前缀(自动展开为家目录),也支持绝对路径。

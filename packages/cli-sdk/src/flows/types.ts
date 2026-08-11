@@ -6,6 +6,7 @@
  */
 
 import type { OAuthClientConfig, TokenInfo, PollResult } from "../oauth.js";
+import type { OAuthClient } from "../oauth-client.js";
 import type { BrowserOpener } from "../infra/browser.js";
 
 export type FlowType = "device" | "authorization_code" | "client_credentials";
@@ -17,6 +18,8 @@ export type FlowType = "device" | "authorization_code" | "client_credentials";
 export interface FlowDeps {
   /** OAuth 客户端配置(baseUrl + clientId/clientSecret)。 */
   cfg: OAuthClientConfig;
+  /** Compiled protocol client shared by this auth runtime. */
+  client?: OAuthClient;
   /** 业务声明的 scope。 */
   scope?: string;
   /** 日志输出(进度提示)。 */

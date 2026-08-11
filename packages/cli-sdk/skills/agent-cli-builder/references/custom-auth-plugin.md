@@ -12,7 +12,7 @@ Use this only when `defineAuth` cannot express the protocol, such as HMAC, mTLS,
 
 ## 1. Auth plugin skeleton
 
-An auth plugin resolves a token in `beforeCommand`, stores it in the context-bound auth session, injects it in `beforeRequest`, and may implement the public `onUnauthorized` hook for one refresh and retry. Never keep a request token in a plugin closure: one plugin instance serves concurrent `App.run()` calls.
+An auth plugin resolves a token in `beforeCommand`, stores it in a context-keyed `WeakMap`, injects it in `beforeRequest`, and may implement `handleUnauthorized` for one refresh and retry. Never keep one mutable token directly in a plugin closure: one plugin instance serves concurrent `App.run()` calls.
 
 ```ts
 import { homedir } from "node:os";
@@ -22,11 +22,8 @@ import {
   createOn401Hook,
   defaultProviders,
   fileStore,
-  getAuthSession,
   injectAuthHeader,
   resolveWithChain,
-  setAuthSession,
-  updateAuthSessionToken,
   type CommandContext,
   type Plugin,
   type ProviderContext,
@@ -43,6 +40,7 @@ export function createCustomAuth<State extends { user?: unknown }>(options: {
   const refresh = options.oauth
     ? createOn401Hook({ cfg: options.oauth, store, namespace: options.namespace })
     : undefined;
+  const sessions = new WeakMap<CommandContext<State>, { token: string; refreshable: boolean }>();
 
   return {
     name: `auth:${options.namespace}`,
@@ -70,42 +68,42 @@ export function createCustomAuth<State extends { user?: unknown }>(options: {
         clear: (namespace) => store.clearCredentials(namespace),
       };
 
-      const identity = resolved.provider.resolveIdentity
-        ? await resolved.provider.resolveIdentity(providerContext)
-        : null;
-      if (identity) {
-        (ctx as unknown as { _identity?: typeof identity })._identity = identity;
-        (ctx.state as Record<string, unknown>).user = {
-          ...(identity.userId ? { userId: identity.userId } : {}),
-          ...(identity.name ? { name: identity.name } : {}),
-        };
-      }
-
-      setAuthSession(ctx, {
+      sessions.set(ctx, {
         token: resolved.token.token,
-        type: resolved.token.type,
-        source: resolved.token.source,
         refreshable: resolved.token.refreshable === true,
       });
     },
 
     async beforeRequest(ctx, request) {
-      const session = getAuthSession(ctx);
-      if (session) injectAuthHeader(request, session.token, authStyle);
+      const prepared = { ...request, headers: { ...request.headers } };
+      const session = sessions.get(ctx);
+      if (session) injectAuthHeader(prepared, session.token, authStyle);
+      return prepared;
     },
 
-    async onUnauthorized(ctx) {
-      const session = getAuthSession(ctx);
-      if (!refresh || !session?.refreshable) return undefined;
+    async handleUnauthorized(ctx) {
+      const session = sessions.get(ctx);
+      if (!refresh || !session?.refreshable) return { action: "decline" };
       const token = await refresh();
-      if (token) updateAuthSessionToken(ctx, token);
-      return token;
+      if (!token) {
+        return {
+          action: "reject",
+          error: new AuthenticationError({
+            subtype: "token_expired",
+            code: 401,
+            message: "Authentication expired (token refresh failed)",
+            hint: "Sign in again",
+          }),
+        };
+      }
+      sessions.set(ctx, { ...session, token });
+      return { action: "retry" };
     },
   };
 }
 ```
 
-`undefined` from `onUnauthorized` means that this credential is not refreshable and preserves ordinary 401 classification. `null` means refresh was attempted and failed. A string updates the retry credential. The session helper is keyed by `CommandContext`, so concurrent invocations cannot overwrite one another.
+`handleUnauthorized` returns an explicit `decline`, `retry`, or `reject` decision. The session is keyed by `CommandContext`, so concurrent invocations cannot overwrite one another. Standard OAuth/API-key/Bearer/Basic integrations should use `defineAuth`; it owns the same isolation and canonical output identity without exposing private runtime channels.
 
 ## 2. Plugin-owned login commands
 
@@ -195,12 +193,13 @@ function hmacSigningPlugin(namespace: string): Plugin {
     enforce: "post",
     async beforeRequest(ctx, request) {
       const credentials = await ctx.credentials.get(namespace);
-      if (!credentials?.secretKey) return;
+      if (!credentials?.secretKey) return { ...request, headers: { ...request.headers } };
       const body =
         typeof request.body === "string" ? request.body : JSON.stringify(request.body ?? "");
-      request.headers["X-Signature"] = createHmac("sha256", credentials.secretKey)
+      const signature = createHmac("sha256", credentials.secretKey)
         .update(`${request.method}\n${request.path}\n${body}`)
         .digest("hex");
+      return { ...request, headers: { ...request.headers, "X-Signature": signature } };
     },
   };
 }
@@ -210,7 +209,7 @@ Treat canonicalization, timestamp, nonce, encoding, and header order as protocol
 
 ## 5. 401 refresh behavior
 
-With `onUnauthorized` configured, the transport:
+With `handleUnauthorized` configured, the request runtime:
 
 1. Receives 401 and runs the refresh hook.
 2. Reuses one in-flight refresh for concurrent requests when the underlying hook supports singleflight.

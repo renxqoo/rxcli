@@ -17,7 +17,7 @@ export {
 } from "./reader.js";
 
 export { syncSkills } from "./sync.js";
-export type { SyncResult, SyncTargetResult } from "./sync.js";
+export type { SyncResult, SyncSkillsOptions, SyncTargetResult } from "./sync.js";
 
 export type { SkillTarget } from "./targets.js";
 export {
@@ -30,6 +30,12 @@ export {
 } from "./targets.js";
 
 export type { GenLang } from "./gen.js";
+export {
+  SkillRepository,
+  type SkillRepositoryOptions,
+  type GenerateSkillOptions,
+  type SkillFileStore,
+} from "./repository.js";
 export {
   flattenCommands,
   signatureLine,

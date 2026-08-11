@@ -26,15 +26,15 @@ Most CLIs expose human-formatted text, ad-hoc errors, separate authentication co
 
 With `@renxqoo/agent-data-cli`, a business package declares its commands and API calls once. The framework supplies the reusable agent-facing contract:
 
-| Capability | What it gives you |
-| --- | --- |
-| **Deterministic machine contract** | JSON success envelopes, structured errors, stable sources, metadata, pagination, and categorized exit codes. |
-| **One CLI for agents and humans** | Pipes and CI receive JSON automatically; an interactive terminal receives readable text or CJK-width-aware tables. `--json` and `--no-json` make the choice explicit. |
-| **Self-discovering Agent Skills** | A CLI can list, read, generate, and sync its own `SKILL.md` documentation so agents know when and how to call it. |
-| **Authentication as a component** | Reuse credential providers, OAuth device flow, token refresh, generated auth commands, or plug in a business-specific scheme such as dual headers or HMAC. |
-| **Schema-first, type-safe commands** | `defineCommandFromArgs` infers required, optional, defaulted, and scalar argument types directly from the command schema. |
-| **Composable by design** | Structured stdout stays clean, diagnostics stay on stderr, and one command's envelope can become downstream pipe records. |
-| **Extensible without a framework fork** | Six lifecycle hooks and plugin-contributed commands cover authentication, auditing, request transformation, retries, output shaping, and error normalization. |
+| Capability                              | What it gives you                                                                                                                                                     |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Deterministic machine contract**      | JSON success envelopes, structured errors, stable sources, metadata, pagination, and categorized exit codes.                                                          |
+| **One CLI for agents and humans**       | Pipes and CI receive JSON automatically; an interactive terminal receives readable text or CJK-width-aware tables. `--json` and `--no-json` make the choice explicit. |
+| **Self-discovering Agent Skills**       | A CLI can list, read, generate, and sync its own `SKILL.md` documentation so agents know when and how to call it.                                                     |
+| **Authentication as a component**       | Reuse credential providers, OAuth device flow, token refresh, generated auth commands, or plug in a business-specific scheme such as dual headers or HMAC.            |
+| **Schema-first, type-safe commands**    | `defineCommandFromArgs` infers required, optional, defaulted, and scalar argument types directly from the command schema.                                             |
+| **Composable by design**                | Structured stdout stays clean, diagnostics stay on stderr, and one command's envelope can become downstream pipe records.                                             |
+| **Extensible without a framework fork** | Six lifecycle hooks and plugin-contributed commands cover authentication, auditing, request transformation, retries, output shaping, and error normalization.         |
 
 The repository includes public-data, financial-data, CRM, and OAuth-backed applications. They demonstrate that the same framework works across no-auth APIs, static multi-header authentication, and interactive OAuth—not just a toy example.
 
@@ -66,16 +66,16 @@ Failures and diagnostics are written to stderr, with a non-zero exit code:
 }
 ```
 
-| Exit code | Meaning |
-| --- | --- |
-| `0` | Success |
-| `1` | API or server-side business error |
-| `2` | Invalid input |
-| `3` | Authentication, authorization, or configuration error |
-| `4` | Network failure or timeout |
-| `5` | Internal framework error |
-| `6` | Policy or risk-control rejection |
-| `10` | An explicit confirmation such as `--yes` is required |
+| Exit code | Meaning                                               |
+| --------- | ----------------------------------------------------- |
+| `0`       | Success                                               |
+| `1`       | API or server-side business error                     |
+| `2`       | Invalid input                                         |
+| `3`       | Authentication, authorization, or configuration error |
+| `4`       | Network failure or timeout                            |
+| `5`       | Internal framework error                              |
+| `6`       | Policy or risk-control rejection                      |
+| `10`      | An explicit confirmation such as `--yes` is required  |
 
 This separation keeps shell pipelines valid and lets an agent choose recovery behavior without matching error-message text.
 
@@ -83,12 +83,12 @@ This separation keeps shell pipelines valid and lets an agent choose recovery be
 
 Each active application supports one-step setup with `npx <package> install`, which installs the CLI, syncs its Agent Skills, and guides credential setup when needed. Node.js 20 or newer is required.
 
-| CLI | Install | Authentication | Why it matters |
-| --- | --- | --- | --- |
-| [`rxstock`](apps/a-stock) | `npx @renxqoo/rxstock install` | None | A-share quotes, K-lines, financials, sectors, capital flows, and locally computed indicators, with multi-source fallback. |
-| [`rxopen`](apps/rxopen) | `npx @renxqoo/rxopen-cli install` | None | More than 60 public-data endpoints for news, trends, weather, prices, translation, developer tools, and media, organized into six focused skills. |
-| [`rxcordys`](apps/cordys-crm) | `npx @renxqoo/rxcordys-cli install` | Static dual headers | A full Lead-to-Cash CRM surface: leads, accounts, opportunities, contracts, payments, invoices, orders, approvals, and statistics. |
-| [`rxcli`](apps/crm) | `npx @renxqoo/cli install` | OAuth device flow | Orders, products, invoices, and accounts through a company gateway, including registration, login, refresh, status, and logout. |
+| CLI                           | Install                             | Authentication      | Why it matters                                                                                                                                    |
+| ----------------------------- | ----------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`rxstock`](apps/a-stock)     | `npx @renxqoo/rxstock install`      | None                | A-share quotes, K-lines, financials, sectors, capital flows, and locally computed indicators, with multi-source fallback.                         |
+| [`rxopen`](apps/rxopen)       | `npx @renxqoo/rxopen-cli install`   | None                | More than 60 public-data endpoints for news, trends, weather, prices, translation, developer tools, and media, organized into six focused skills. |
+| [`rxcordys`](apps/cordys-crm) | `npx @renxqoo/rxcordys-cli install` | Static dual headers | A full Lead-to-Cash CRM surface: leads, accounts, opportunities, contracts, payments, invoices, orders, approvals, and statistics.                |
+| [`rxcli`](apps/crm)           | `npx @renxqoo/cli install`          | OAuth device flow   | Orders, products, invoices, and accounts through a company gateway, including registration, login, refresh, status, and logout.                   |
 
 [`rx60s`](apps/60s) is the legacy single-skill package. New integrations should use `rxopen`, whose domain-oriented skill structure is easier for agents to discover accurately.
 
@@ -128,10 +128,7 @@ pnpm add @renxqoo/agent-data-cli
 Define a schema and implement only the business operation:
 
 ```ts
-import {
-  defineCli,
-  defineCommandFromArgs,
-} from "@renxqoo/agent-data-cli";
+import { defineCli, defineCommandFromArgs } from "@renxqoo/agent-data-cli";
 
 interface TodoListResponse {
   items: Array<{ id: string; title: string; completed: boolean }>;
@@ -194,8 +191,8 @@ The plugin contributes `auth login`, `auth status`, `auth logout`, and `auth reg
 For custom behavior, plugins can use:
 
 ```text
-beforeCommand → beforeRequest → afterRequest → onUnauthorized
-              → beforeOutput  → onError
+beforeCommand → prepareRequest → observeRequest → handleUnauthorized
+              → transformOutput → observeError → handleError
 ```
 
 Plugins may also contribute commands through `provides`, which keeps cross-cutting features componentized instead of scattering them across business command files.
@@ -243,14 +240,14 @@ This keeps commands shallow and testable while concentrating complex behavior in
 
 ## Repository map
 
-| Path | Purpose |
-| --- | --- |
-| [`packages/cli-sdk`](packages/cli-sdk) | `@renxqoo/agent-data-cli`, the framework package |
-| [`apps/a-stock`](apps/a-stock) | `rxstock`, A-share data and analysis |
-| [`apps/rxopen`](apps/rxopen) | `rxopen`, domain-oriented public-data CLI |
-| [`apps/cordys-crm`](apps/cordys-crm) | `rxcordys`, Cordys CRM CLI |
-| [`apps/crm`](apps/crm) | `rxcli`, OAuth-backed company business CLI |
-| [`apps/60s`](apps/60s) | Legacy `rx60s` package |
+| Path                                             | Purpose                                                               |
+| ------------------------------------------------ | --------------------------------------------------------------------- |
+| [`packages/cli-sdk`](packages/cli-sdk)           | `@renxqoo/agent-data-cli`, the framework package                      |
+| [`apps/a-stock`](apps/a-stock)                   | `rxstock`, A-share data and analysis                                  |
+| [`apps/rxopen`](apps/rxopen)                     | `rxopen`, domain-oriented public-data CLI                             |
+| [`apps/cordys-crm`](apps/cordys-crm)             | `rxcordys`, Cordys CRM CLI                                            |
+| [`apps/crm`](apps/crm)                           | `rxcli`, OAuth-backed company business CLI                            |
+| [`apps/60s`](apps/60s)                           | Legacy `rx60s` package                                                |
 | [`packages/cli-sdk/docs`](packages/cli-sdk/docs) | Architecture, SDK, authentication, testing, and release documentation |
 
 ## Development and release quality

@@ -40,8 +40,8 @@ When an AI agent (or script, or pipeline) consumes your business data, there's a
 - **🔐 Auth factory `defineAuth`** — OAuth 2.0 device flow (RFC 8628) + 401 singleflight auto-refresh. One line of config and login/status/logout/register commands are injected automatically.
 - **📦 Structured unified output** — JSON mode outputs `{ok, source, data, meta}`, stderr is the error stream, exit codes are categorized; `defaultFormat` can choose JSON, human text, or TTY auto mode.
 - **🏷️ 9 typed error classes** — validation/authentication/permission/config/network/api/not_found/policy/internal, each mapped to an exit code.
-- **🔌 Vite-style plugins** — beforeCommand/beforeRequest/afterRequest/onUnauthorized/beforeOutput/onError hooks + `provides` for auto-contributing commands.
-- **🔑 Provider chain** — flag/env/file/oauth four-tier credential resolution priority, with custom credential sources per business.
+- **🔌 Vite-style plugins** — explicit prepare/observe/handle/transform hooks + `provides` for auto-contributing commands.
+- **🔑 Provider chain** — flag / env API key / env bearer / file / OAuth credential resolution, with custom sources per business.
 - **🚇 Unix pipes** — `rxcli orders list | rxcli report` automatically splits the upstream unified output into a record stream.
 - **📖 Skill system** — SKILL.md command docs auto-generated and synced to installed AI agent discovery dirs (`~/.agents` always + detected tools among `~/.claude`/`~/.codex`/`~/.cursor`/`~/.zcode`/`~/.openclaw`/`~/.pi`) for AI agent self-discovery.
 - **🖥️ Dual-mode output** — defaults to `auto` (TTY→text, script/pipe→JSON); `--json` / `--no-json` for explicit override; `defaultFormat` to pin a default.
@@ -211,19 +211,23 @@ const myPlugin: Plugin = {
     /* populate state */
   },
   async beforeRequest(ctx, req) {
-    /* add header */
+    return { ...req, headers: { ...req.headers, "x-client": "my-cli" } };
   },
-  async afterRequest(ctx, res) {
-    /* audit */
+  async observeRequest(ctx, event) {
+    /* awaited audit; event.outcome is response | network-error */
   },
-  async onUnauthorized(ctx, req) {
-    /* refresh credentials and return a replacement token */
+  async handleUnauthorized(ctx, event) {
+    /* update session first, then explicitly retry */
+    return { action: "decline" };
   },
-  async beforeOutput(ctx, data) {
+  async transformOutput(ctx, data) {
     return transformedData;
   },
-  async onError(ctx, err) {
-    return normalizedErr;
+  async observeError(ctx, err) {
+    /* telemetry only; void never swallows the error */
+  },
+  async handleError(ctx, err) {
+    return { action: "replace", error: normalizedErr };
   },
 };
 ```

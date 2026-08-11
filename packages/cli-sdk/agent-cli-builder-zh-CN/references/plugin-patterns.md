@@ -9,16 +9,17 @@
 3. 插件提供命令与独立发布
 4. 安全调试与常见错误
 
-## 1. 6 个钩子 + 何时用
+## 1. 7 个钩子 + 何时用
 
-| 钩子            | 何时触发               | 能改什么                                      | 典型用途                            |
-| --------------- | ---------------------- | --------------------------------------------- | ----------------------------------- |
-| `beforeCommand` | 命令 run 前(填 state)  | `ctx.state`、可 throw 中止                    | auth 填 user、参数预处理            |
-| `beforeRequest` | 每次 `ctx.get/post` 前 | `req`(method/path/query/body/headers/timeout) | 加 header、HMAC 签名、注入 tenantId |
-| `afterRequest`  | 每次请求返回后         | `res` 只读,主要用于副作用                     | 审计、metric、请求日志              |
-| `onUnauthorized` | 请求返回 401 后        | 返回新 token / null / undefined               | 上下文隔离的凭证续期                |
-| `beforeOutput`  | run 返回后、序列化前   | 返回新 `data`(StructuredData)                 | 脱敏、删内部字段、改字段名          |
-| `onError`       | 任何钩子或 run 抛错时  | 返回新 error / 透传 / undefined               | 错误归一化、脱敏、重试              |
+| 钩子                 | 何时触发                 | 能改什么                                 | 典型用途               |
+| -------------------- | ------------------------ | ---------------------------------------- | ---------------------- |
+| `beforeCommand`      | 命令 run 前              | `ctx.state`、可 throw 中止               | auth、参数预处理       |
+| `beforeRequest`      | 每个物理请求 attempt 前  | 返回新的请求对象                         | header、签名、tenant   |
+| `observeRequest`     | 每个物理 attempt 完成后  | 只读事件；runtime 等待副作用             | 审计、metric、请求日志 |
+| `handleUnauthorized` | 收到 401 后              | 显式 `retry` / `decline` / `reject` 决策 | 上下文隔离的凭证续期   |
+| `transformOutput`    | run 返回后、序列化前     | 返回新的 StructuredData                  | 脱敏、删字段、改字段名 |
+| `observeError`       | 错误规范化后             | 只观察，void 不具有恢复语义              | telemetry              |
+| `handleError`        | error observers 执行之后 | 显式 `pass` / `replace` / `recover` 决策 | 错误归一化或明确恢复   |
 
 ---
 
@@ -56,14 +57,17 @@ defineCli({
       name: "tenant",
       enforce: "pre",
       async beforeRequest(ctx, req) {
-        req.query = { ...req.query, tenantId: "acme" };
+        return { ...req, query: { ...req.query, tenantId: "acme" } };
       },
     },
     {
       name: "hmac-sign",
       enforce: "post",
       async beforeRequest(ctx, req) {
-        req.headers["X-Sig"] = sign(req.body, ctx.state.secretKey);
+        return {
+          ...req,
+          headers: { ...req.headers, "X-Sig": sign(req.body, ctx.state.secretKey) },
+        };
       },
     },
   ],
@@ -81,7 +85,10 @@ const headerPlugin = {
   name: "fixed-headers",
   enforce: "pre" as const,
   async beforeRequest(ctx, req) {
-    req.headers = { ...req.headers, "X-Client": "my-cli", "X-Version": "1.0.0" };
+    return {
+      ...req,
+      headers: { ...req.headers, "X-Client": "my-cli", "X-Version": "1.0.0" },
+    };
   },
 };
 ```
@@ -91,22 +98,22 @@ const headerPlugin = {
 ```ts
 const auditPlugin = {
   name: "audit",
-  async afterRequest(ctx, res) {
-    if (res.status >= 400) {
+  async observeRequest(ctx, event) {
+    if (event.outcome.kind === "response" && event.outcome.response.status >= 400) {
       // 上报 / 写日志(走 stderr,不污染 stdout)
-      ctx.log.warn(`request failed: status=${res.status}`);
+      ctx.log.warn(`request failed: status=${event.outcome.response.status}`);
     }
   },
 };
 ```
 
-### 3.3 字段脱敏(beforeOutput)
+### 3.3 字段脱敏(transformOutput)
 
 ```ts
 const redactPlugin = {
   name: "redact",
   enforce: "post" as const,
-  async beforeOutput(ctx, data) {
+  async transformOutput(ctx, data) {
     if (Array.isArray(data)) return data.map(redactItem);
     if (data && typeof data === "object") return redactItem(data);
     return data;
@@ -120,17 +127,17 @@ function redactItem(item: Record<string, unknown>) {
 }
 ```
 
-**`beforeOutput` 必须返回 StructuredData**(object/array/null),**不能返回 string**——否则破坏管道契约。
+**`transformOutput` 必须返回 StructuredData**(object/array/null),**不能返回 string**——否则破坏管道契约。
 
-### 3.4 错误归一化(onError)
+### 3.4 错误归一化(handleError)
 
 ```ts
 import { errs } from "@renxqoo/agent-data-cli";
 
 const errorNormalizePlugin = {
   name: "error-normalize",
-  async onError(ctx, err) {
-    if (!(err instanceof errs.CliError)) return err;
+  async handleError(ctx, err) {
+    if (!(err instanceof errs.CliError)) return { action: "pass" };
 
     // 脱敏:防止 token 漏到 message
     if (err.message) {
@@ -140,12 +147,12 @@ const errorNormalizePlugin = {
     if (err instanceof errs.NetworkError && !err.hint) {
       err.hint = "检查网络连接,或稍后重试";
     }
-    return err;
+    return { action: "replace", error: err };
   },
 };
 ```
 
-**onError 是链式的**:每个插件都跑一遍,返回值传给下一个。某个 `onError` 自己抛错时，框架保留最近一次有效的业务错误并继续后续 hook，避免观察性插件掩盖根因。返回 `undefined` = **吞掉错误**(命令变成功)——这是危险操作,慎用。`afterRequest` 同样是观察性 hook：失败只记 warning，不会替换请求错误或把成功请求变成失败。
+`observeError` 只负责 telemetry，返回 void 绝不会吞掉错误。`handleError` 必须返回显式决策：`pass` 透传、`replace` 替换、`recover` 恢复；只有 `recover` 能把失败变成成功。handler 自己失败时只记 warning，不掩盖当前业务错误。`observeRequest` 遵循相同的观察性规则。
 
 ---
 
@@ -190,7 +197,7 @@ export const tenantPlugin = (tenantId: string): Plugin => ({
   name: "tenant",
   enforce: "pre",
   async beforeRequest(ctx, req) {
-    req.query = { ...req.query, tenantId };
+    return { ...req, query: { ...req.query, tenantId } };
   },
 });
 ```
@@ -215,10 +222,11 @@ const debugPlugin = {
     if (process.env.MYCLI_DEBUG) {
       ctx.log.info(`→ ${req.method} ${req.path}`);
     }
+    return { ...req, headers: { ...req.headers } };
   },
-  async afterRequest(ctx, res) {
-    if (process.env.MYCLI_DEBUG) {
-      ctx.log.info(`← ${res.status}`);
+  async observeRequest(ctx, event) {
+    if (process.env.MYCLI_DEBUG && event.outcome.kind === "response") {
+      ctx.log.info(`← ${event.outcome.response.status}`);
     }
   },
 };
@@ -230,8 +238,8 @@ const debugPlugin = {
 
 1. **enforce 选错** —— HMAC 签名插件用了 `pre` 档,签名算出来 header 还没全,签名错了。改 `post`。
 2. **依赖注册顺序却没测试** —— 同一 `enforce` 档按注册顺序执行；为有先后依赖的插件写生命周期测试。
-3. **`beforeOutput` 返回 string** —— TS 编译会拦(StructuredData 类型排除 string),但运行时报错更糟。
-4. **onError 返回 undefined** —— 错误被吞掉,exit 0,agent 误以为成功。**只有"这是正常分支"才用**。
+3. **`transformOutput` 返回 string** —— TS 编译会拦(StructuredData 类型排除 string),但运行时报错更糟。
+4. **普通错误返回 `recover`** —— 只有已证明是正常分支时才能显式恢复，其余返回 `pass` 或 `replace`。
 5. **plugin 之间共享 state 字段没声明** —— `defineCommands<State>`、`Plugin<State>` 和 `defineCli<State>` 必须使用同一个状态类型；未声明字段访问会编译失败。
 6. **自行实现 route ownership** —— 使用 `provides`；ownership 是框架的 App-local 内部状态，不属于公开 Plugin 字段。
 7. **调试日志输出请求或响应体** —— 可能泄露 token 和业务数据；只记录最小元数据并脱敏。

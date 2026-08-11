@@ -63,20 +63,20 @@ Verify: `rxcordys whoami` returning user information means the credentials are v
 
 Covers the full L2C workflow of leads → accounts → opportunities → contracts → payments → invoices → orders:
 
-| Module | Description |
-|------|------|
-| `leads` | Leads CRUD + convert to account (transition) / convert to opportunity (transform) |
-| `accounts` | Accounts CRUD + account 360 (contracts/opportunities/orders/payments/invoices sub-resources + stats) |
-| `opportunities` | Opportunities CRUD + quotations (quotation) |
-| `contacts` | Contacts CRUD |
-| `contracts` | Contracts + payment plans/records + business registration headers + stats |
-| `invoices` | Invoices |
-| `orders` | Orders + stats |
-| `follows` | Follow-up plans/records (across lead/account/opportunity) |
-| `approvals` | Approvals to-do/actions/resources/workflow config |
-| `stats` | Module amount stats + home page dashboard |
-| `records` | Cross-module generic (view/get/page/search/contact/product/form) |
-| `util` | whoami/org/members/glocount/raw passthrough |
+| Module          | Description                                                                                          |
+| --------------- | ---------------------------------------------------------------------------------------------------- |
+| `leads`         | Leads CRUD + convert to account (transition) / convert to opportunity (transform)                    |
+| `accounts`      | Accounts CRUD + account 360 (contracts/opportunities/orders/payments/invoices sub-resources + stats) |
+| `opportunities` | Opportunities CRUD + quotations (quotation)                                                          |
+| `contacts`      | Contacts CRUD                                                                                        |
+| `contracts`     | Contracts + payment plans/records + business registration headers + stats                            |
+| `invoices`      | Invoices                                                                                             |
+| `orders`        | Orders + stats                                                                                       |
+| `follows`       | Follow-up plans/records (across lead/account/opportunity)                                            |
+| `approvals`     | Approvals to-do/actions/resources/workflow config                                                    |
+| `stats`         | Module amount stats + home page dashboard                                                            |
+| `records`       | Cross-module generic (view/get/page/search/contact/product/form)                                     |
+| `util`          | whoami/org/members/glocount/raw passthrough                                                          |
 
 ## Common commands
 

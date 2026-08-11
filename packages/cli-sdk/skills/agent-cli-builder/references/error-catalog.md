@@ -49,7 +49,7 @@ defineCli({
 
 Values are subtype strings, not constructors. `defineCli` validates status keys and registered subtypes during assembly.
 
-401 is reserved for authentication handling. The transport attempts one auth refresh and retry; a final 401 becomes `AuthenticationError(token_expired)`. Do not depend on an `errorOnStatus` entry for 401.
+401 is reserved for authentication handling. The request runtime attempts one auth refresh and retry; a final 401 becomes `AuthenticationError(token_expired)`. Do not depend on an `errorOnStatus` entry for 401.
 
 Use global mapping when every command gives the status the same meaning. Handle a status inside `run` when its business meaning or hint differs by command. Never configure and manually inspect the same status: mapped responses throw before `ctx.*` returns.
 
@@ -120,15 +120,15 @@ try {
 }
 ```
 
-Use an `onError` plugin to normalize or redact errors. Every hook receives the previous hook's result. Returning `undefined` swallows the error and turns the command into success, so do that only for an explicitly normal branch.
+Use `observeError` for telemetry and `handleError` to normalize or redact errors. Recovery is possible only through the explicit `{ action: "recover" }` decision.
 
 ```ts
 const redactErrors = {
   name: "redact-errors",
-  async onError(_ctx, error) {
-    if (!(error instanceof errs.CliError)) return error;
+  async handleError(_ctx, error) {
+    if (!(error instanceof errs.CliError)) return { action: "pass" };
     error.message = error.message.replace(/Bearer [A-Za-z0-9._-]+/g, "Bearer [REDACTED]");
-    return error;
+    return { action: "replace", error };
   },
 };
 ```

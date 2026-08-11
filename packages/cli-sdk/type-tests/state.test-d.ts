@@ -40,6 +40,7 @@ const commands = defineCommands<AppState>({
 
 defineCli<AppState>({
   name: "typed-state",
+  createState: () => ({ user: { id: "test" } }),
   description: "State typing fixture",
   commands,
 });
@@ -56,6 +57,7 @@ const wrongStateCommands: CommandGroup<{ token: string }> = {
 
 defineCli<AppState>({
   name: "wrong-state",
+  createState: () => ({ user: { id: "test" } }),
   description: "Reject incompatible command state",
   // @ts-expect-error commands requiring another State cannot be mounted.
   commands: wrongStateCommands,

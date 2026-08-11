@@ -23,6 +23,12 @@ import {
 import { randomUUID } from "node:crypto";
 import type { ConfigStore } from "./types.js";
 import { ConfigError } from "../errs/index.js";
+import {
+  assertCredentialNamespace,
+  decodeJsonDocument,
+  encodeJsonDocument,
+  roundTripJsonDocument,
+} from "./codec.js";
 
 // ============================================================================
 // fileStore:磁盘实现(移植 + 按 namespace 分文件)
@@ -60,7 +66,7 @@ export function fileStore(opts: FileStoreOptions): ConfigStore {
   const writeJsonAtomic = (path: string, data: Record<string, unknown>) => {
     const temp = `${path}.${process.pid}.${randomUUID()}.tmp`;
     try {
-      writeFileSync(temp, JSON.stringify(data, null, 2) + "\n", { mode: 0o600 });
+      writeFileSync(temp, encodeJsonDocument(data, path), { mode: 0o600 });
       try {
         chmodSync(temp, 0o600);
       } catch {
@@ -83,10 +89,7 @@ export function fileStore(opts: FileStoreOptions): ConfigStore {
   ): Record<string, unknown> | T => {
     if (!existsSync(path)) return missing;
     try {
-      const parsed = JSON.parse(readFileSync(path, "utf8"));
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
-        throw new Error("not object");
-      return parsed as Record<string, unknown>;
+      return decodeJsonDocument(readFileSync(path, "utf8"), path);
     } catch (cause) {
       throw new ConfigError({
         subtype: "invalid_config",
@@ -97,19 +100,7 @@ export function fileStore(opts: FileStoreOptions): ConfigStore {
   };
 
   const credsPath = (namespace: string) => {
-    if (
-      !namespace ||
-      namespace === "." ||
-      namespace === ".." ||
-      namespace.includes("/") ||
-      namespace.includes("\\") ||
-      namespace.includes("\0")
-    ) {
-      throw new ConfigError({
-        subtype: "invalid_config",
-        message: `Invalid credential namespace: ${JSON.stringify(namespace)}`,
-      });
-    }
+    assertCredentialNamespace(namespace);
     return join(credsDir, `${namespace}.json`);
   };
 
@@ -178,34 +169,43 @@ export function memoryStore(
     config: Record<string, unknown>;
   };
 } {
-  const creds: Record<string, Record<string, unknown>> = structuredClone(initial.credentials ?? {});
-  const config: Record<string, unknown> = structuredClone(initial.config ?? {});
+  const creds: Record<string, Record<string, unknown>> = {};
+  for (const [namespace, data] of Object.entries(initial.credentials ?? {})) {
+    assertCredentialNamespace(namespace);
+    creds[namespace] = roundTripJsonDocument(data, `credentials:${namespace}`);
+  }
+  let config = roundTripJsonDocument(initial.config ?? {}, "config");
 
   const store: ConfigStore = {
     async loadCredentials(namespace) {
-      return creds[namespace] ? structuredClone(creds[namespace]) : null;
+      assertCredentialNamespace(namespace);
+      return creds[namespace]
+        ? roundTripJsonDocument(creds[namespace], `credentials:${namespace}`)
+        : null;
     },
     async saveCredentials(namespace, data) {
-      creds[namespace] = structuredClone(data);
+      assertCredentialNamespace(namespace);
+      creds[namespace] = roundTripJsonDocument(data, `credentials:${namespace}`);
     },
     async clearCredentials(namespace) {
+      assertCredentialNamespace(namespace);
       delete creds[namespace];
     },
     async loadConfig() {
-      return structuredClone(config);
+      return roundTripJsonDocument(config, "config");
     },
     async saveConfig(data) {
-      // 全量替换(对齐 fileStore.saveConfig 的 writeFileSync 整份覆盖语义),
-      // 而非 merge —— 删字段必须能生效,避免两个实现语义不一致。
-      for (const k of Object.keys(config)) delete config[k];
-      Object.assign(config, structuredClone(data));
+      config = roundTripJsonDocument(data, "config");
     },
   };
 
   return Object.assign(store, {
     _snapshot: () => ({
-      credentials: structuredClone(creds),
-      config: structuredClone(config),
+      credentials: roundTripJsonDocument(creds, "credentials snapshot") as Record<
+        string,
+        Record<string, unknown>
+      >,
+      config: roundTripJsonDocument(config, "config"),
     }),
   });
 }

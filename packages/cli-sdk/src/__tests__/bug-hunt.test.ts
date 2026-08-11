@@ -4,20 +4,20 @@
  * 这些测试故意断言"期望的正确行为",当前因 bug 存在会失败。
  * 修复后应转 green。每个测试注释标明 bug 编号和根因。
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { createTestCtx } from "../test-utils.js";
 import { defineCommand, defineCli } from "../define.js";
-import { runCommand } from "../pipeline.js";
-import { createTransport } from "../request.js";
+import { runCommand as executeCommand, type RunCommandOptions } from "../pipeline.js";
 
-// mock global fetch
-beforeEach(() => {
-  vi.stubGlobal("fetch", vi.fn());
-});
-afterEach(() => {
-  vi.restoreAllMocks();
-  vi.unstubAllGlobals();
-});
+function runCommand<State>(
+  options: Omit<RunCommandOptions<State>, "source" | "route"> & { route?: string[] },
+): Promise<number> {
+  return executeCommand({
+    ...options,
+    route: options.route ?? [options.spec.name],
+    source: "test",
+  });
+}
 
 // ============================================================================
 // BUG-SDK-1 [P1]: meta.pagination: null 导致 TypeError(被兜底成 internal/unknown)
@@ -86,54 +86,5 @@ describe("BUG-SDK-3: 单短氢 flag 不应静默当 positional", () => {
     const parsed = JSON.parse(errOut);
     expect(parsed.ok).toBe(false);
     expect(parsed.error.type).toBe("validation");
-  });
-});
-
-// ============================================================================
-// BUG-SDK-4 [高]: transport 抛错时 afterRequest 被完全跳过
-// 根因: context.ts:64-69 request 包装无 try/finally,transport throw 后 afterRequest 不执行
-// 期望: 即使 transport 抛错,afterRequest 也应执行(审计/metric 插件需要记录失败请求)
-// ============================================================================
-describe("BUG-SDK-4: transport 抛错后 afterRequest 仍应执行", () => {
-  it("errorOnStatus 抛 APIError → afterRequest 应被调用(审计不丢失败请求)", async () => {
-    let afterCount = 0;
-    const auditPlugin = {
-      name: "audit",
-      enforce: "pre" as const,
-      async beforeCommand() {},
-      async afterRequest() {
-        afterCount++;
-      },
-    };
-
-    // mock fetch 返回 500
-    vi.mocked(fetch).mockResolvedValue({
-      status: 500,
-      ok: false,
-      headers: new Headers(),
-      text: async () => JSON.stringify({ message: "server error" }),
-    } as Response);
-
-    // 用真实 transport(errorOnStatus 触发抛错)+ 带 plugin 的 context
-    const transport = createTransport({ errorOnStatus: { "5xx": "server_error" } });
-    const { createContext } = await import("../context.js");
-    const ctx = createContext<{ user: null }>({
-      state: { user: null },
-      transport,
-      plugins: [auditPlugin],
-    });
-
-    const cmd = defineCommand({
-      name: "test",
-      async run(args, ctx) {
-        await ctx.get("/x");
-        return { data: 1 };
-      },
-    });
-
-    await runCommand({ spec: cmd, args: {}, ctx, plugins: [auditPlugin] });
-
-    // 当前(after fix):afterCount>=1(审计记录了失败请求)
-    expect(afterCount).toBeGreaterThanOrEqual(1);
   });
 });

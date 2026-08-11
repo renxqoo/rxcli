@@ -1,134 +1,75 @@
-/**
- * @renxqoo/agent-data-cli —— CommandContext 工厂
- *
- * 设计依据:docs/02-sdk-guide.md "ctx:请求与上下文"。
- * ctx 把 transport 的请求方法经过 plugin beforeRequest/afterRequest 包装后挂上,
- * 让命令 run 内 ctx.get(...) 时自动触发插件钩子(加 header / 签名 / 审计等)。
- */
-
+/** CommandContext factory backed by the single-owner RequestExecutor. */
 import type {
   CommandContext,
-  RequestOptions,
-  TransportResponse,
-  Plugin,
+  ErrorOnStatus,
+  HttpAdapter,
   LogApi,
   PipeApi,
+  Plugin,
 } from "./types.js";
-import type { Transport } from "./request.js";
-import { runBeforeRequest, runAfterRequest } from "./plugin.js";
+import { emptyPipe } from "./pipe.js";
+import { createRequestExecutor } from "./request-executor.js";
 
-/** 框架内部:只让 auth 模块读取一次性凭证参数，避免暴露给所有 plugin hook。 */
+/** Internal channel for one invocation's framework credential flags. */
 export const credentialArgsKey: unique symbol = Symbol("rxcli.credentialArgs");
 
-// ============================================================================
-// 默认 log(强制 stderr)
-// ============================================================================
+/** Internal channel for the identity selected by the auth session. */
+export const identityKey: unique symbol = Symbol("rxcli.identity");
 
-/** 默认 log 实现:全部写 stderr(绝不污染 stdout/管道)。 */
 export function createStderrLog(prefix?: string): LogApi {
-  const write = (level: string, msg: unknown) => {
+  const write = (level: string, message: unknown) => {
     const text =
-      msg instanceof Error ? msg.message : typeof msg === "string" ? msg : JSON.stringify(msg);
+      message instanceof Error
+        ? message.message
+        : typeof message === "string"
+          ? message
+          : JSON.stringify(message);
     process.stderr.write(prefix ? `[${prefix}] ${level}: ${text}\n` : `${level}: ${text}\n`);
   };
   return {
-    info: (m) => write("INFO", m),
-    warn: (m) => write("WARN", m),
-    error: (m) => write("ERROR", m),
+    info: (message) => write("INFO", message),
+    warn: (message) => write("WARN", message),
+    error: (message) => write("ERROR", message),
   };
 }
-
-// ============================================================================
-// createContext
-// ============================================================================
 
 export interface CreateContextOptions<State> {
   state: State;
-  transport: Transport;
+  adapter: HttpAdapter;
   plugins?: Plugin<State>[];
+  errorOnStatus?: ErrorOnStatus;
   log?: LogApi;
   pipe?: PipeApi;
-  /** 凭证 API(由 auth 插件注入;无 auth 时为 no-op)。 */
   credentials?: CommandContext<State>["credentials"];
 }
 
-/**
- * 创建 CommandContext。请求方法经过 plugin beforeRequest/afterRequest 包装。
- * 命令 run 内调 ctx.get(...) → runBeforeRequest(改 req) → transport.request → runAfterRequest(审计)。
- */
-export function createContext<State>(opts: CreateContextOptions<State>): CommandContext<State> {
-  const plugins = opts.plugins ?? [];
-  const log = opts.log ?? createStderrLog();
-
-  // 包装 transport.request:前后插 plugin 钩子。
-  // try/finally 确保 transport 抛错(如 errorOnStatus)时 afterRequest 仍执行——
-  // 审计/metric 插件需要记录失败请求,不能因 throw 而漏掉。
-  async function request<T>(reqOpts: RequestOptions): Promise<TransportResponse<T>> {
-    await runBeforeRequest(plugins, ctx, reqOpts);
-    let res: TransportResponse<T>;
-    try {
-      res = await opts.transport.request<T>(reqOpts);
-    } catch (err) {
-      // transport 抛错:构造合成错误响应(status=0 标记失败)喂给 afterRequest,然后重新抛。
-      // 审计插件可通过 status===0 识别这是一次失败请求。
-      await runAfterRequestSafely({
-        status: 0,
-        data: undefined as T,
-        headers: {},
-      });
-      throw err;
-    }
-    await runAfterRequestSafely(res);
-    return res;
-  }
-
-  async function runAfterRequestSafely<T>(res: TransportResponse<T>): Promise<void> {
-    try {
-      await runAfterRequest(plugins, ctx, res);
-    } catch (err) {
-      log.warn(`afterRequest hook failed: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-
+export function createContext<State>(options: CreateContextOptions<State>): CommandContext<State> {
+  const executor = createRequestExecutor({
+    adapter: options.adapter,
+    plugins: options.plugins,
+    errorOnStatus: options.errorOnStatus,
+  });
   const ctx: CommandContext<State> = {
-    state: opts.state,
-    log,
-    pipe: opts.pipe ?? createEmptyPipe(),
-    credentials: opts.credentials ?? createNoopCredentials(),
-    request,
-    get: (path, query) => request({ method: "GET", path, query }),
-    post: (path, body) => request({ method: "POST", path, body }),
-    put: (path, body) => request({ method: "PUT", path, body }),
-    patch: (path, body) => request({ method: "PATCH", path, body }),
-    delete: (path) => request({ method: "DELETE", path }),
+    state: options.state,
+    log: options.log ?? createStderrLog(),
+    pipe: options.pipe ?? emptyPipe(),
+    credentials: options.credentials ?? createNoopCredentials(),
+    request: (request) => executor.execute(ctx, request),
+    get: (path, query) => executor.execute(ctx, { method: "GET", path, query }),
+    post: (path, body) => executor.execute(ctx, { method: "POST", path, body }),
+    put: (path, body) => executor.execute(ctx, { method: "PUT", path, body }),
+    patch: (path, body) => executor.execute(ctx, { method: "PATCH", path, body }),
+    delete: (path) => executor.execute(ctx, { method: "DELETE", path }),
   };
-
   return ctx;
 }
 
-// —— 无管道时的占位 pipe(空迭代,非管道)——
-function createEmptyPipe(): PipeApi {
-  return {
-    async *in() {
-      // 无数据
-    },
-    isInPipe() {
-      return false;
-    },
-  };
-}
-
-// —— 无 auth 时的 no-op credentials ——
-function createNoopCredentials(): CommandContext<any>["credentials"] {
+function createNoopCredentials(): CommandContext<unknown>["credentials"] {
   return {
     async get() {
       return null;
     },
-    async save() {
-      /* no-op */
-    },
-    async clear() {
-      /* no-op */
-    },
+    async save() {},
+    async clear() {},
   };
 }

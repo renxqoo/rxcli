@@ -1,83 +1,118 @@
-/**
- * 本地 HTTP 回调监听(authorization_code flow 用)。
- *
- * 启动本地 HTTP server,等待 OAuth 重定向:
- *   GET http://127.0.0.1:PORT/callback?code=xxx&state=yyy
- * 拿到 code 后 resolve,关闭 server。超时 reject。
- */
+/** Local OAuth callback server with a pure, independently testable request boundary. */
 import { createServer, type Server } from "node:http";
 
-export interface CallbackResult {
-  code: string | null;
-  error: string | null;
-  state: string | null;
+export type CallbackResult =
+  | { kind: "success"; code: string }
+  | { kind: "error"; error: "state_mismatch" | "invalid_callback" | string };
+
+export interface CallbackEvaluation {
+  status: number;
+  html: string;
+  /** Undefined means the listener must remain open (for example favicon probes). */
+  result?: CallbackResult;
 }
 
 export interface CallbackHandle {
-  /** Promise resolve 后拿到回调结果。 */
   result: Promise<CallbackResult>;
-  /** 回调地址(传给 /authorize 的 redirect_uri)。 */
   redirectUri: string;
-  /** 关闭 server(无论结果)。 */
   close(): void;
 }
 
-/**
- * 启动本地回调 server,等待 OAuth 重定向。
- * 返回 Promise(resolve 时 server 已开始监听,redirectUri 可用)。
- *
- * @param opts.port 指定端口;不传/0 = OS 分配随机端口
- * @param opts.timeoutMs 超时(ms),超时 result reject
- */
-export function waitForCallback(opts: {
+const SUCCESS_HTML =
+  "<html><body><h2>✓ Login successful</h2><p>You can close this tab and return to the CLI.</p></body></html>";
+const FAILURE_HTML =
+  "<html><body><h2>Login failed</h2><p>Return to the CLI for details.</p></body></html>";
+const NOT_FOUND_HTML = "<html><body><h2>Not found</h2></body></html>";
+
+/** Evaluate one HTTP request without opening a socket. */
+export function evaluateCallbackRequest(
+  method: string | undefined,
+  requestUrl: string,
+  expectedState: string,
+): CallbackEvaluation {
+  if (method !== "GET") return { status: 405, html: NOT_FOUND_HTML };
+
+  const url = new URL(requestUrl, "http://127.0.0.1");
+  if (url.pathname !== "/callback") return { status: 404, html: NOT_FOUND_HTML };
+
+  const state = url.searchParams.get("state");
+  if (state !== expectedState) {
+    return {
+      status: 400,
+      html: FAILURE_HTML,
+      result: { kind: "error", error: "state_mismatch" },
+    };
+  }
+
+  const providerError = url.searchParams.get("error");
+  if (providerError) {
+    return {
+      status: 400,
+      html: FAILURE_HTML,
+      result: { kind: "error", error: providerError },
+    };
+  }
+
+  const code = url.searchParams.get("code");
+  if (!code) {
+    return {
+      status: 400,
+      html: FAILURE_HTML,
+      result: { kind: "error", error: "invalid_callback" },
+    };
+  }
+
+  return { status: 200, html: SUCCESS_HTML, result: { kind: "success", code } };
+}
+
+export function waitForCallback(options: {
   port?: number;
   timeoutMs: number;
+  expectedState: string;
 }): Promise<CallbackHandle> {
   return new Promise((resolveSetup, rejectSetup) => {
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let resultResolve: ((v: CallbackResult) => void) | undefined;
-    let resultReject: ((e: unknown) => void) | undefined;
-
-    const result = new Promise<CallbackResult>((res, rej) => {
-      resultResolve = res;
-      resultReject = rej;
+    let resultResolve: ((value: CallbackResult) => void) | undefined;
+    let resultReject: ((error: unknown) => void) | undefined;
+    const result = new Promise<CallbackResult>((resolve, reject) => {
+      resultResolve = resolve;
+      resultReject = reject;
     });
 
-    const server: Server = createServer((req, res) => {
-      const url = new URL(req.url ?? "/", "http://127.0.0.1");
-      const code = url.searchParams.get("code");
-      const error = url.searchParams.get("error");
-      const state = url.searchParams.get("state");
-
-      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-      res.end(
-        "<html><body><h2>✓ Login successful</h2><p>You can close this tab and return to the CLI.</p></body></html>",
+    const server: Server = createServer((request, response) => {
+      const evaluation = evaluateCallbackRequest(
+        request.method,
+        request.url ?? "/",
+        options.expectedState,
       );
+      response.writeHead(evaluation.status, { "content-type": "text/html; charset=utf-8" });
+      response.end(evaluation.html);
 
+      if (!evaluation.result) return;
       if (timer) clearTimeout(timer);
       server.close();
-      resultResolve?.({ code, error, state });
+      resultResolve?.(evaluation.result);
     });
 
-    function close(): void {
+    const close = (): void => {
       if (timer) clearTimeout(timer);
       server.close();
-    }
+    };
 
-    server.on("error", (err) => {
-      resultReject?.(err);
-      rejectSetup(err);
+    server.on("error", (error) => {
+      resultReject?.(error);
+      rejectSetup(error);
     });
 
-    server.listen(opts.port ?? 0, "127.0.0.1", () => {
-      const addr = server.address();
-      const actualPort = typeof addr === "object" && addr ? addr.port : opts.port;
-      const redirectUri = `http://127.0.0.1:${actualPort}/callback`;
+    server.listen(options.port ?? 0, "127.0.0.1", () => {
+      const address = server.address();
+      const port = typeof address === "object" && address ? address.port : options.port;
+      const redirectUri = `http://127.0.0.1:${port}/callback`;
 
       timer = setTimeout(() => {
         server.close();
-        resultReject?.(new Error(`callback timed out after ${opts.timeoutMs}ms`));
-      }, opts.timeoutMs);
+        resultReject?.(new Error(`callback timed out after ${options.timeoutMs}ms`));
+      }, options.timeoutMs);
 
       resolveSetup({ result, redirectUri, close });
     });

@@ -21,10 +21,8 @@
 
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { Plugin, CommandGroup, CommandContext, CredentialsApi } from "../types.js";
-import { AuthenticationError } from "../errs/index.js";
+import type { Plugin, CommandGroup, CommandContext } from "../types.js";
 import {
-  injectAuthHeader,
   type ClientMetadata,
   type OAuthClientConfig,
   type PollResult,
@@ -38,17 +36,11 @@ import { createLoginCommand } from "./commands/login.js";
 import { createStatusCommand } from "./commands/status.js";
 import { createLogoutCommand } from "./commands/logout.js";
 import { createRegisterCommand } from "./commands/register.js";
-import {
-  fileStore,
-  resolveWithChain,
-  type ConfigStore,
-  type ProviderContext,
-  type IdentityHint,
-} from "../credentials/index.js";
+import { fileStore, type ConfigStore } from "../credentials/index.js";
 import type { CredentialProvider } from "../credentials/types.js";
 import { credentialArgsKey } from "../context.js";
 import { resolveAuthConfig, buildProviderChain, buildOn401Handler } from "./helpers.js";
-import { getAuthSession, setAuthSession, updateAuthSessionToken } from "./session.js";
+import { AuthSessionManager } from "./session-manager.js";
 
 // ============================================================================
 // 工厂入参/出参类型
@@ -68,7 +60,7 @@ export interface DefineAuthOptions {
   commandNamespace?: string;
   /**
    * clientId/clientSecret:优先 env(RXCLI_CLIENT_ID/SECRET),回退 config.json(register 写入)。
-   * 不传 = 空(向后兼容未注册态)。
+   * 不传 = 空；未注册客户端可先运行 register 命令写入配置。
    */
   clientId?: string;
   clientSecret?: string;
@@ -161,6 +153,14 @@ export async function defineAuth<State = Record<string, never>>(
     namespace: credNs,
     flowDeps,
   });
+  const sessions = new AuthSessionManager({
+    namespace: credNs,
+    commandNamespace: cmdNs,
+    store,
+    providers,
+    authStyle,
+    refresh,
+  });
 
   // —— 构造 auth 命令组 ——
   const commands = createAuthCommands({
@@ -187,63 +187,15 @@ export async function defineAuth<State = Record<string, never>>(
       const credentialArgs = (
         ctx as CommandContext<State> & { [credentialArgsKey]?: Record<string, unknown> }
       )[credentialArgsKey];
-      const pctx: ProviderContext = {
-        namespace: credNs,
-        configStore: store,
-        args: { apiKey: credentialArgs?.apiKey },
-        env: process.env,
-      };
-      const resolved = await resolveWithChain(providers, pctx);
-      if (!resolved)
-        throw new AuthenticationError({
-          subtype: "no_credentials",
-          message: `${credNs} is not logged in`,
-          hint: `run \`${cmdNs} login\` to log in`,
-        });
-      (ctx as { credentials: CredentialsApi }).credentials = {
-        get: async (ns: string) => {
-          const c = await store.loadCredentials(ns);
-          if (!c) return null;
-          const out: Record<string, string> = {};
-          for (const [k, v] of Object.entries(c)) {
-            if (typeof v === "string" || typeof v === "number" || typeof v === "boolean")
-              out[k] = String(v);
-          }
-          return out;
-        },
-        save: (ns: string, data: Record<string, unknown>) => store.saveCredentials(ns, data),
-        clear: (ns: string) => store.clearCredentials(ns),
-      };
-      // identity 必须来自本次实际命中的 provider，不能在临时 API key 命中后回退到磁盘 OAuth 用户。
-      const identity: IdentityHint | null = resolved.provider.resolveIdentity
-        ? await resolved.provider.resolveIdentity(pctx)
-        : null;
-      (ctx as unknown as { _identity?: IdentityHint })._identity = identity ?? undefined;
-      (ctx.state as Record<string, unknown>).user = identity
-        ? {
-            ...(identity.userId ? { userId: identity.userId } : {}),
-            ...(identity.name ? { name: identity.name } : {}),
-          }
-        : (ctx.state as Record<string, unknown>).user;
-      setAuthSession(ctx, {
-        token: resolved.token.token,
-        type: resolved.token.type,
-        source: resolved.token.source,
-        refreshable: resolved.token.refreshable === true,
-      });
+      await sessions.authenticate(ctx, credentialArgs);
     },
 
-    async beforeRequest(ctx: CommandContext<State>, req): Promise<void> {
-      const session = getAuthSession(ctx);
-      if (session) injectAuthHeader(req, session.token, authStyle);
+    async beforeRequest(ctx: CommandContext<State>, request) {
+      return sessions.prepare(ctx, request);
     },
 
-    async onUnauthorized(ctx: CommandContext<State>): Promise<string | null | undefined> {
-      const session = getAuthSession(ctx);
-      if (!session?.refreshable) return undefined;
-      const refreshed = await refresh();
-      if (refreshed) updateAuthSessionToken(ctx, refreshed);
-      return refreshed;
+    async handleUnauthorized(ctx: CommandContext<State>) {
+      return sessions.handleUnauthorized(ctx);
     },
   };
 }

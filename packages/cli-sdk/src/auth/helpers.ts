@@ -2,10 +2,11 @@
  * defineAuth 辅助纯函数:配置解析、provider chain 构造、on401 handler 构造。
  * 从 defineAuth 主体提取,每个函数职责单一,独立可测。
  */
-import { createOn401Hook, type AuthStyle, type OAuthClientConfig } from "../oauth.js";
+import { OAuthClient, type AuthStyle, type OAuthClientConfig } from "../oauth.js";
 import { defaultProviders, type ConfigStore } from "../credentials/index.js";
 import type { CredentialProvider } from "../credentials/types.js";
 import type { AuthFlow, FlowDeps } from "../flows/types.js";
+import { OAuthFlowCoordinator } from "./flow-coordinator.js";
 
 // ============================================================================
 // 类型
@@ -48,13 +49,9 @@ export async function resolveAuthConfig(
   let clientSecret = input.clientSecret ?? process.env.RXCLI_CLIENT_SECRET ?? "";
 
   if (!clientId || !clientSecret) {
-    try {
-      const config = (await store.loadConfig()) as { clientId?: string; clientSecret?: string };
-      if (!clientId && config.clientId) clientId = config.clientId;
-      if (!clientSecret && config.clientSecret) clientSecret = config.clientSecret;
-    } catch {
-      /* config.json 读失败:保持空 */
-    }
+    const config = (await store.loadConfig()) as { clientId?: string; clientSecret?: string };
+    if (!clientId && config.clientId) clientId = config.clientId;
+    if (!clientSecret && config.clientSecret) clientSecret = config.clientSecret;
   }
 
   return {
@@ -73,7 +70,7 @@ export function buildProviderChain(input: BuildProviderChainInput): CredentialPr
   if (input.bearerToken) {
     chain.push({
       name: () => "injected-bearer",
-      priority: () => 2,
+      priority: () => 0,
       async resolveToken() {
         return {
           token: input.bearerToken!,
@@ -89,36 +86,23 @@ export function buildProviderChain(input: BuildProviderChainInput): CredentialPr
 }
 
 // ============================================================================
-// ③ buildOn401Handler:构造 401 续期 handler
+// ③ buildOn401Handler:构造 401 续期 handler(两条路径统一 singleflight)
 // ============================================================================
 
 export function buildOn401Handler(input: BuildOn401Input): () => Promise<string | null> {
   const { flow, oauth, store, namespace, flowDeps } = input;
-
-  // flow 有自定义 refresh(如 client_credentials)→ 用它;否则用默认 refresh_token
-  if (flow.refresh) {
-    return async () => {
-      try {
-        const token = await flow.refresh!(flowDeps);
-        const newToken = token.access_token;
-        if (newToken) {
-          await store.saveCredentials(namespace, {
-            token: newToken,
-            refreshToken: token.refresh_token ?? "",
-            expiresAt: Date.now() + token.expires_in * 1000,
-            scopes: token.scope?.split(/\s+/).filter(Boolean) ?? [],
-            storedAt: Date.now(),
-            authMethod: flow.type,
-          } as unknown as Record<string, unknown>);
+  const coordinator = new OAuthFlowCoordinator({
+    store,
+    namespace,
+    strategy: flow.refresh
+      ? {
+          type: flow.type,
+          acquire: () => flow.refresh!(flowDeps),
         }
-        return newToken ?? null;
-      } catch {
-        return null;
-      }
-    };
-  }
-
-  // 默认:refresh_token 续期(含 singleflight + 落盘)
-  const defaultRefresh = createOn401Hook({ cfg: oauth, store, namespace });
-  return defaultRefresh;
+      : {
+          requiresRefreshToken: true,
+          acquire: (refreshToken) => new OAuthClient(oauth).refresh(refreshToken!),
+        },
+  });
+  return coordinator.refreshStoredSession;
 }

@@ -85,7 +85,7 @@ generate: defineCommand({
 interface PipeRecord {
   type: string; // 上游成功输出的 source(通常是 defineCli.name),下游按它分流
   id?: string; // 稳定标识
-  data?: unknown; // payload(已过 beforeOutput 转换)
+  data?: unknown; // payload(已过 transformOutput 转换)
   meta?: Record<string, unknown>;
 }
 ```

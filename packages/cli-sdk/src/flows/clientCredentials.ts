@@ -11,13 +11,17 @@ export const clientCredentialsFlow: AuthFlow = {
   type: "client_credentials" as const,
 
   async login(deps: FlowDeps): Promise<TokenInfo> {
-    return clientCredentialsToken(deps.cfg, deps.scope);
+    return deps.client
+      ? deps.client.clientCredentials(deps.scope)
+      : clientCredentialsToken(deps.cfg, deps.scope);
   },
 
   /**
    * client_credentials 没有 refresh_token → 401 时重新用 client 凭证换 token。
    */
   async refresh(deps: FlowDeps): Promise<TokenInfo> {
-    return clientCredentialsToken(deps.cfg, deps.scope);
+    return deps.client
+      ? deps.client.clientCredentials(deps.scope)
+      : clientCredentialsToken(deps.cfg, deps.scope);
   },
 };

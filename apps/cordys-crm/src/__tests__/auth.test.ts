@@ -49,10 +49,10 @@ describe("auth beforeRequest:双 header 注入", () => {
     const { auth, ctx } = makeCtxWithAuth({ accessKey: "ak_123", secretKey: "sk_456" });
     await auth.beforeCommand!(ctx);
     const req: RequestOptions = { method: "GET", path: "/lead/page", headers: {} };
-    await auth.beforeRequest!(ctx, req);
-    expect(req.headers?.["X-Access-Key"]).toBe("ak_123");
-    expect(req.headers?.["X-Secret-Key"]).toBe("sk_456");
-    expect(req.headers?.["X-Request-Source"]).toBe("SKILL");
+    const prepared = await auth.beforeRequest!(ctx, req);
+    expect(prepared.headers?.["X-Access-Key"]).toBe("ak_123");
+    expect(prepared.headers?.["X-Secret-Key"]).toBe("sk_456");
+    expect(prepared.headers?.["X-Request-Source"]).toBe("SKILL");
   });
 
   it("环境变量优先于凭证文件", async () => {
@@ -76,8 +76,8 @@ describe("auth beforeRequest:双 header 注入", () => {
     const { auth, ctx } = makeCtxWithAuth(null);
     // state.credentials 仍为 null(beforeCommand 虽抛错,但模拟内部命令场景)
     const req: RequestOptions = { method: "GET", path: "/x", headers: {} };
-    await auth.beforeRequest!(ctx, req);
-    expect(req.headers?.["X-Access-Key"]).toBeUndefined();
+    const prepared = await auth.beforeRequest!(ctx, req);
+    expect(prepared.headers?.["X-Access-Key"]).toBeUndefined();
   });
 
   it("部分凭证(缺 secretKey)视为无效,抛错", async () => {
@@ -98,8 +98,8 @@ describe("auth login/logout 命令(直接用 store 落盘,不依赖 ctx.credenti
 
   it("login 写入凭证文件(即使 ctx.credentials 是 no-op 也能落盘)", async () => {
     // login 被 auth plugin 豁免 beforeCommand → ctx.credentials 是框架 no-op。
-    // 此测试验证 login 直接用模块顶层 store 落盘,不靠 ctx.credentials(回归 bug 1)。
-    const { auth } = makeCtxWithAuth(null);
+    // 此测试验证 login 直接用注入 store 落盘,不靠 ctx.credentials。
+    const { auth, store } = makeCtxWithAuth(null);
     const loginCmd = auth.provides?.namespaces?.auth?.login;
     expect(loginCmd).toBeDefined();
     // ctx.credentials.save 故意设成 no-op(模拟被豁免的场景)
@@ -116,21 +116,14 @@ describe("auth login/logout 命令(直接用 store 落盘,不依赖 ctx.credenti
     } as unknown as CommandContext<RxCordysState>;
     const result = await loginCmd!.run({ accessKey: "new_ak", secretKey: "new_sk" }, ctx);
     expect(result!.data).toMatchObject({ saved: true, namespace: "cordys" });
-    // 验证真实落盘:文件内容含 accessKey/secretKey
-    const fs = await import("node:fs");
-    const path = await import("node:path");
-    const { homedir } = await import("node:os");
-    const credPath = path.join(homedir(), ".rxcli", "credentials", "cordys.json");
-    expect(fs.existsSync(credPath)).toBe(true);
-    const saved = JSON.parse(fs.readFileSync(credPath, "utf8"));
-    expect(saved.accessKey).toBe("new_ak");
-    expect(saved.secretKey).toBe("new_sk");
-    // 清理测试凭证
-    fs.unlinkSync(credPath);
+    await expect(store.loadCredentials("cordys")).resolves.toEqual({
+      accessKey: "new_ak",
+      secretKey: "new_sk",
+    });
   });
 
   it("logout 清除凭证文件", async () => {
-    const { auth } = makeCtxWithAuth({ accessKey: "x", secretKey: "y" });
+    const { auth, store } = makeCtxWithAuth({ accessKey: "x", secretKey: "y" });
     const logoutCmd = auth.provides?.namespaces?.auth?.logout;
     expect(logoutCmd).toBeDefined();
     const ctx = {
@@ -138,14 +131,7 @@ describe("auth login/logout 命令(直接用 store 落盘,不依赖 ctx.credenti
       log: { info: () => {}, warn: () => {}, error: () => {} },
       credentials: { get: async () => null, save: async () => {}, clear: async () => {} },
     } as unknown as CommandContext<RxCordysState>;
-    // 先确保文件存在(login 已在上一个测试验证落盘;这里直接写一个)
-    const fs = await import("node:fs");
-    const path = await import("node:path");
-    const { homedir } = await import("node:os");
-    const credPath = path.join(homedir(), ".rxcli", "credentials", "cordys.json");
-    fs.mkdirSync(path.dirname(credPath), { recursive: true });
-    fs.writeFileSync(credPath, JSON.stringify({ accessKey: "x", secretKey: "y" }));
     await logoutCmd!.run({}, ctx);
-    expect(fs.existsSync(credPath)).toBe(false);
+    await expect(store.loadCredentials("cordys")).resolves.toBeNull();
   });
 });

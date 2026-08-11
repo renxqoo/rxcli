@@ -28,14 +28,16 @@ export const authCodeFlow: AuthFlow = {
     const verifier = generateCodeVerifier();
     const challenge = computeCodeChallenge(verifier);
 
+    const state = deps.state ?? generateCodeVerifier().slice(0, 16); // 随机 state 防 CSRF
+
     // 2. 启动本地回调监听
     const handle = await waitForCallback({
       port: deps.callbackPort,
       timeoutMs: 5 * 60_000, // 5 分钟超时
+      expectedState: state,
     });
 
     // 3. 构建 authorize URL + 打开浏览器
-    const state = deps.state ?? generateCodeVerifier().slice(0, 16); // 随机 state 防 CSRF
     const authUrl = buildAuthorizeUrl(deps.cfg, {
       redirectUri: handle.redirectUri,
       scope: deps.scope,
@@ -54,32 +56,20 @@ export const authCodeFlow: AuthFlow = {
       handle.close();
     }
 
-    if (result.error) {
+    if (result.kind === "error") {
       throw new AuthenticationError({
         subtype: "token_revoked",
         message: `Authorization denied: ${result.error}`,
       });
     }
-    // CSRF 校验:state 必须匹配(RFC 6749 §10.12)
-    if (result.state !== state) {
-      throw new AuthenticationError({
-        subtype: "token_revoked",
-        message: "State mismatch (possible CSRF attack)",
-      });
-    }
-    if (!result.code) {
-      throw new AuthenticationError({
-        subtype: "token_revoked",
-        message: "No authorization code received",
-      });
-    }
 
     // 5. 用 code + verifier 换 token
-    return exchangeCodeForToken(deps.cfg, {
+    const params = {
       code: result.code,
       codeVerifier: verifier,
       redirectUri: handle.redirectUri,
-    });
+    };
+    return deps.client ? deps.client.exchangeCode(params) : exchangeCodeForToken(deps.cfg, params);
   },
   // 不实现 refresh → 框架用默认 refreshAccessToken
 };

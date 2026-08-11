@@ -272,9 +272,15 @@ export class ConfirmationRequiredError extends CliError {
  * 谓词命令(如 auth check)专用:stdout 已携带完整答案,只想要对应的 exit code,
  * 不渲染 stderr 错误输出。是错误侧输出契约的唯一例外(成功侧对应 skills read)。
  * 普通业务命令禁用,正常失败必须 throw 9 类类型化错误。
+ *
+ * BUG-14:BareError 自带 category/subtype 只读字段,类型自洽 —— 即使误走
+ * serializeError/toCliError 路径也不会产出 type/subtype: undefined。
+ * pipeline 仍单独处理 exitCode(不走错误输出渲染)。
  */
 export class BareError extends Error {
   readonly exitCode: number;
+  readonly category: Category = "internal";
+  readonly subtype = "bare_exit";
   constructor(exitCode: number) {
     super(`BareError(${exitCode})`);
     this.name = "BareError";
@@ -293,7 +299,8 @@ export class BareError extends Error {
  */
 export function toCliError(err: unknown): CliError {
   if (err instanceof CliError) return err;
-  if (err instanceof BareError) return err as unknown as CliError; // pipeline 单独处理 BareError
+  // BareError 自带 category/subtype(BUG-14),类型自洽;pipeline 仍单独处理其 exitCode。
+  if (err instanceof BareError) return err as unknown as CliError;
   const message = err instanceof Error ? err.message : String(err);
   return new InternalError({ subtype: "unknown", message, cause: err });
 }

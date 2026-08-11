@@ -53,7 +53,7 @@ describe("401 singleflight: 并发复用同一次 refresh + 落盘", () => {
           scopes: ["orders:read"],
           user: { userId: "u1" },
           storedAt: 1,
-          authMethod: "oauth",
+          authMethod: "device",
         },
       },
     });
@@ -98,7 +98,7 @@ describe("401 singleflight: 并发复用同一次 refresh + 落盘", () => {
           expiresAt: 1,
           scopes: [],
           storedAt: 1,
-          authMethod: "oauth",
+          authMethod: "device",
         },
       },
     });
@@ -123,7 +123,7 @@ describe("401 singleflight: 并发复用同一次 refresh + 落盘", () => {
           expiresAt: 1,
           scopes: ["orders:read"],
           storedAt: 1,
-          authMethod: "oauth",
+          authMethod: "device",
         },
       },
     });

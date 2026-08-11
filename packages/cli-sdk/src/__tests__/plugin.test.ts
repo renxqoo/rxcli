@@ -1,159 +1,137 @@
-import { describe, it, expect } from "vitest";
-import { sortPlugins, runBeforeCommand, runBeforeOutput, runOnError } from "../plugin.js";
-import type { Plugin, CommandContext, RequestOptions } from "../types.js";
+import { describe, expect, it, vi } from "vitest";
+import {
+  handleError,
+  observeError,
+  beforeRequest,
+  runBeforeCommand,
+  sortPlugins,
+  transformOutput,
+} from "../plugin.js";
+import type { Plugin, RequestOptions } from "../types.js";
 import { createTestCtx } from "../test-utils.js";
-import { NetworkError, APIError, ValidationError } from "../errs/index.js";
+import { APIError, NetworkError } from "../errs/index.js";
 
-function makeCtx(): CommandContext<any> {
-  return createTestCtx();
-}
-
-describe("plugin: enforce 三档排序", () => {
-  it("pre → normal → post,档内注册序", () => {
+describe("plugin ordering", () => {
+  it("runs pre, normal, post while preserving registration order within a tier", async () => {
     const calls: string[] = [];
-    const pre: Plugin = {
-      name: "p1",
-      enforce: "pre",
+    const plugin = (name: string, enforce?: Plugin["enforce"]): Plugin => ({
+      name,
+      enforce,
       async beforeCommand() {
-        calls.push("pre1");
+        calls.push(name);
       },
-    };
-    const post: Plugin = {
-      name: "p3",
-      enforce: "post",
-      async beforeCommand() {
-        calls.push("post1");
-      },
-    };
-    const normal1: Plugin = {
-      name: "p2",
-      async beforeCommand() {
-        calls.push("normal1");
-      },
-    };
-    const normal2: Plugin = {
-      name: "p2b",
-      async beforeCommand() {
-        calls.push("normal2");
-      },
-    };
-    const pre2: Plugin = {
-      name: "p1b",
-      enforce: "pre",
-      async beforeCommand() {
-        calls.push("pre2");
+    });
+    const plugins = [
+      plugin("post", "post"),
+      plugin("normal-1"),
+      plugin("pre-1", "pre"),
+      plugin("normal-2", "normal"),
+      plugin("pre-2", "pre"),
+    ];
+
+    expect(sortPlugins(plugins).map(({ name }) => name)).toEqual([
+      "pre-1",
+      "pre-2",
+      "normal-1",
+      "normal-2",
+      "post",
+    ]);
+    await runBeforeCommand(plugins, createTestCtx(), ["test"]);
+    expect(calls).toEqual(["pre-1", "pre-2", "normal-1", "normal-2", "post"]);
+  });
+});
+
+describe("plugin data boundaries", () => {
+  it("rebuilds a request without mutating the logical input", async () => {
+    const logical: RequestOptions = { method: "GET", path: "/orders", headers: {} };
+    const addHeader: Plugin = {
+      name: "add-header",
+      async beforeRequest(_ctx, request) {
+        return { ...request, headers: { ...request.headers, "x-client": "rxcli" } };
       },
     };
 
-    // 注册序故意打乱
-    const sorted = sortPlugins([post, normal1, pre, normal2, pre2]);
-    void sorted;
-    return runBeforeCommand([post, normal1, pre, normal2, pre2], makeCtx()).then(() => {
-      expect(calls).toEqual(["pre1", "pre2", "normal1", "normal2", "post1"]);
+    const prepared = await beforeRequest([addHeader], createTestCtx(), logical);
+
+    expect(prepared.headers).toEqual({ "x-client": "rxcli" });
+    expect(logical.headers).toEqual({});
+  });
+
+  it("chains structured output transforms", async () => {
+    const plugins: Plugin[] = [
+      {
+        name: "first",
+        async transformOutput(_ctx, data) {
+          return { ...(data as object), first: true };
+        },
+      },
+      {
+        name: "second",
+        async transformOutput(_ctx, data) {
+          return { ...(data as object), second: true };
+        },
+      },
+    ];
+
+    await expect(transformOutput(plugins, createTestCtx(), { base: true })).resolves.toEqual({
+      base: true,
+      first: true,
+      second: true,
     });
   });
 });
 
-describe("plugin: beforeOutput 链式 transform", () => {
-  it("每个插件拿到上一个输出", async () => {
-    const p1: Plugin = {
-      name: "t1",
-      async beforeOutput(_ctx, data) {
-        return { ...(data as object), t1: true };
-      },
-    };
-    const p2: Plugin = {
-      name: "t2",
-      enforce: "post",
-      async beforeOutput(_ctx, data) {
-        return { ...(data as object), t2: true };
-      },
-    };
-    const out = await runBeforeOutput([p2, p1], makeCtx(), { base: true });
-    expect(out).toEqual({ base: true, t1: true, t2: true });
-  });
-});
+describe("plugin error boundaries", () => {
+  it("warns when an observer fails and preserves the business error", async () => {
+    const ctx = createTestCtx();
+    const warn = vi.spyOn(ctx.log, "warn");
+    const original = new APIError({ subtype: "server_error", message: "failed" });
 
-describe("plugin: onError 链式", () => {
-  it("不处理的插件 return err 透传", async () => {
-    const original = new APIError({ subtype: "server_error", message: "500" });
-    // 不处理应返回传入的 err(而非 undefined,否则会吞掉)
-    const passThrough: Plugin = {
-      name: "pass",
-      async onError(_ctx, err) {
-        return err as Error;
-      },
-    };
-    const result = await runOnError([passThrough], makeCtx(), original);
-    expect(result).toBe(original);
-  });
-
-  it("处理的插件返回新 err,传给下一个", async () => {
-    const original = new NetworkError({ subtype: "timeout", message: "超时" });
-    const normalizer: Plugin = {
-      name: "norm",
-      async onError(_ctx, err) {
-        if (err instanceof NetworkError)
-          return new APIError({ subtype: "server_error", message: "降级" });
-        return err as Error;
-      },
-    };
-    const result = await runOnError([normalizer], makeCtx(), original);
-    expect(result).toBeInstanceOf(APIError);
-    expect((result as APIError).subtype).toBe("server_error");
-  });
-
-  it("返回 undefined 吞掉错误(链结果为 undefined)", async () => {
-    const swallower: Plugin = {
-      name: "swallow",
-      async onError() {
-        return undefined;
-      },
-    };
-    const result = await runOnError(
-      [swallower],
-      makeCtx(),
-      new ValidationError({ subtype: "invalid_argument", message: "x" }),
+    await observeError(
+      [
+        {
+          name: "broken",
+          async observeError() {
+            throw new Error("observer crashed");
+          },
+        },
+      ],
+      ctx,
+      original,
     );
-    expect(result).toBeUndefined();
+
+    expect(warn).toHaveBeenCalledWith("observeError hook failed: observer crashed");
+    await expect(handleError([], ctx, original)).resolves.toEqual({
+      action: "pass",
+      error: original,
+    });
   });
 
-  it("一个 onError 抛错后仍继续执行后续 hook,且保留原始错误", async () => {
+  it("passes replaced errors through the remaining handler chain", async () => {
     const seen: unknown[] = [];
-    const broken: Plugin = {
-      name: "broken",
-      async onError() {
-        throw new Error("hook crashed");
+    const original = new NetworkError({ subtype: "timeout", message: "timeout" });
+    const plugins: Plugin[] = [
+      {
+        name: "replace",
+        async handleError() {
+          return {
+            action: "replace",
+            error: new APIError({ subtype: "server_error", message: "fallback" }),
+          };
+        },
       },
-    };
-    const audit: Plugin = {
-      name: "audit",
-      async onError(_ctx, err) {
-        seen.push(err);
-        return err;
+      {
+        name: "inspect",
+        async handleError(_ctx, error) {
+          seen.push(error);
+          return { action: "pass" };
+        },
       },
-    };
-    const result = await runOnError([broken, audit], makeCtx(), new Error("original"));
-    expect(seen[0]).toBeInstanceOf(Error);
-    expect((seen[0] as Error).message).toBe("original");
-    expect(result).toBe(seen[0]);
-  });
-});
+    ];
 
-describe("plugin: beforeRequest 改 req", () => {
-  it("插件能修改 req.headers", async () => {
-    const addHeader: Plugin = {
-      name: "add-h",
-      enforce: "pre",
-      async beforeRequest(_ctx, req: RequestOptions) {
-        req.headers = { ...req.headers, "X-Client": "rxcli" };
-      },
-    };
-    const req: RequestOptions = { method: "GET", path: "/orders", headers: {} };
-    const ctx = makeCtx();
-    // 直接测 runBeforeRequest
-    const { runBeforeRequest } = await import("../plugin.js");
-    await runBeforeRequest([addHeader], ctx, req);
-    expect(req.headers?.["X-Client"]).toBe("rxcli");
+    const decision = await handleError(plugins, createTestCtx(), original);
+
+    expect(seen[0]).toBeInstanceOf(APIError);
+    expect(decision).toMatchObject({ action: "pass", error: { subtype: "server_error" } });
   });
 });
