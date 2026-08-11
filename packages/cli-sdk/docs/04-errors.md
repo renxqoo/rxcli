@@ -10,7 +10,7 @@
 2. **exit code 由 Category 决定**,业务包不用自己设 exit code。
 3. **hint 字段是给 agent 的可执行指令**,不是给人看的解释。
 4. **错误 wrap 不可降级**:下层已返回类型化错误时,透传不 re-wrap。
-5. **throw 后进 onError 插件链**(见下文),链结束才渲染到 stderr。
+5. **throw 后进 observeError/handleError 链**(见下文),链结束才渲染到 stderr。
 
 借鉴 lark-cli 的 RFC 7807 对齐错误分类(详见 `00-overview.md`)。
 
@@ -307,11 +307,11 @@ agent 看到 `retryable: true` 可以自动重试(带退避)。
 
 ---
 
-## onError 插件链:错误归一化
+## observeError / handleError:观察与显式恢复
 
-`onError` 是插件钩子(见 `02-sdk-guide.md` 的"插件系统"),在错误抛出后、渲染前触发。**链式**:每个插件都跑一遍,不处理的返回原 error,处理的返回新 error。某个 hook 自己抛错时框架保留最近一次有效业务错误并继续，避免错误处理器掩盖真正根因；只有显式返回 `undefined` 才表示恢复并吞掉错误。
+错误先被规范化为 `CliError`，再依次经过两个不同职责的边界：`observeError` 只做上报或审计，返回 `void` 永远不会吞掉错误；`handleError` 必须返回显式决策 `pass`、`replace` 或 `recover`。hook 自己抛错时框架记录 warning 并保留最近一次有效业务错误。
 
-onError 插件可用来:
+错误插件可用来:
 
 - 把后端特有的错误码归一化成标准 subtype
 - 脱敏错误消息里的敏感信息(如 token 泄露到 message)
@@ -322,7 +322,10 @@ onError 插件可用来:
 // 错误归一化插件
 const errorNormalizePlugin = {
   name: 'error-normalize',
-  async onError(ctx, err) {
+  async observeError(ctx, err) {
+    await telemetry.capture(err)
+  },
+  async handleError(ctx, err) {
     // 脱敏:message 里可能有 token
     if (err instanceof errs.CliError && err.message) {
       err.message = err.message.replace(/Bearer [A-Za-z0-9._-]+/g, 'Bearer [REDACTED]')
@@ -331,16 +334,14 @@ const errorNormalizePlugin = {
     if (err instanceof errs.NetworkError && !err.hint) {
       err.hint = '检查网络连接,或稍后重试'
     }
-    return err    // 不处理返回原 error,处理返回新 error;返回 undefined = 吞掉(慎用)
+    return { action: 'replace', error: err }
   },
 }
 
 defineCli({ plugins: [auth, errorNormalizePlugin], ... })
 ```
 
-**链式执行**:多个 onError 插件按 enforce(pre→normal→post)顺序依次跑,每个拿到上一个的结果。第一个能处理的插件改完后,结果传给下一个。
-
-**`onError` 返回 undefined 会吞掉错误**(命令变成成功)。这是危险操作,只在极少数场景用(如"这个错误其实是正常分支")。
+`replace` 的新错误会传给后续 handler；`recover` 是唯一成功出口，并可携带一个正式 `CommandResult`。`undefined` 只会被当作 `pass` 并记录契约 warning。
 
 ---
 

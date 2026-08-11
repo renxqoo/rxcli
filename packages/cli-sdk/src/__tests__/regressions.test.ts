@@ -372,7 +372,7 @@ describe("credential provider ownership", () => {
     const store = memoryStore({
       credentials: {
         crm: {
-          authMethod: "oauth",
+          authMethod: "device",
           token: "access",
           refreshToken: "refresh",
           expiresAt: 123,
@@ -388,6 +388,19 @@ describe("credential provider ownership", () => {
     });
     expect(result?.provider.name()).toBe("oauth");
     expect(result?.token).toMatchObject({ refreshToken: "refresh", expiresAt: 123 });
+  });
+
+  it("rejects the removed legacy oauth authMethod", async () => {
+    const store = memoryStore({
+      credentials: { crm: { authMethod: "oauth", token: "access", refreshToken: "refresh" } },
+    });
+    const result = await resolveWithChain(defaultProviders(), {
+      namespace: "crm",
+      configStore: store,
+      args: {},
+      env: {},
+    });
+    expect(result).toBeNull();
   });
 });
 

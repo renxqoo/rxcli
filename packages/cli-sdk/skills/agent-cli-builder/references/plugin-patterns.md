@@ -11,14 +11,15 @@ Use plugins for cross-cutting behavior such as authentication, fixed headers, si
 
 ## 1. Hooks and ordering
 
-| Hook            | Runs                              | Typical use                                          |
-| --------------- | --------------------------------- | ---------------------------------------------------- |
-| `beforeCommand` | Before command `run`              | Resolve identity, initialize state, reject execution |
-| `beforeRequest` | Before each `ctx.*` request       | Headers, tenant, signatures                          |
-| `afterRequest`  | After each response               | Metrics and audit side effects                       |
-| `onUnauthorized` | After a 401 response              | Refresh a context-bound credential once              |
-| `beforeOutput`  | After `run`, before serialization | Redact or reshape structured data                    |
-| `onError`       | After any hook or command throws  | Normalize, redact, or deliberately recover           |
+| Hook                 | Runs                              | Typical use                                          |
+| -------------------- | --------------------------------- | ---------------------------------------------------- |
+| `beforeCommand`      | Before command `run`              | Resolve identity, initialize state, reject execution |
+| `prepareRequest`     | Before each `ctx.*` attempt       | Headers, tenant, signatures                          |
+| `observeRequest`     | After each physical attempt       | Metrics and awaited audit side effects               |
+| `handleUnauthorized` | After a 401 response              | Refresh a context-bound credential once              |
+| `transformOutput`    | After `run`, before serialization | Redact or reshape structured data                    |
+| `observeError`       | After an error is normalized      | Telemetry that cannot change the result              |
+| `handleError`        | After error observers             | Explicitly pass, replace, or recover                 |
 
 `enforce` supports `"pre"`, `"normal"`, and `"post"`; omitting it means `"normal"`. Hooks run pre, normal, then post, preserving registration order inside each tier.
 
@@ -38,8 +39,8 @@ Write lifecycle tests when two plugins depend on registration order.
 const clientHeaders = {
   name: "client-headers",
   enforce: "pre" as const,
-  async beforeRequest(_ctx, request) {
-    request.headers = { ...request.headers, "X-Client": "my-cli" };
+  async prepareRequest(_ctx, request) {
+    return { ...request, headers: { ...request.headers, "X-Client": "my-cli" } };
   },
 };
 ```
@@ -49,8 +50,10 @@ const clientHeaders = {
 ```ts
 const audit = {
   name: "audit",
-  async afterRequest(ctx, response) {
-    if (response.status >= 400) ctx.log.warn(`request failed: status=${response.status}`);
+  async observeRequest(ctx, event) {
+    if (event.outcome.kind === "response" && event.outcome.response.status >= 400) {
+      ctx.log.warn(`request failed: status=${event.outcome.response.status}`);
+    }
   },
 };
 ```
@@ -61,7 +64,7 @@ const audit = {
 const redact = {
   name: "redact",
   enforce: "post" as const,
-  async beforeOutput(_ctx, data) {
+  async transformOutput(_ctx, data) {
     if (Array.isArray(data)) return data.map(redactItem);
     if (data && typeof data === "object") return redactItem(data);
     return data;
@@ -76,25 +79,25 @@ function redactItem(item: Record<string, unknown>) {
 }
 ```
 
-`beforeOutput` must return structured data: object, array, or `null`. A string violates the pipe contract.
+`transformOutput` must return structured data: object, array, or `null`. A string violates the pipe contract.
 
 ### Error normalization
 
 ```ts
 const normalizeErrors = {
   name: "normalize-errors",
-  async onError(_ctx, error) {
-    if (!(error instanceof errs.CliError)) return error;
+  async handleError(_ctx, error) {
+    if (!(error instanceof errs.CliError)) return { action: "pass" };
     error.message = error.message.replace(/Bearer [A-Za-z0-9._-]+/g, "Bearer [REDACTED]");
     if (error instanceof errs.NetworkError && !error.hint) {
       error.hint = "Check connectivity, then retry";
     }
-    return error;
+    return { action: "replace", error };
   },
 };
 ```
 
-An `onError` hook that throws does not replace the business error; the framework continues later hooks with the last valid error. Returning `undefined` deliberately swallows the error and should be rare and explicit. `afterRequest` is observational: a failure is logged and cannot replace a transport error or turn a successful request into a failure.
+`observeError` is telemetry-only: returning `void` can never swallow a failure. `handleError` requires an explicit `{ action: "pass" | "replace" | "recover" }` decision; only `recover` can turn the command into success. A handler failure is logged without hiding the current business error. `observeRequest` follows the same observational rule.
 
 ## 3. Plugin-provided commands and distribution
 
@@ -131,8 +134,8 @@ Common mistakes:
 
 1. Signing in `pre` before other plugins finalize headers; use `post` for HMAC.
 2. Assuming same-tier order without a lifecycle test.
-3. Returning a string from `beforeOutput`.
-4. Returning `undefined` from `onError` and silently producing exit 0.
+3. Returning a string from `transformOutput`.
+4. Using `handleError` recovery for an ordinary failure instead of returning an explicit `pass`.
 5. Sharing an undeclared `ctx.state` field instead of using the same State type in `defineCommands<State>`, `Plugin<State>`, and `defineCli<State>`.
 6. Reimplementing route ownership instead of using `provides`.
 7. Logging request or response payloads that may contain credentials or personal data.

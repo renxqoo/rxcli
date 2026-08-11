@@ -63,20 +63,20 @@ Verify: `rxcordys whoami` returning user information means the credentials are v
 
 Covers the full L2C workflow of leads → accounts → opportunities → contracts → payments → invoices → orders:
 
-| Module | Description |
-|------|------|
-| `leads` | Leads CRUD + convert to account (transition) / convert to opportunity (transform) |
-| `accounts` | Accounts CRUD + account 360 (contracts/opportunities/orders/payments/invoices sub-resources + stats) |
-| `opportunities` | Opportunities CRUD + quotations (quotation) |
-| `contacts` | Contacts CRUD |
-| `contracts` | Contracts + payment plans/records + business registration headers + stats |
-| `invoices` | Invoices |
-| `orders` | Orders + stats |
-| `follows` | Follow-up plans/records (across lead/account/opportunity) |
-| `approvals` | Approvals to-do/actions/resources/workflow config |
-| `stats` | Module amount stats + home page dashboard |
-| `records` | Cross-module generic (view/get/page/search/contact/product/form) |
-| `util` | whoami/org/members/glocount/raw passthrough |
+| Module          | Description                                                                                          |
+| --------------- | ---------------------------------------------------------------------------------------------------- |
+| `leads`         | Leads CRUD + convert to account (transition) / convert to opportunity (transform)                    |
+| `accounts`      | Accounts CRUD + account 360 (contracts/opportunities/orders/payments/invoices sub-resources + stats) |
+| `opportunities` | Opportunities CRUD + quotations (quotation)                                                          |
+| `contacts`      | Contacts CRUD                                                                                        |
+| `contracts`     | Contracts + payment plans/records + business registration headers + stats                            |
+| `invoices`      | Invoices                                                                                             |
+| `orders`        | Orders + stats                                                                                       |
+| `follows`       | Follow-up plans/records (across lead/account/opportunity)                                            |
+| `approvals`     | Approvals to-do/actions/resources/workflow config                                                    |
+| `stats`         | Module amount stats + home page dashboard                                                            |
+| `records`       | Cross-module generic (view/get/page/search/contact/product/form)                                     |
+| `util`          | whoami/org/members/glocount/raw passthrough                                                          |
 
 ## Common commands
 
@@ -110,6 +110,6 @@ Skill documentation: `skills/rxcordys-cli/SKILL.md` (hand-written and maintained
 ## Technical decisions
 
 - **Naming**: npm package `@renxqoo/rxcordys-cli` / bin command `rxcordys` / skill `rxcordys-cli` / credential namespace `cordys`.
-- **Hand-written auth plugin** (not `defineAuth`): Cordys uses static dual headers, and the framework's `injectAuthHeader` only supports a single header, so a hand-written `beforeRequest` injection is used.
+- **Hand-written auth plugin** (not `defineAuth`): Cordys uses static dual headers, and the framework's `injectAuthHeader` only supports a single header, so a hand-written `prepareRequest` injection is used.
 - **Business code unwrapping**: Cordys business errors may return HTTP 200 + `code≠100200`, so all commands go through `unwrap()` for unwrapping and validation.
 - **credentialNamespace = `cordys`**: Avoids colliding and sharing credentials with the `crm` namespace of `apps/crm`.

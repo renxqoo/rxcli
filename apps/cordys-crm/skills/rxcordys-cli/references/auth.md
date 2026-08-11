@@ -6,13 +6,13 @@
 
 Cordys 开放接口用静态双 header 鉴权,不走 OAuth / token 交换:
 
-| Header | 值 | 说明 |
-|--------|-----|------|
-| `X-Access-Key` | `<AccessKey>` | 从个人中心 API Keys 创建 |
-| `X-Secret-Key` | `<SecretKey>` | 创建时一次性明文返回,之后掩码,不可再次查看 |
-| `X-Request-Source` | 字面量 `SKILL` | 固定标记,标识来自技能接口 |
+| Header             | 值             | 说明                                       |
+| ------------------ | -------------- | ------------------------------------------ |
+| `X-Access-Key`     | `<AccessKey>`  | 从个人中心 API Keys 创建                   |
+| `X-Secret-Key`     | `<SecretKey>`  | 创建时一次性明文返回,之后掩码,不可再次查看 |
+| `X-Request-Source` | 字面量 `SKILL` | 固定标记,标识来自技能接口                  |
 
-> 密钥以明文放 header(非 HMAC 签名)。rxcordys 的 auth plugin 在 `beforeRequest` 钩子里注入这三个 header,业务命令无感。
+> 密钥以明文放 header(非 HMAC 签名)。rxcordys 的 auth plugin 在 `prepareRequest` 钩子里注入这三个 header,业务命令无感。
 
 ## 凭证优先级
 
@@ -53,13 +53,13 @@ echo 'export CORDYS_CRM_DOMAIN=https://crm.your-company.com' >> ~/.zshrc
 
 ### ❌ 禁止做法
 
-| 做法 | 风险 |
-|------|------|
-| 写进 `.env` 并提交 git | 永久留在 git 历史,删提交也救不回 |
-| 写进 agent / MCP 的 JSON 配置 | 配置文件常是 0644,且会同步/备份/分享 |
-| 写进 SKILL.md / README / 任何文档 | 同上,且会随包发布公开 |
-| 在聊天 / issue / 日志里贴明文密钥 | 即使删除也可能已被索引 |
-| 多人共用同一组 Key | 无法按人审计/吊销;一人泄露全员遭殃 |
+| 做法                              | 风险                                 |
+| --------------------------------- | ------------------------------------ |
+| 写进 `.env` 并提交 git            | 永久留在 git 历史,删提交也救不回     |
+| 写进 agent / MCP 的 JSON 配置     | 配置文件常是 0644,且会同步/备份/分享 |
+| 写进 SKILL.md / README / 任何文档 | 同上,且会随包发布公开                |
+| 在聊天 / issue / 日志里贴明文密钥 | 即使删除也可能已被索引               |
+| 多人共用同一组 Key                | 无法按人审计/吊销;一人泄露全员遭殃   |
 
 ### 多 agent / 多人使用
 
@@ -73,12 +73,12 @@ echo 'export CORDYS_CRM_DOMAIN=https://crm.your-company.com' >> ~/.zshrc
 
 ## 常见故障
 
-| 现象 | 原因 | 处理 |
-|------|------|------|
-| `authentication/no_credentials`(exit 3) | 未配置凭证 | `rxcordys auth login` 或设环境变量 |
-| `authentication/token_expired`(exit 3, 401) | 密钥对失效/错误 | demo 环境每天回滚 → 重新创建 Key;自部署检查 Key 是否被禁用 |
-| `authorization/forbidden`(exit 3, 403) | Key 有效但无数据权限 | Cordys 个人中心 → API Keys → 确认 Key 启用;管理员确认角色权限 |
-| HTTP 200 + `code≠100200` | Key 无效(`INVALID_KEY`) | 检查 Access/Secret Key 是否复制完整(无多余空格) |
+| 现象                                        | 原因                    | 处理                                                          |
+| ------------------------------------------- | ----------------------- | ------------------------------------------------------------- |
+| `authentication/no_credentials`(exit 3)     | 未配置凭证              | `rxcordys auth login` 或设环境变量                            |
+| `authentication/token_expired`(exit 3, 401) | 密钥对失效/错误         | demo 环境每天回滚 → 重新创建 Key;自部署检查 Key 是否被禁用    |
+| `authorization/forbidden`(exit 3, 403)      | Key 有效但无数据权限    | Cordys 个人中心 → API Keys → 确认 Key 启用;管理员确认角色权限 |
+| HTTP 200 + `code≠100200`                    | Key 无效(`INVALID_KEY`) | 检查 Access/Secret Key 是否复制完整(无多余空格)               |
 
 ## 验证凭证
 

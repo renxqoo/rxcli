@@ -250,24 +250,23 @@ try {
 
 ---
 
-## 7. onError 插件:错误归一化/脱敏
+## 7. handleError 插件:错误归一化/脱敏
 
 ```ts
 const errorNormalizePlugin = {
   name: "error-normalize",
-  async onError(ctx, err) {
-    if (!(err instanceof errs.CliError)) return err;
+  async handleError(ctx, err) {
+    if (!(err instanceof errs.CliError)) return { action: "pass" };
     // 脱敏:防止 token 漏到 message
     if (err.message) {
       err.message = err.message.replace(/Bearer [A-Za-z0-9._-]+/g, "Bearer [REDACTED]");
     }
-    return err;
+    return { action: "replace", error: err };
   },
 };
 ```
 
-**onError 链式执行**:多个插件按 enforce(pre→normal→post)依次跑,每个拿到上一个的结果。
-**返回 undefined = 吞掉错误**(命令变成功)——危险,只在"这是正常分支"时用。
+`observeError` 只观察，void 永远不会恢复错误。`handleError` 按 enforce(pre→normal→post)链式执行，并要求显式返回 `pass`、`replace` 或 `recover`；只有 `recover` 会把命令转为成功。
 
 ---
 

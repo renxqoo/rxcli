@@ -52,7 +52,7 @@
 | ---------- | :------: | --------------- | ---------------------------------------------------------------------- |
 | `ok`       | ✅ 必有  | **wire-stable** | 成功永远是 `true`。agent 靠它判断                                      |
 | `identity` | ❌ 可选  | wire-stable     | 调用者身份:`user` / `bot`。未解析出身份时省略                          |
-| `source`   | ❌ 可选  | wire-stable     | 来源业务 namespace；`defineCli` 执行时自动写入，供 pipe 稳定分流       |
+| `source`   | ✅ 必有  | wire-stable     | 来源业务 namespace；`defineCli` 执行时自动写入，供 pipe 稳定分流       |
 | `data`     | ✅ 必有  | informational   | 业务数据。命令无数据输出时为 `null`                                    |
 | `meta`     | ❌ 可选  | mixed           | 元信息,见下文                                                          |
 | `dry_run`  | ❌ 可选  | wire-stable     | `true` 表示 dry-run 模式(只构造请求未发送)。出现时为 true,正常请求省略 |
@@ -113,16 +113,16 @@
 }
 ```
 
-### 错误怎么产生:throw → onError 链 → 渲染
+### 错误怎么产生:throw → observeError/handleError 链 → 渲染
 
-命令或插件 `throw` 类型化错误(`errs.*`)后,错误先进 **onError 插件链**(每个插件跑一遍,可归一化/脱敏),链结束后渲染成错误输出到 stderr:
+命令或插件 `throw` 类型化错误(`errs.*`)后,错误先进 **observeError/handleError 链**(每个插件跑一遍,可归一化/脱敏),链结束后渲染成错误输出到 stderr:
 
 ```
 run / 钩子 throw err
   ↓
-err 是 errs.* 类型? → 是:直接进 onError 链
-  ↓ 否(裸 Error 等):cli-sdk 包装成 InternalError(unknown)进 onError 链
-onError 链(pre→normal→post 插件,每个都跑;不处理返回原 err,处理返回新 err)
+err 是 errs.* 类型? → 是:直接进 observeError/handleError 链
+  ↓ 否(裸 Error 等):cli-sdk 包装成 InternalError(unknown)进 observeError/handleError 链
+observeError/handleError 链(pre→normal→post 插件,每个都跑;不处理返回原 err,处理返回新 err)
   ↓
 最终 err → 按 Category 渲染错误输出 → stderr + 对应 exit code
 ```
@@ -235,7 +235,7 @@ if (!loggedIn) throw new errs.BareError(3); // exit 3,stderr 不输出统一格�
 | ------ | :------: | ----------------------------------------------------------------------------------------------------------------------------- |
 | `type` |    ✅    | 来源业务包命名空间(如 `orders`),下游按它分流(`if rec.type !== 'orders' continue`)。框架序列化时自动填入的 `defineCli.name`    |
 | `id`   |    ❌    | 稳定标识。**管道传引用+ID 的核心**(决策清单 #11):链中传脱敏值+ID,下游用 ID 关联,不依赖具体字段值。命令输出数组时每条建议带 id |
-| `data` |    ❌    | payload(已过 `beforeOutput` 转换)                                                                                             |
+| `data` |    ❌    | payload(已过 `transformOutput` 转换)                                                                                          |
 | `meta` |    ❌    | 可选元数据(来源命令、时间戳)                                                                                                  |
 
 > **注意:PipeRecord 是下游 `ctx.pipe.in()` 读到的形态,不是 stdout 统一输出格式本身。** stdout 仍是一个完整统一输出格式 `{ok, data, meta}`;当 data 是数组时,cli-sdk 把每条记录包成 PipeRecord 供下游逐条消费。单对象命令(data 不是数组)管道时,下游收到的是单条 `{type, id, data}`。
@@ -249,12 +249,12 @@ if (!loggedIn) throw new errs.BareError(3); // exit 3,stderr 不输出统一格�
 传统 CLI 常见做法是同步 `console.log(JSON.stringify(body, null, 2))`,没有统一输出格式概念。本框架改成统一输出模型:
 
 |              | 传统 console.log                   | 统一输出模型(`run` 返回值 → 框架序列化) |
-| ------------ | ---------------------------------- | ----------------------------------- |
-| 输出         | 裸 JSON body,美化打印              | 统一输出格式 `{ok, data, meta}`             |
-| 错误         | exitCode=1 + console.error message | stderr 错误输出 + 类型化 exit code  |
-| 分页         | 无                                 | `meta.pagination`                   |
-| stdout 纯净  | ❌(美化打印有空格,管道易混)        | ✅(紧凑 JSON)                       |
-| agent 可分支 | ❌(只有 message 字符串)            | ✅(wire-stable type/subtype)        |
+| ------------ | ---------------------------------- | --------------------------------------- |
+| 输出         | 裸 JSON body,美化打印              | 统一输出格式 `{ok, data, meta}`         |
+| 错误         | exitCode=1 + console.error message | stderr 错误输出 + 类型化 exit code      |
+| 分页         | 无                                 | `meta.pagination`                       |
+| stdout 纯净  | ❌(美化打印有空格,管道易混)        | ✅(紧凑 JSON)                           |
+| agent 可分支 | ❌(只有 message 字符串)            | ✅(wire-stable type/subtype)            |
 
 ---
 

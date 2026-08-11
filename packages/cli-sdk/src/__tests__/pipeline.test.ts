@@ -2,8 +2,18 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { defineCommand, defineCommands, errs } from "../index.js";
 import { NotFoundError } from "../errs/index.js";
 import { createTestCtx } from "../test-utils.js";
-import { runCommand } from "../pipeline.js";
+import { runCommand as executeCommand, type RunCommandOptions } from "../pipeline.js";
 import type { CommandSpec, Plugin } from "../types.js";
+
+function runCommand<State>(
+  options: Omit<RunCommandOptions<State>, "source" | "route"> & { route?: string[] },
+): Promise<number> {
+  return executeCommand({
+    ...options,
+    route: options.route ?? [options.spec.name],
+    source: "test",
+  });
+}
 
 // 捕获 stdout/stderr
 let stdoutBuf = "";
@@ -143,15 +153,14 @@ describe("pipeline: 错误路径(throw → stderr 统一输出格式 + exit code
   });
 });
 
-describe("pipeline: onError 插件链(错误归一化)", () => {
-  it("onError 插件给错误加 hint(返回 err 透传)", async () => {
+describe("pipeline: explicit error handling", () => {
+  it("observeError can enrich an error without controlling execution", async () => {
     const addHint: Plugin = {
       name: "add-hint",
-      async onError(_ctx, err) {
+      async observeError(_ctx, err) {
         if (err instanceof NotFoundError && !err.hint) {
           err.hint = "用 list 查有效 ID";
         }
-        return err as Error; // 返回 err 透传(返回 undefined 会吞掉)
       },
     };
     const ctx = createTestCtx({ request: async () => ({ status: 404, data: {}, headers: {} }) });
@@ -160,11 +169,11 @@ describe("pipeline: onError 插件链(错误归一化)", () => {
     expect(env.error.hint).toBe("用 list 查有效 ID");
   });
 
-  it("onError 插件吞掉错误(return undefined)→ 命令变成功 + exit 0", async () => {
-    const swallower: Plugin = {
-      name: "swallow",
-      async onError() {
-        return undefined; // 吞掉错误
+  it("handleError requires an explicit recovery decision", async () => {
+    const fallback: Plugin = {
+      name: "fallback",
+      async handleError() {
+        return { action: "recover", result: { data: { cached: true } } };
       },
     };
     const ctx = createTestCtx({ request: async () => ({ status: 404, data: {}, headers: {} }) });
@@ -172,18 +181,18 @@ describe("pipeline: onError 插件链(错误归一化)", () => {
       spec: getCommand,
       args: { id: "x" },
       ctx,
-      plugins: [swallower],
+      plugins: [fallback],
     });
     expect(code).toBe(0);
     const env = JSON.parse(stdoutBuf);
-    expect(env.ok).toBe(true); // 吞掉后变成功
-    expect(env.data).toBeNull();
+    expect(env.ok).toBe(true);
+    expect(env.data).toEqual({ cached: true });
   });
 
-  it("onError hook 自己抛错时保留原始结构化错误", async () => {
+  it("a failed error handler preserves the original structured error", async () => {
     const brokenHook: Plugin = {
       name: "broken-error-hook",
-      async onError() {
+      async handleError() {
         throw new Error("hook crashed");
       },
     };
@@ -235,7 +244,7 @@ describe("pipeline: CommandResult runtime contract", () => {
     expect(JSON.parse(stderrBuf).error.subtype).toBe("contract_violation");
   });
 
-  it("rejects undefined returned by beforeOutput", async () => {
+  it("rejects undefined returned by transformOutput", async () => {
     const command = defineCommand({
       name: "output",
       description: "output",
@@ -245,7 +254,7 @@ describe("pipeline: CommandResult runtime contract", () => {
     });
     const plugin: Plugin = {
       name: "broken-output",
-      async beforeOutput() {
+      async transformOutput() {
         return undefined as never;
       },
     };
@@ -261,13 +270,12 @@ describe("pipeline: CommandResult runtime contract", () => {
 });
 
 describe("pipeline: lazy argument validation", () => {
-  it("routes parse errors through onError and human-readable rendering", async () => {
+  it("routes parse errors through observeError and human-readable rendering", async () => {
     let seen: unknown;
     const observer: Plugin = {
       name: "observer",
-      async onError(_ctx, err) {
+      async observeError(_ctx, err) {
         seen = err;
-        return err;
       },
     };
     const command = defineCommand({
@@ -380,32 +388,6 @@ describe("精确豁免:plugin 自己的命令跳自己的 beforeCommand(route �
     });
     expect(beforeA).toBe(false); // A 是 owner → 豁免
     expect(beforeB).toBe(true); // B 不是 owner → 照跑
-  });
-
-  it("route 未传(单测直接调 runCommand)= 不豁免(向后兼容)", async () => {
-    let beforeA = false;
-    const cmd = defineCommand({
-      name: "login",
-      description: "x",
-      async run() {
-        return { data: { ok: true } };
-      },
-    });
-    const pluginA: Plugin = {
-      name: "A",
-      async beforeCommand() {
-        beforeA = true;
-      },
-    };
-    const ctx = createTestCtx();
-    await runCommand({
-      spec: cmd,
-      args: {},
-      ctx,
-      plugins: [pluginA],
-      ownedRoutes: new Map([[pluginA, [["login"]]]]),
-    }); // 不传 route
-    expect(beforeA).toBe(true); // 无 route = 不豁免
   });
 
   it('namespace 路径的 ownedRoute 精确豁免(["auth","login"])', async () => {

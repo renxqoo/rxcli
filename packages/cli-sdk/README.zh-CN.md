@@ -39,7 +39,7 @@
 - **🔐 鉴权工厂 `defineAuth`** —— OAuth 2.0 device flow(RFC 8628)+ 401 singleflight 自动刷新。一行配置,login/status/logout/register 命令自动注入。
 - **📦 结构化统一输出** —— JSON 模式输出 `{ok, source, data, meta}`,stderr 是错误输出,exit code 分类；`defaultFormat` 可选择 JSON、人类文本或 TTY 自动模式。
 - **🏷️ 9 类类型化错误** —— validation/authentication/permission/config/network/api/not_found/policy/internal,每类映射 exit code。
-- **🔌 vite 式插件** —— beforeCommand/beforeRequest/afterRequest/onUnauthorized/beforeOutput/onError 钩子 + `provides` 自动贡献命令。
+- **🔌 vite 式插件** —— prepare/observe/handle/transform 职责分离的生命周期钩子 + `provides` 自动贡献命令。
 - **🔑 provider chain** —— flag/env/file/oauth 四级凭证解析优先级,业务自定义凭证源。
 - **🚇 unix 管道** —— `rxcli orders list | rxcli report` 自动把上游统一输出格式拆成记录流。
 - **📖 skill 系统** —— SKILL.md 命令文档自动生成,同步到用户已装的 AI agent 发现目录(`~/.agents` 始终写 + 探测到的 `~/.claude`/`~/.codex`/`~/.cursor`/`~/.zcode`/`~/.openclaw`/`~/.pi`),供 AI agent 自服务发现。
@@ -208,20 +208,24 @@ const myPlugin: Plugin = {
   async beforeCommand(ctx) {
     /* 填 state */
   },
-  async beforeRequest(ctx, req) {
-    /* 加 header */
+  async prepareRequest(ctx, req) {
+    return { ...req, headers: { ...req.headers, "x-client": "my-cli" } };
   },
-  async afterRequest(ctx, res) {
-    /* 审计 */
+  async observeRequest(ctx, event) {
+    /* 等待审计落盘；event.outcome 区分 response / network-error */
   },
-  async onUnauthorized(ctx, req) {
-    /* 刷新凭证并返回新 token */
+  async handleUnauthorized(ctx, event) {
+    /* 先刷新上下文会话，再显式要求重试 */
+    return { action: "decline" };
   },
-  async beforeOutput(ctx, data) {
+  async transformOutput(ctx, data) {
     return transformedData;
   },
-  async onError(ctx, err) {
-    return normalizedErr;
+  async observeError(ctx, err) {
+    /* 只做 telemetry；void 永远不会吞掉错误 */
+  },
+  async handleError(ctx, err) {
+    return { action: "replace", error: normalizedErr };
   },
 };
 ```

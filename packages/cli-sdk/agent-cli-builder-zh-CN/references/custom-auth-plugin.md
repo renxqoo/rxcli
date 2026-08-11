@@ -18,11 +18,11 @@
 
 auth Plugin 就是一个普通的 `Plugin` 对象,用 cli-sdk 导出的基础块组装。3 个出口的职责:
 
-| 出口                     | 做什么                                                                                               |
-| ------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `beforeCommand`          | 跑 provider chain 取 token → 包装 store 成 `ctx.credentials` → 填 `ctx.state.user` → 建立上下文会话  |
-| `beforeRequest`          | 用 `injectAuthHeader(req, token, authStyle)` 按 style 注入 header                                    |
-| `onUnauthorized`        | 公开 hook；401 时 singleflight refresh、更新上下文会话并重试一次                                    |
+| 出口                 | 做什么                                                                            |
+| -------------------- | --------------------------------------------------------------------------------- |
+| `beforeCommand`      | 跑 provider chain 取 token → 包装 store 成 `ctx.credentials` → 建立上下文隔离会话 |
+| `prepareRequest`     | 用 `injectAuthHeader(req, token, authStyle)` 按 style 注入 header                 |
+| `handleUnauthorized` | 公开 hook；401 时 singleflight refresh、更新上下文会话并重试一次                  |
 
 ---
 
@@ -36,10 +36,7 @@ import {
   type ProviderContext,
   fileStore,
   defaultProviders,
-  getAuthSession,
   resolveWithChain,
-  setAuthSession,
-  updateAuthSessionToken,
   injectAuthHeader,
   createOn401Hook,
   AuthenticationError,
@@ -58,6 +55,7 @@ export function createMyAuth<State extends { user?: unknown }>(opts: {
   const refresh = opts.oauth
     ? createOn401Hook({ cfg: opts.oauth, store, namespace: opts.namespace })
     : undefined;
+  const sessions = new WeakMap<CommandContext<State>, { token: string; refreshable: boolean }>();
 
   return {
     name: `auth:${opts.namespace}`,
@@ -85,37 +83,36 @@ export function createMyAuth<State extends { user?: unknown }>(opts: {
         clear: (ns) => store.clearCredentials(ns),
       };
 
-      // 填 identity(统一输出格式顶层 user/bot + state.user)
-      const identity = resolved.provider.resolveIdentity
-        ? await resolved.provider.resolveIdentity(pctx)
-        : null;
-      if (identity) {
-        (ctx as unknown as { _identity?: typeof identity })._identity = identity;
-        (ctx.state as Record<string, unknown>).user = {
-          ...(identity.userId ? { userId: identity.userId } : {}),
-          ...(identity.name ? { name: identity.name } : {}),
-        };
-      }
-
-      setAuthSession(ctx, {
+      sessions.set(ctx, {
         token: resolved.token.token,
-        type: resolved.token.type,
-        source: resolved.token.source,
         refreshable: resolved.token.refreshable === true,
       });
     },
 
-    async beforeRequest(ctx, req) {
-      const session = getAuthSession(ctx);
-      if (session) injectAuthHeader(req, session.token, authStyle);
+    async prepareRequest(ctx, req) {
+      const prepared = { ...req, headers: { ...req.headers } };
+      const session = sessions.get(ctx);
+      if (session) injectAuthHeader(prepared, session.token, authStyle);
+      return prepared;
     },
 
-    async onUnauthorized(ctx) {
-      const session = getAuthSession(ctx);
-      if (!refresh || !session?.refreshable) return undefined;
+    async handleUnauthorized(ctx) {
+      const session = sessions.get(ctx);
+      if (!refresh || !session?.refreshable) return { action: "decline" };
       const token = await refresh();
-      if (token) updateAuthSessionToken(ctx, token);
-      return token;
+      if (!token) {
+        return {
+          action: "reject",
+          error: new AuthenticationError({
+            subtype: "token_expired",
+            code: 401,
+            message: "认证已过期且刷新失败",
+            hint: "请重新登录",
+          }),
+        };
+      }
+      sessions.set(ctx, { ...session, token });
+      return { action: "retry" };
     },
   };
 }
@@ -176,8 +173,8 @@ return {
   async beforeCommand(ctx) {
     /* ... 见上面骨架 ... */
   },
-  async beforeRequest(ctx, req) {
-    /* ... */
+  async prepareRequest(ctx, req) {
+    return { ...req, headers: { ...req.headers } };
   },
 };
 
@@ -209,7 +206,7 @@ resolveWithChain(providers, pctx) 按 priority 升序逐个尝试:
 
 `defaultProviders()` 默认装好这 5 个(含 envBearerProvider)。**业务包通常不用关心**——只有自定义鉴权(HMAC/mTLS)时才自己 `providers = [...defaultProviders(), customProvider]`。
 
-> **sandbox/CI 场景**:admin 通过 `POST /admin/web/issue-token` 签发 JWT → 注入环境变量 `NS_BEARER_TOKEN`(如 `CRM_BEARER_TOKEN`)→ envBearerProvider 自动命中,agent 直接用,不需要 device flow 登录。也可用 `defineAuth({ bearerToken: process.env.CRM_BEARER_TOKEN })` 一行注入(priority 2,低于 --api-key)。
+> **sandbox/CI 场景**:admin 通过 `POST /admin/web/issue-token` 签发 JWT → 注入环境变量 `NS_BEARER_TOKEN`(如 `CRM_BEARER_TOKEN`)→ envBearerProvider 自动命中,agent 直接用,不需要 device flow 登录。也可用 `defineAuth({ bearerToken: process.env.CRM_BEARER_TOKEN })` 一行显式注入(priority 0,优先级最高)。
 
 ### provider 接口(写自定义 Provider 时用)
 
@@ -279,14 +276,14 @@ export function hmacSignPlugin(namespace: string): Plugin {
   return {
     name: "hmac-sign",
     enforce: "post",
-    async beforeRequest(ctx, req) {
+    async prepareRequest(ctx, req) {
       const creds = await ctx.credentials.get(namespace);
-      if (!creds?.secretKey) return;
+      if (!creds?.secretKey) return { ...req, headers: { ...req.headers } };
       const body = typeof req.body === "string" ? req.body : JSON.stringify(req.body ?? "");
       const sig = createHmac("sha256", creds.secretKey as string)
         .update(`${req.method}\n${req.path}\n${body}`)
         .digest("hex");
-      req.headers["X-Signature"] = sig;
+      return { ...req, headers: { ...req.headers, "X-Signature": sig } };
     },
   };
 }
@@ -309,7 +306,7 @@ defineCli({
 
 **业务包不处理 401**,cli-sdk 请求层自动:
 
-1. 收到 401 → 调公开的 `onUnauthorized` hook
+1. 收到 401 → 调公开的 `handleUnauthorized` hook
 2. hook 用 `createOn401Hook({ cfg, store, namespace })` 创建,内部:
    - 读当前凭证拿 refreshToken
    - 用 singleflight(同一 refreshToken 复用同一个 refresh Promise,避免并发重复 refresh)
@@ -317,8 +314,8 @@ defineCli({
 3. 拿到新 token → 重试一次原请求
 4. 重试仍 401 → 抛 `AuthenticationError(token_expired)`,触发用户重新登录
 
-**前提**:auth Plugin 必须实现 `onUnauthorized`。没实现的 auth Plugin 不支持 401 自动续期。token 必须放在 `CommandContext` 绑定的 auth session，禁止用插件闭包保存；同一个插件实例会服务并发的 `App.run()`。
+**前提**:auth Plugin 必须实现 `handleUnauthorized`。没实现的 auth Plugin 不支持 401 自动续期。token 必须放在 `CommandContext` 绑定的 auth session，禁止用插件闭包保存；同一个插件实例会服务并发的 `App.run()`。
 
-重试会先替换现有认证 header(大小写不敏感),并重新执行全部 `beforeRequest` hook,因此 Bearer / X-Api-Key / Basic 以及 HMAC nonce、时间戳、签名都会按新 token 重算。任何最终 401 都是认证错误,不会因为遗漏 `errorOnStatus` 而被当成成功响应。
+重试会先替换现有认证 header(大小写不敏感),并重新执行全部 `prepareRequest` hook,因此 Bearer / X-Api-Key / Basic 以及 HMAC nonce、时间戳、签名都会按新 token 重算。任何最终 401 都是认证错误,不会因为遗漏 `errorOnStatus` 而被当成成功响应。
 
 `--api-key <key>` 是框架级一次性凭证,只定向提供给 auth provider chain,不会混入业务命令 args 或暴露给其他 telemetry/plugin hook;裸 `--api-key` 会在命令运行前得到 validation 错误。

@@ -9,20 +9,19 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const callbackRef = vi.hoisted(() => ({
   code: "ac_test" as string | null,
   error: null as string | null,
-  state: "test-state" as string | null,
 }));
 vi.mock("../infra/callback-server.js", () => ({
   waitForCallback: vi.fn(async () => ({
     redirectUri: "http://127.0.0.1:9999/callback",
     result: Promise.resolve({
+      get kind() {
+        return callbackRef.error ? "error" : "success";
+      },
       get code() {
         return callbackRef.code;
       },
       get error() {
         return callbackRef.error;
-      },
-      get state() {
-        return callbackRef.state;
       },
     }),
     close: vi.fn(),
@@ -92,7 +91,6 @@ describe("authorization_code flow", () => {
   it("login:PKCE → 浏览器 → 回调 code → 换 token", async () => {
     callbackRef.code = "ac_test";
     callbackRef.error = null;
-    callbackRef.state = "test-state";
 
     const { authCodeFlow } = await import("../flows/authCode.js");
     const cfg = { baseUrl: "http://test", clientId: "cid", clientSecret: "csec" };

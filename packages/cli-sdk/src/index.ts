@@ -22,6 +22,8 @@ export { defineCli, defineCommand, defineCommandFromArgs, defineCommands } from 
 
 // 认证基础能力(defineAuth 覆盖标准场景；特殊协议可用这些公开边界组合 Plugin)
 export {
+  OAuthClient,
+  type OAuthFetch,
   injectAuthHeader,
   type AuthStyle,
   // OAuth device flow(供 auth 命令 / OAuth provider 用)
@@ -52,6 +54,7 @@ export { type AuthFlow, type FlowType, type FlowDeps } from "./flows/types.js";
 export { defaultBrowserOpener, type BrowserOpener } from "./infra/browser.js";
 export {
   waitForCallback,
+  evaluateCallbackRequest,
   type CallbackResult,
   type CallbackHandle,
 } from "./infra/callback-server.js";
@@ -103,37 +106,29 @@ export {
   serializeSuccess,
   serializeError,
   type Identity,
-  type SerializeOptions,
+  type SerializeErrorOptions,
+  type SerializeSuccessOptions,
 } from "./envelope.js";
 
 // --no-json 模式通用文本渲染(命令 humanFormat 兜底用;也可供业务自定义渲染复用)
 export { prettyPrint, prettyError, printTable, type TableColumn } from "./pretty.js";
 
 // 请求层(供自定义 transport 用)
-export {
-  createTransport,
-  type Transport,
-  type CreateTransportOptions,
-  type On401Hook,
-} from "./request.js";
+export { createFetchAdapter, throwForResponse, type CreateFetchAdapterOptions } from "./request.js";
 
 // 插件
 export {
   sortPlugins,
   runBeforeCommand,
-  runBeforeRequest,
-  runAfterRequest,
-  runOnUnauthorized,
-  runBeforeOutput,
-  runOnError,
+  prepareRequest,
+  observeRequest,
+  handleUnauthorized,
+  transformOutput,
+  observeError,
+  handleError,
 } from "./plugin.js";
 
-export {
-  getAuthSession,
-  setAuthSession,
-  updateAuthSessionToken,
-  type AuthSession,
-} from "./auth/session.js";
+export { rawText } from "./output.js";
 
 // 上下文工厂
 export { createContext, createStderrLog } from "./context.js";
@@ -169,15 +164,20 @@ export {
   type DirEntry,
   type SkillTarget,
   type SyncResult,
+  type SyncSkillsOptions,
   type SyncTargetResult,
   type GenLang,
+  SkillRepository,
+  type SkillRepositoryOptions,
+  type GenerateSkillOptions,
+  type SkillFileStore,
 } from "./skills/index.js";
 
 // 参数解析
 export { parseArgs, signatureOfArgs, positionalLabel, type ParsedArgs } from "./args.js";
 
 // 执行器
-export { runCommand } from "./pipeline.js";
+export { runCommand, type RunCommandOptions } from "./pipeline.js";
 
 // install 向导(框架层,业务包拦截 install 命令后调)
 export { runInstallWizard, type InstallWizardOptions } from "./install-wizard.js";
@@ -190,25 +190,24 @@ export { defineAuth, type DefineAuthOptions } from "./auth/index.js";
 export { createTestCtx, type MockRequest, type CreateTestCtxOptions } from "./test-utils.js";
 
 // 类型
+export type { App, DefineCliOptions } from "./application-contracts.js";
+export type { ArgSpec, ArgsSpec, ArgType, CommandGroup, CommandSpec } from "./command-contracts.js";
 export type {
-  App,
-  ArgSpec,
-  ArgsSpec,
-  ArgType,
-  CommandContext,
-  CommandGroup,
   CommandResult,
-  CommandSpec,
-  CredentialsApi,
-  DefineCliOptions,
-  ErrorOnStatus,
-  LogApi,
+  DataCommandResult,
+  RawTextCommandResult,
   Meta,
   Pagination,
-  PipeApi,
   PipeRecord,
-  Plugin,
-  RequestOptions,
   StructuredData,
+} from "./output-contracts.js";
+export type { ErrorDecision, Plugin, UnauthorizedDecision } from "./plugin-contracts.js";
+export type {
+  AttemptOutcome,
+  ErrorOnStatus,
+  HttpAdapter,
+  RequestAttemptEvent,
+  RequestOptions,
   TransportResponse,
-} from "./types.js";
+} from "./request-contracts.js";
+export type { CommandContext, CredentialsApi, LogApi, PipeApi } from "./runtime-contracts.js";

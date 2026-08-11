@@ -13,7 +13,6 @@ import type {
   PipeApi,
   LogApi,
 } from "./types.js";
-import type { Transport } from "./request.js";
 import { createContext } from "./context.js";
 
 /** mock 的 request 函数:接收 RequestOptions,返回 TransportResponse。 */
@@ -47,25 +46,21 @@ export interface CreateTestCtxOptions<State> {
 export function createTestCtx<State = Record<string, never>>(
   opts: CreateTestCtxOptions<State> = {},
 ): CommandContext<State> {
-  // 把 mock request 包成 Transport
-  const transport: Transport = {
-    request: async <T = unknown>(reqOpts: RequestOptions): Promise<TransportResponse<T>> => {
+  const adapter = {
+    send: async <T = unknown>(reqOpts: Readonly<RequestOptions>) => {
       const res = opts.request
-        ? await opts.request(reqOpts)
+        ? await opts.request(reqOpts as RequestOptions)
         : { status: 200, data: undefined, headers: {} };
-      // T 是名义类型,mock 实现统一返回 unknown;运行时值由调用方断言
-      return res as TransportResponse<T>;
+      return {
+        kind: "response" as const,
+        response: res as TransportResponse<T>,
+      };
     },
-    get: (path, query) => transport.request({ method: "GET", path, query }),
-    post: (path, body) => transport.request({ method: "POST", path, body }),
-    put: (path, body) => transport.request({ method: "PUT", path, body }),
-    patch: (path, body) => transport.request({ method: "PATCH", path, body }),
-    delete: (path) => transport.request({ method: "DELETE", path }),
   };
 
   return createContext<State>({
     state: (opts.state ?? {}) as State,
-    transport,
+    adapter,
     log: opts.log ?? createSilentLog(),
     pipe: opts.pipe ?? createEmptyTestPipe(),
   });

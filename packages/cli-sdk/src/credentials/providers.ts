@@ -1,15 +1,15 @@
 /**
- * @renxqoo/agent-data-cli/credentials —— provider chain + 默认 4 个 provider
+ * @renxqoo/agent-data-cli/credentials —— provider chain + 默认 5 个 provider
  *
  * 设计依据:docs/05-credentials.md "provider chain"。
  * chain 按 priority 从小到大逐个调用,命中即停(返回非 null)。
- * 默认 4 个 provider:flag(1)/env(5)/file(10)/oauth(20)。
+ * 默认 5 个 provider:flag(1)/env api-key(5)/env bearer(6)/file(10)/oauth(20)。
  */
 
 import type { CredentialProvider, ProviderContext, TokenResult, IdentityHint } from "./types.js";
 
 // ============================================================================
-// 默认 provider:defaultProviders() 返回 4 个,供业务包自写的 auth Plugin 用
+// 默认 provider:defaultProviders() 返回 5 个,供业务包自写的 auth Plugin 用
 // ============================================================================
 
 /**
@@ -76,15 +76,11 @@ export function fileProvider(): CredentialProvider {
       }
       // 也支持直接 token 字段(bearer 场景但非 OAuth 流程,如手工注入的 JWT)
       const token = creds.token;
-      // OAuth 凭证(有 refreshToken 或 authMethod 是已知 OAuth 流程)交给 oauthProvider，
-      // 避免在这里提前命中后丢失 refresh/expires 元数据。
+      // 带 OAuth 元数据的凭证只交给 oauthProvider，避免丢失 refresh/expires 元数据；
+      // 非法 authMethod 也不能降级成普通 bearer。
       // 无 authMethod 且无 refreshToken = 原始 bearer 注入(不是 OAuth),fileProvider 直接返回。
-      const oauthMethods = new Set(["oauth", "device", "authorization_code", "client_credentials"]);
-      const hasRefreshToken = typeof creds.refreshToken === "string" && creds.refreshToken;
-      const isOAuthFlow =
-        hasRefreshToken ||
-        (typeof creds.authMethod === "string" && oauthMethods.has(creds.authMethod));
-      if (!isOAuthFlow && typeof token === "string" && token) {
+      const hasOAuthMetadata = creds.authMethod !== undefined || creds.refreshToken !== undefined;
+      if (!hasOAuthMetadata && typeof token === "string" && token) {
         return {
           token,
           type: "bearer",
@@ -99,7 +95,7 @@ export function fileProvider(): CredentialProvider {
 
 /**
  * oauthProvider(priority 20):从 <namespace>.json 的 OAuth token(含 refresh)取。
- * OAuth 流程(rxcli 中间层)。token 过期时由 auth Plugin 的公开 onUnauthorized hook 触发 refresh。
+ * OAuth 流程(rxcli 中间层)。token 过期时由 auth Plugin 的公开 handleUnauthorized hook 触发 refresh。
  *
  * 注意:oauthProvider 只负责"取已有 token";refresh 逻辑在 oauth.ts 的 singleflight。
  */
@@ -110,6 +106,7 @@ export function oauthProvider(): CredentialProvider {
     async resolveToken(pctx: ProviderContext): Promise<TokenResult | null> {
       const creds = await pctx.configStore.loadCredentials(pctx.namespace);
       if (!creds) return null;
+      if (!isFlowType(creds.authMethod)) return null;
       const token = creds.token;
       const refreshToken = creds.refreshToken;
       if (typeof token !== "string" || !token) return null;
@@ -129,7 +126,9 @@ export function oauthProvider(): CredentialProvider {
     },
     async resolveIdentity(pctx: ProviderContext): Promise<IdentityHint | null> {
       const creds = await pctx.configStore.loadCredentials(pctx.namespace);
-      if (!creds || !creds.user || typeof creds.user !== "object") return null;
+      if (!creds) return null;
+      if (creds.authMethod === "client_credentials") return { identity: "bot" };
+      if (!creds.user || typeof creds.user !== "object") return null;
       const u = creds.user as { userId?: string; name?: string };
       return {
         identity: "user",
@@ -166,6 +165,12 @@ export function envBearerProvider(): CredentialProvider {
 /** 默认 provider chain,按 priority 升序。 */
 export function defaultProviders(): CredentialProvider[] {
   return [flagProvider(), envProvider(), envBearerProvider(), fileProvider(), oauthProvider()];
+}
+
+function isFlowType(
+  value: unknown,
+): value is "device" | "authorization_code" | "client_credentials" {
+  return value === "device" || value === "authorization_code" || value === "client_credentials";
 }
 
 // ============================================================================

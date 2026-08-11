@@ -8,19 +8,19 @@
  *   - targets.ts:定义"同步到哪"(默认 7 个工具目录 + 可覆盖)
  *   - sync.ts:定义"怎么同步"(本文件)—— 全量同步到单个目录的 syncOne + 遍历多 target 的 syncSkills
  *
- * 全量策略:先删旧再拷新(skill 数量小,简单可靠)。
+ * 全量策略:临时目录复制 + 目录交换 + 失败回滚，不让目标暴露半成品。
  * 多 target 容错:逐个 target 独立同步,单个失败(权限/磁盘)不中断其余,最后汇总。
  */
 
-import { homedir } from "node:os";
-import { join, resolve } from "node:path";
-import { createHash } from "node:crypto";
+import { basename, dirname, join, resolve } from "node:path";
+import { createHash, randomUUID } from "node:crypto";
 import {
   cpSync,
   existsSync,
   mkdirSync,
   readFileSync,
   readdirSync,
+  renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -49,8 +49,105 @@ export interface SyncResult {
   count: number;
   /** 每个 target 的同步结果(成功/失败 + 错误)。 */
   targets: SyncTargetResult[];
-  /** 第一个成功 target 的目录(保持返回形状兼容旧消费者/测试)。 */
-  destDir: string;
+}
+
+export interface SyncSkillsOptions {
+  targets?: SkillTarget[];
+  /** 对 targets 也走探测(只写父目录已存在的);默认 false(targets 强制全写)。 */
+  detect?: boolean;
+}
+
+/**
+ * 原子地把 src 目录替换到 dest:先拷到 dest 同级的临时目录,成功后 rename 覆盖 dest,
+ * 任何拷贝中途失败都保留 dest 原样(修复 BUG-1:删除即拷贝导致拷贝失败丢数据)。
+ *
+ * src 不存在时视为"应清理 dest":删除 dest 后返回(findOtherOwner 恢复失败时,dest 不应残留半截)。
+ */
+export interface DirectoryTransactionOperations {
+  exists(path: string): boolean;
+  mkdir(path: string): void;
+  copy(source: string, destination: string): void;
+  list(path: string): string[];
+  rename(source: string, destination: string): void;
+  remove(path: string): void;
+  id(): string;
+}
+
+const NODE_DIRECTORY_OPERATIONS: DirectoryTransactionOperations = {
+  exists: existsSync,
+  mkdir: (path) => mkdirSync(path, { recursive: true }),
+  copy: (source, destination) => cpSync(source, destination, { recursive: true }),
+  list: readdirSync,
+  rename: renameSync,
+  remove: (path) => rmSync(path, { recursive: true, force: true }),
+  id: randomUUID,
+};
+
+/** Crash-recoverable directory swap. A failed activation restores the previous destination. */
+export function replaceDirectoryTransaction(
+  src: string,
+  dest: string,
+  operations: DirectoryTransactionOperations = NODE_DIRECTORY_OPERATIONS,
+): void {
+  if (!operations.exists(src)) {
+    removeDirectoryTransaction(dest, operations);
+    return;
+  }
+
+  const parent = dirname(dest);
+  operations.mkdir(parent);
+  recoverInterruptedSwap(dest, operations);
+  const transaction = operations.id();
+  const temp = join(parent, `.${basename(dest)}.${transaction}.tmp`);
+  const backup = join(parent, `.${basename(dest)}.${transaction}.backup`);
+  let movedPrevious = false;
+  try {
+    operations.copy(src, temp);
+    if (operations.exists(dest)) {
+      operations.rename(dest, backup);
+      movedPrevious = true;
+    }
+    try {
+      operations.rename(temp, dest);
+    } catch (error) {
+      if (movedPrevious && operations.exists(backup) && !operations.exists(dest)) {
+        operations.rename(backup, dest);
+      }
+      throw error;
+    }
+    if (movedPrevious) operations.remove(backup);
+  } finally {
+    operations.remove(temp);
+  }
+}
+
+function removeDirectoryTransaction(
+  dest: string,
+  operations: DirectoryTransactionOperations = NODE_DIRECTORY_OPERATIONS,
+): void {
+  recoverInterruptedSwap(dest, operations);
+  if (!operations.exists(dest)) return;
+  const backup = join(dirname(dest), `.${basename(dest)}.${operations.id()}.backup`);
+  operations.rename(dest, backup);
+  operations.remove(backup);
+}
+
+function recoverInterruptedSwap(
+  dest: string,
+  operations: DirectoryTransactionOperations = NODE_DIRECTORY_OPERATIONS,
+): void {
+  const parent = dirname(dest);
+  if (!operations.exists(parent)) return;
+  const prefix = `.${basename(dest)}.`;
+  const backups = operations
+    .list(parent)
+    .filter((name) => name.startsWith(prefix) && name.endsWith(".backup"))
+    .sort();
+  for (const name of backups) {
+    const backup = join(parent, name);
+    if (!operations.exists(dest)) operations.rename(backup, dest);
+    else operations.remove(backup);
+  }
 }
 
 /**
@@ -61,6 +158,10 @@ export interface SyncResult {
  */
 function syncOne(skillsRoot: string, destDir: string): void {
   mkdirSync(destDir, { recursive: true });
+  withSyncLock(destDir, () => syncOneLocked(skillsRoot, destDir));
+}
+
+function syncOneLocked(skillsRoot: string, destDir: string): void {
   const skills = listSkills(skillsRoot);
   const sourceNames = new Set(skills.map((s) => s.name));
 
@@ -70,6 +171,7 @@ function syncOne(skillsRoot: string, destDir: string): void {
   mkdirSync(manifestsDir, { recursive: true });
   const sourceId = createHash("sha256").update(resolve(skillsRoot)).digest("hex");
   const manifestPath = join(manifestsDir, `${sourceId}.json`);
+  recoverFileTransaction(manifestPath);
   let previousNames: string[] = [];
   if (existsSync(manifestPath)) {
     try {
@@ -109,66 +211,108 @@ function syncOne(skillsRoot: string, destDir: string): void {
     if (!sourceNames.has(previous)) {
       const target = join(destDir, previous);
       const otherSource = findOtherOwner(previous);
-      rmSync(target, { recursive: true, force: true });
-      if (otherSource) cpSync(join(otherSource, previous), target, { recursive: true });
+      if (otherSource) {
+        // 原子替换:另一 owner 源拷贝失败时,保留 dest 原内容(BUG-1)。
+        replaceDirectoryTransaction(join(otherSource, previous), target);
+      } else {
+        // 无其它 owner:明确清理 dest(源端已删,该 skill 应被移除)。
+        removeDirectoryTransaction(target);
+      }
     }
   }
 
   for (const s of skills) {
     const target = join(destDir, s.name);
-    if (existsSync(target)) rmSync(target, { recursive: true, force: true });
-    cpSync(join(skillsRoot, s.name), target, { recursive: true });
+    // 原子替换:拷贝失败时 dest 保留旧版本(BUG-1)。
+    replaceDirectoryTransaction(join(skillsRoot, s.name), target);
   }
-  writeFileSync(
+  writeFileTransaction(
     manifestPath,
     JSON.stringify({ source: resolve(skillsRoot), skills: [...sourceNames].sort() }, null, 2) +
       "\n",
   );
 }
 
+function withSyncLock<T>(destDir: string, operation: () => T): T {
+  const lockDir = join(destDir, ".rxcli-sync.lock");
+  try {
+    mkdirSync(lockDir);
+  } catch (error) {
+    const code = error instanceof Error && "code" in error ? String(error.code) : "";
+    if (code === "EEXIST") throw new Error(`skill sync already in progress for ${destDir}`);
+    throw error;
+  }
+  try {
+    writeFileSync(
+      join(lockDir, "owner.json"),
+      JSON.stringify({ pid: process.pid, startedAt: Date.now() }),
+    );
+    return operation();
+  } finally {
+    rmSync(lockDir, { recursive: true, force: true });
+  }
+}
+
+function writeFileTransaction(path: string, content: string): void {
+  const transaction = randomUUID();
+  const temp = `${path}.${transaction}.tmp`;
+  const backup = `${path}.${transaction}.backup`;
+  let movedPrevious = false;
+  try {
+    writeFileSync(temp, content);
+    if (existsSync(path)) {
+      renameSync(path, backup);
+      movedPrevious = true;
+    }
+    try {
+      renameSync(temp, path);
+    } catch (error) {
+      if (movedPrevious && existsSync(backup) && !existsSync(path)) renameSync(backup, path);
+      throw error;
+    }
+    if (movedPrevious) rmSync(backup, { force: true });
+  } finally {
+    rmSync(temp, { force: true });
+  }
+}
+
+function recoverFileTransaction(path: string): void {
+  const parent = dirname(path);
+  const prefix = `${basename(path)}.`;
+  const backups = readdirSync(parent)
+    .filter((name) => name.startsWith(prefix) && name.endsWith(".backup"))
+    .sort();
+  for (const name of backups) {
+    const backup = join(parent, name);
+    if (!existsSync(path)) renameSync(backup, path);
+    else rmSync(backup, { force: true });
+  }
+}
+
 /**
  * 把 skillsRoot 下所有 skill 同步到一个或多个 AI agent 工具发现目录。
  *
  * @param skillsRoot 业务包的 skills 目录
- * @param optionsOrDestDir
+ * @param options
  *   - **省略** → 探测模式:~/.agents 始终写 + 探测到的已装工具(父目录存在)。
  *     避免给只装 1-2 个工具的用户创建一堆空目录。
- *   - **string**(兼容旧 API)→ 只同步到这一个目录(老测试 `syncSkills(root, tmpDest)` 继续工作)
  *   - **{ targets }** → 同步到指定 target 列表(**强制全写,不探测**;业务包显式指定 = 强制)
  *   - **{ targets, detect: true }** → 对指定列表也走探测(只写已装的)
- *   - **{ destDir }** → 只同步到这一个目录(等价于传 string)
  *
  * 多 target 容错:逐个 target 独立 try/catch,单个失败不中断其余,最后汇总返回。
  * 探测模式:未安装的工具记 `skipped: true`(不创建目录、不算失败)。
  */
-export function syncSkills(
-  skillsRoot: string,
-  optionsOrDestDir?:
-    | string
-    | {
-        targets?: SkillTarget[];
-        destDir?: string;
-        /** 对 targets 也走探测(只写父目录已存在的);默认 false(targets 强制全写)。 */
-        detect?: boolean;
-      },
-): SyncResult {
+export function syncSkills(skillsRoot: string, options?: SyncSkillsOptions): SyncResult {
   // 解析 candidates(候选 target 列表)+ 是否探测。
   let candidates: SkillTarget[];
   let detect = false;
-  if (optionsOrDestDir === undefined) {
+  if (options === undefined) {
     // 默认:探测模式(~/.agents 始终写 + 已装的)
     candidates = resolveSkillTargets();
     detect = true;
-  } else if (typeof optionsOrDestDir === "string") {
-    // 兼容旧 API:第二参数是字符串 → 只同步到这一个目录。
-    candidates = [{ key: "custom", dir: optionsOrDestDir }];
   } else {
-    if (optionsOrDestDir.destDir) {
-      candidates = [{ key: "custom", dir: optionsOrDestDir.destDir }];
-    } else {
-      candidates = resolveSkillTargets(optionsOrDestDir.targets);
-      detect = optionsOrDestDir.detect ?? false;
-    }
+    candidates = resolveSkillTargets(options.targets);
+    detect = options.detect ?? false;
   }
 
   // 探测模式:resolveActiveTargets 保证 ~/.agents 始终在 + 其余只留已装的。
@@ -180,14 +324,12 @@ export function syncSkills(
 
   const count = listSkills(skillsRoot).length;
   const results: SyncTargetResult[] = [];
-  let firstOkDir = "";
 
   for (const t of activeTargets) {
     const expanded = expandTargetDir(t.dir);
     try {
       syncOne(skillsRoot, expanded);
       results.push({ key: t.key, dir: expanded, ok: true });
-      if (!firstOkDir) firstOkDir = expanded;
     } catch (err) {
       // 单个 target 失败(权限/磁盘/路径非法)不中断其余 target。
       results.push({
@@ -205,10 +347,5 @@ export function syncSkills(
     }
   }
 
-  // 兼容:全部失败时 destDir 回退到默认 agents 路径(保持返回非空,不破坏形状)。
-  return {
-    count,
-    targets: results,
-    destDir: firstOkDir || join(homedir(), ".agents", "skills"),
-  };
+  return { count, targets: results };
 }

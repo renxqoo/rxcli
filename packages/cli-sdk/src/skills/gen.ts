@@ -11,8 +11,11 @@
  *   - 策略 B(骨架):首次吐整份 SKILL.md(带 {{FILL}} 占位),后续只刷标记块 → gen <name> --init
  */
 
-import { signatureOfArgs } from "../args.js";
-import type { CommandSpec, DefineCliOptions, ArgsSpec, ArgSpec } from "../types.js";
+import { compileCommandSchema, type ArgumentDescriptor } from "../command-schema.js";
+import type { CommandSpec, DefineCliOptions, ArgsSpec } from "../types.js";
+import { stringify as stringifyYaml } from "yaml";
+import { InternalError } from "../errs/index.js";
+import { validateSkillName } from "./path-guard.js";
 
 // ============================================================================
 // i18n:生成内容的中英文文案表
@@ -127,7 +130,7 @@ export function flattenCommands(
 
 /** 生成单个命令的签名行(如 `rxcli-orders list [--limit <number>] [--status <string>]`)。 */
 export function signatureLine(binName: string, cmd: FlatCommand): string {
-  const sig = signatureOfArgs(cmd.spec.args);
+  const sig = compileCommandSchema(cmd.spec.name, cmd.spec.args).signature;
   const pos = sig.positionals.join(" ");
   const opts = sig.options.join(" ");
   return [`${binName} ${cmd.path}`, pos, opts].filter(Boolean).join(" ").trim();
@@ -137,26 +140,35 @@ export function signatureLine(binName: string, cmd: FlatCommand): string {
 export function argsTable(argsSpec: ArgsSpec | undefined, lang: GenLang = "en"): string {
   if (!argsSpec) return "";
   const t = GEN_STRINGS[lang];
-  const rows = Object.entries(argsSpec).map(([name, spec]) => {
-    return `| ${argFlag(name, spec)} | ${spec.type} | ${spec.required ? t.requiredYes : t.requiredNo} | ${formatDefault(spec.default)} | ${spec.desc ?? "—"} |`;
+  const rows = compileCommandSchema("skill-doc", argsSpec).descriptors.map((argument) => {
+    return `| ${escapeCell(argumentTableLabel(argument))} | ${argument.type} | ${argument.required ? t.requiredYes : t.requiredNo} | ${escapeCell(formatDefault(argument.defaultValue))} | ${escapeCell(argument.description ?? "—")} |`;
   });
   if (rows.length === 0) return "";
   return [t.argTableHeader, "|------|------|:----:|------|------|", ...rows].join("\n");
 }
 
 /** 参数在签名里的展示形态(对齐 args.ts 的 signatureOfArgs,但表格用 flag 名)。 */
-function argFlag(name: string, spec: ArgSpec): string {
-  if (spec.positional) {
-    return spec.required ? `<${name}>` : `[<${name}>]`;
+function argumentTableLabel(argument: ArgumentDescriptor): string {
+  if (argument.positional) {
+    return argument.required ? `<${argument.name}>` : `[<${argument.name}>]`;
   }
-  if (spec.type === "boolean") return `--${name}`;
-  return `--${name} <${spec.type}>`;
+  if (argument.type === "boolean") return `--${argument.name}`;
+  return `--${argument.name} <${argument.type}>`;
 }
 
 function formatDefault(def: unknown): string {
   if (def === undefined) return "—";
   if (typeof def === "string") return def;
   return String(def);
+}
+
+/**
+ * 转义 markdown 表格单元格:| → \|、换行 → 空格(BUG-13)。
+ * 避免含 | 或 \n 的 default/desc 把表格撑出多列或多行。
+ */
+function escapeCell(value: unknown): string {
+  const s = value === undefined || value === null ? "—" : String(value);
+  return s.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 }
 
 // ============================================================================
@@ -202,8 +214,8 @@ export function generateAutogenBlock(
   lines.push(t.commandsHeader);
   lines.push("|------|------|");
   for (const cmd of cmds) {
-    const desc = cmd.spec.description ?? "";
-    const sig = signatureLine(binName, cmd);
+    const desc = escapeCell(cmd.spec.description ?? "");
+    const sig = escapeCell(signatureLine(binName, cmd)).replace(/`/g, "\\`");
     lines.push(`| ${desc} | \`${sig}\` |`);
   }
 
@@ -229,6 +241,7 @@ export function refreshAutogen(
   lang: GenLang = "en",
   scope?: string[],
 ): string {
+  assertAutogenMarkers(existing);
   const t = GEN_STRINGS[lang];
   const block = generateAutogenBlock(binName, options, lang, scope);
   const fullBlock = `${AUTOGEN_START}\n${t.autogenComment}\n${block}\n${AUTOGEN_END}`;
@@ -259,15 +272,16 @@ export function generateSkillSkeleton(
   lang: GenLang = "en",
   scope?: string[],
 ): string {
+  validateSkillName(skillName);
   const t = GEN_STRINGS[lang];
   const block = generateAutogenBlock(binName, options, lang, scope);
+  const frontmatter = stringifyYaml({
+    name: skillName,
+    description: description || t.skeletonFillDesc,
+    metadata: { requires: { bins: [binName] }, category: "business" },
+  }).trimEnd();
   return `---
-name: ${skillName}
-description: ${description || t.skeletonFillDesc}
-metadata:
-  requires:
-    bins: ["${binName}"]
-  category: business
+${frontmatter}
 ---
 
 # ${skillName}
@@ -304,4 +318,20 @@ ${t.errorHeader}
 
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function assertAutogenMarkers(content: string): void {
+  const starts = content.split(AUTOGEN_START).length - 1;
+  const ends = content.split(AUTOGEN_END).length - 1;
+  const startIndex = content.indexOf(AUTOGEN_START);
+  const endIndex = content.indexOf(AUTOGEN_END);
+  const valid =
+    (starts === 0 && ends === 0) ||
+    (starts === 1 && ends === 1 && startIndex >= 0 && endIndex > startIndex);
+  if (!valid) {
+    throw new InternalError({
+      subtype: "contract_violation",
+      message: "SKILL.md AUTO-GEN markers are missing, duplicated, or out of order",
+    });
+  }
 }

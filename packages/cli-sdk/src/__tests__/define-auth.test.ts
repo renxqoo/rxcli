@@ -39,13 +39,13 @@ describe("defineAuth: 工厂形态", () => {
     expect(plugin.provides?.namespaces?.auth).toBeUndefined();
   });
 
-  it("plugin 通过公开 onUnauthorized hook 提供 401 恢复", async () => {
+  it("plugin 通过显式 handleUnauthorized hook 提供 401 恢复", async () => {
     const plugin = await defineAuth({
       credentialNamespace: "crm",
       baseUrl: "http://test",
       store: memoryStore(),
     });
-    expect(plugin.onUnauthorized).toBeTypeOf("function");
+    expect(plugin.handleUnauthorized).toBeTypeOf("function");
   });
 });
 
@@ -64,7 +64,7 @@ describe("S3: register 凭据回读(config.json → oauth.clientId)", () => {
       store,
     });
     // 工厂成功完成配置解析，并公开标准的未授权恢复 hook。
-    expect(plugin.onUnauthorized).toBeDefined();
+    expect(plugin.handleUnauthorized).toBeDefined();
   });
 
   it("显式传 clientId/clientSecret 优先(不被 config.json 覆盖)", async () => {

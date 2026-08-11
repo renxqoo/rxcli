@@ -7,6 +7,8 @@
  *   - provider 实现:configStore.loadCredentials/saveCredentials/...(直读文件)
  */
 
+import type { FlowType } from "../flows/types.js";
+
 // ============================================================================
 // 凭证存储(ConfigStore:provider 实现者用,直读磁盘)
 // ============================================================================
@@ -95,5 +97,5 @@ export interface StoredOAuthCredentials {
   scopes: string[];
   user?: { userId: string; name: string };
   storedAt: number;
-  authMethod: string; // "device" | "authorization_code" | "client_credentials"(开放,向后兼容 "oauth")
+  authMethod: FlowType;
 }

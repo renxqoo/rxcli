@@ -35,13 +35,9 @@ async function readAll(stream: StdinLike): Promise<string> {
 }
 
 /**
- * 创建管道读取器。namespace 仅用于兼容没有 source 的旧统一输出格式。
- * 新统一输出格式以顶层 source 作为 PipeRecord.type；显式 PipeRecord 则保留自身 type。
+ * 创建管道读取器。正式 envelope 必须携带顶层 source；显式 PipeRecord 保留自身 type。
  */
-export function createPipeReader(
-  stdin: StdinLike = process.stdin as StdinLike,
-  fallbackNamespace = "unknown",
-): PipeApi {
+export function createPipeReader(stdin: StdinLike = process.stdin as StdinLike): PipeApi {
   let cached: Promise<PipeRecord[]> | undefined;
 
   const load = async (): Promise<PipeRecord[]> => {
@@ -80,8 +76,20 @@ export function createPipeReader(
           message: "Pipe input is missing success fields",
         });
       }
+      if (typeof env.source !== "string" || !env.source) {
+        throw new InternalError({
+          subtype: "decode_failure",
+          message: "Pipe input is missing source",
+        });
+      }
       const data = env.data;
-      const source = typeof env.source === "string" && env.source ? env.source : fallbackNamespace;
+      if (data !== null && !Array.isArray(data) && typeof data !== "object") {
+        throw new InternalError({
+          subtype: "contract_violation",
+          message: "Pipe input data must be object, array, or null",
+        });
+      }
+      const source = env.source;
       const records: PipeRecord[] = [];
 
       if (Array.isArray(data)) {
@@ -109,7 +117,7 @@ export function createPipeReader(
   };
 }
 
-function toPipeRecord(item: unknown, fallbackNamespace: string): PipeRecord {
+function toPipeRecord(item: unknown, source: string): PipeRecord {
   if (
     item &&
     typeof item === "object" &&
@@ -120,7 +128,7 @@ function toPipeRecord(item: unknown, fallbackNamespace: string): PipeRecord {
   }
   const obj = (item ?? {}) as Record<string, unknown>;
   return {
-    type: fallbackNamespace,
+    type: source,
     ...(obj.id !== undefined ? { id: String(obj.id) } : {}),
     data: item,
   };

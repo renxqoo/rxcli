@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { serializeSuccess, serializeError } from "../envelope.js";
+import {
+  serializeSuccess as serializeSuccessEnvelope,
+  serializeError,
+  type SerializeSuccessOptions,
+} from "../envelope.js";
+import type { Meta } from "../types.js";
 import {
   ValidationError,
   NotFoundError,
@@ -8,6 +13,14 @@ import {
   InternalError,
   exitCodeOf,
 } from "../errs/index.js";
+
+function serializeSuccess(
+  data: unknown,
+  meta?: Meta,
+  options: Omit<SerializeSuccessOptions, "source"> = {},
+): string {
+  return serializeSuccessEnvelope(data, meta, { source: "test", ...options });
+}
 
 describe("envelope: 成功输出序列化", () => {
   it("基础结构 {ok, data, meta}", () => {
@@ -86,13 +99,12 @@ describe("envelope: 成功输出序列化", () => {
     expect(env.meta.nested).toEqual({ a: 1 });
   });
 
-  it("H2: 下划线前缀的内部标记字段(_rawOutput 等)仍不进 wire", () => {
-    // pipeline 的 stripInternalMeta 已经处理了,但 transformMeta 也不该把它们带进 wire
+  it("下划线前缀也是普通业务 meta，不承载运行时能力", () => {
     const out = serializeSuccess([1], { count: 1, _internal: "secret", _rawOutput: true });
     const env = JSON.parse(out);
     expect(env.meta.count).toBe(1);
-    expect(env.meta._internal).toBeUndefined();
-    expect(env.meta._rawOutput).toBeUndefined();
+    expect(env.meta._internal).toBe("secret");
+    expect(env.meta._rawOutput).toBe(true);
   });
 });
 

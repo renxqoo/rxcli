@@ -13,7 +13,7 @@
  * 本读取器负责扫描、列举、读取,带路径穿越校验(cleanSubPath)。
  */
 
-import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, lstatSync, statSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { NotFoundError, InternalError } from "../errs/index.js";
@@ -41,14 +41,26 @@ export interface DirEntry {
 // skill 列举 / 读取(skillsRoot 由调用方传入)
 // ============================================================================
 
-/** 列出所有 skill(扫描有 SKILL.md 的子目录),按 name 排序。 */
+/**
+ * 列出所有 skill(扫描有 SKILL.md 的子目录),按 name 排序。
+ *
+ * BUG-3:用 lstatSync(不跟随符号链接)+ 单条 try/catch,跳过 broken symlink /
+ * 不可读 / 损坏条目,而非让一个坏条目整列崩溃。lstatSync 对 broken symlink 返回
+ * stats(不抛 ENOENT),其 isDirectory() 为 false → 跳过。
+ */
 export function listSkills(skillsRoot: string): SkillInfo[] {
   if (!existsSync(skillsRoot)) return [];
   const entries = readdirSync(skillsRoot);
   const out: SkillInfo[] = [];
   for (const e of entries) {
     const full = join(skillsRoot, e);
-    if (!statSync(full).isDirectory()) continue;
+    let stat;
+    try {
+      stat = lstatSync(full);
+    } catch {
+      continue; // 不可读条目:跳过,不影响其它 skill 的发现
+    }
+    if (!stat.isDirectory()) continue; // 普通文件 / 符号链接(含 broken)跳过
     assertExistingPathInside(skillsRoot, full, `skill "${e}"`);
     const skillMd = join(full, "SKILL.md");
     if (!existsSync(skillMd)) continue;

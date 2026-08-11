@@ -1,33 +1,38 @@
 import { describe, expect, it, vi } from "vitest";
 import { createContext } from "../context.js";
-import type { Plugin, TransportResponse } from "../types.js";
+import type { HttpAdapter, Plugin } from "../types.js";
 
 function brokenObserver(): Plugin {
   return {
     name: "broken-observer",
-    async afterRequest() {
+    async observeRequest() {
       throw new Error("observer crashed");
     },
   };
 }
 
 describe("request observer isolation", () => {
-  it("does not mask the original transport error", async () => {
+  it("awaits and isolates observers while preserving a classified network failure", async () => {
     const original = new Error("request failed");
     const warn = vi.fn();
+    const adapter: HttpAdapter = {
+      async send() {
+        return { kind: "network-error", error: original };
+      },
+    };
     const ctx = createContext({
       state: {},
       plugins: [brokenObserver()],
       log: { info: vi.fn(), warn, error: vi.fn() },
-      transport: {
-        async request(): Promise<TransportResponse> {
-          throw original;
-        },
-      },
+      adapter,
     });
 
-    await expect(ctx.get("/orders")).rejects.toBe(original);
-    expect(warn).toHaveBeenCalledWith("afterRequest hook failed: observer crashed");
+    await expect(ctx.get("/orders")).rejects.toMatchObject({
+      category: "network",
+      subtype: "connection_refused",
+      cause: original,
+    });
+    expect(warn).toHaveBeenCalledWith("observeRequest hook failed: observer crashed");
   });
 
   it("does not turn a successful request into a failure", async () => {
@@ -35,9 +40,12 @@ describe("request observer isolation", () => {
       state: {},
       plugins: [brokenObserver()],
       log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-      transport: {
-        async request<T>(): Promise<TransportResponse<T>> {
-          return { status: 200, data: { ok: true } as T, headers: {} };
+      adapter: {
+        async send<T>() {
+          return {
+            kind: "response" as const,
+            response: { status: 200, data: { ok: true } as T, headers: {} },
+          };
         },
       },
     });

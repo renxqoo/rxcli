@@ -15,6 +15,30 @@
 ### Fixed
 
 - CRM 订单分页帮助、双语 README 和 Skill 统一使用实际 JSON wire 字段 `meta.pagination.next_token`，并同步 mock 订单金额示例。
+- `cli-sdk` 深度 review 修复 14 个 bug(TDD):
+  - `skills sync` 改用原子替换(拷到临时目录再 rename),拷贝中途失败不再丢失目标目录已有数据。
+  - `skills gen --init` 对已存在的 `SKILL.md` 默认拒绝覆盖,需显式 `--force`(保护手写语义内容)。
+  - `listSkills` 遇 broken symlink / 不可读条目改为 `lstatSync` + 单条 try/catch 跳过,不再整列崩溃。
+  - 401 续期失败 / 重试仍 401 / 凭证不可刷新 三处统一走 `errorOnStatus[401]` 配置优先的出口,不再硬编码 `AuthenticationError(token_expired)` 绕过用户配置。
+  - transport 新增 `onResponse` 回调,context 经它驱动 `afterRequest` 审计 —— 修复初次 401 响应不触发审计钩子的盲区。
+  - 网络层失败时合成的 `{status:0}` 响应附带真实 `error` 对象,审计插件可诊断根因。
+  - `runOnError` 观察者插件抛错时记 `ctx.log.warn`,不再静默吞掉(对齐 `afterRequest` 处理风格)。
+  - `--no-<typo>`(拼错的 boolean)不再吞下一个 token 作值,改为抛 `unknown_flag` 提示可能拼写错误。
+  - `errorOnStatus` 具体码(如 503)永远优先于通配(如 `5xx`),与对象键声明序/键形态无关(两遍扫描,不依赖 JS 引擎排序)。
+  - `beforeOutput` 链中任一插件(含中间插件)返回 `undefined` 立即抛 `contract_violation`,不再静默串行。
+  - `client_credentials` 的 `flow.refresh` 路径补 singleflight,并发 401 只换一次 token(与默认 `refresh_token` 路径行为对齐)。
+  - `argsTable` 的 default/desc/flag 转义 `|` 与换行,不再撑破生成的 markdown 表格。
+  - `BareError` 自带 `category`/`subtype` 只读字段,类型自洽,`toCliError`/`serializeError` 不再产出 `type:undefined`。
+  - 补充 `qrcode` 命令契约、`pipe` `data:null` envelope、`callback-server` 超时路径的测试覆盖。
+
+### Changed
+
+- `cli-sdk` 模块化重构(行为不变,内部重组):
+  - 从 `define.ts` 抽出 `package-detect.ts`(业务包 name/bin/version 探测)与 `help.ts`(help 文本渲染),`define.ts` 从 568 行降到约 360 行。
+  - 新增 `meta.ts` 统一 meta 下划线内部标记剥离规则(`stripInternalKeys`),`pipeline` 与 `envelope` 共用单一真相源。
+  - `_identity` ctx 隐藏通道从下划线字符串改为 `identityKey` Symbol(与 `credentialArgsKey` 一致),消除 `as unknown as` 类型撒谎。
+  - `context.ts` 复用 `pipe.ts` 的 `emptyPipe`,删除重复实现。
+  - `helpers.ts` 抽 `persistRefreshedToken`,两条 401 续期路径共用落盘逻辑。
 
 ## [@renxqoo/agent-data-cli@1.2.0] - 2026-08-10
 

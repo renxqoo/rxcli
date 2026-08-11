@@ -41,6 +41,7 @@ const auth = await defineAuth<CrmState>({
 
 const app = defineCli<CrmState>({
   name: "crm",
+  createState: () => ({ user: null }),
   description: "通过鉴权中间层访问公司应用(订单/商品/发票/账号)",
   plugins: [auth],
   // 顶层命令:无(全部走 namespace)

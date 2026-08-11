@@ -13,14 +13,18 @@ import { CliError } from "./errs/index.js";
 
 export type Identity = "user" | "bot";
 
-export interface SerializeOptions {
-  identity?: Identity;
+export interface SerializeSuccessOptions {
   /** 来源业务 namespace；pipe reader 用它构造稳定的 PipeRecord.type。 */
-  source?: string;
+  source: string;
+  identity?: Identity;
   /** D4: dry-run 模式标记(03-envelopes.md)。出现时为 true,正常请求省略。 */
   dryRun?: boolean;
   /** D4: 系统级提示(版本更新/skill 漂移)。下划线前缀表示非业务字段。 */
   notice?: Record<string, unknown>;
+}
+
+export interface SerializeErrorOptions {
+  identity?: Identity;
 }
 
 // ============================================================================
@@ -30,8 +34,7 @@ export interface SerializeOptions {
 /**
  * 转换 meta 对象:骨架层 camelCase→snake_case。
  * 骨架字段(count/pagination/rollback)显式处理 + snake 转换;
- * 其余非下划线前缀字段是业务自定义 meta(Meta 类型 [key:string]:unknown 允许),原样透传,
- * 不被白名单丢弃(H2)。下划线前缀字段(_rawOutput 等内部标记)不进 wire。
+ * 其余字段是业务自定义 meta(Meta 类型 [key:string]:unknown 允许),原样透传。
  */
 function transformMeta(meta: Meta): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -45,9 +48,8 @@ function transformMeta(meta: Meta): Record<string, unknown> {
     if (p.nextToken !== undefined) pg.next_token = p.nextToken; // ← 骨架转 snake
     out.pagination = pg;
   }
-  // H2:其余业务 meta 字段原样透传(跳过已处理的骨架字段 + 下划线前缀内部字段)
+  // 其余业务 meta 字段原样透传；运行时能力不再借用 meta key 表达。
   for (const [k, v] of Object.entries(meta)) {
-    if (k.startsWith("_")) continue; // 内部标记(_rawOutput 等)不进 wire
     if (k === "count" || k === "rollback" || k === "pagination") continue; // 骨架已处理
     out[k] = v;
   }
@@ -63,10 +65,14 @@ function transformMeta(meta: Meta): Record<string, unknown> {
  * 结构:{ ok:true, [identity], [source], data, meta, [dry_run], [_notice] }
  * data 原样输出(不转 case);meta 骨架转 snake。
  */
-export function serializeSuccess(data: unknown, meta?: Meta, opts: SerializeOptions = {}): string {
+export function serializeSuccess(
+  data: unknown,
+  meta: Meta | undefined,
+  opts: SerializeSuccessOptions,
+): string {
   const env: Record<string, unknown> = { ok: true };
   if (opts.identity) env.identity = opts.identity;
-  if (opts.source) env.source = opts.source;
+  env.source = opts.source;
   env.data = data;
   if (meta) env.meta = transformMeta(meta);
   // D4:dry_run 出现时为 true;_notice 是信息性字段(下划线前缀=非业务字段)
@@ -97,7 +103,7 @@ function transformErrorExtensions(err: CliError): Record<string, unknown> {
  * 序列化错误输出到紧凑 JSON 字符串(stderr)。
  * 结构:{ ok:false, [identity], error:{ type, subtype, [code], message, [hint], [retryable], [扩展...] } }
  */
-export function serializeError(err: CliError, opts: SerializeOptions = {}): string {
+export function serializeError(err: CliError, opts: SerializeErrorOptions = {}): string {
   const errorObj: Record<string, unknown> = {
     type: err.category,
     subtype: err.subtype,

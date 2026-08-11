@@ -1,306 +1,141 @@
 /**
- * @renxqoo/agent-data-cli —— 请求层(transport)
+ * 单次 HTTP adapter 与响应分类。
  *
- * 设计依据:docs/02-sdk-guide.md "ctx:请求与上下文"、docs/04-errors.md "何时 throw"。
- * 运行时中立:全局 fetch(Node 18+ / bun 原生)。
- *
- * 职责:
- *   - 拼 path/query/body → global fetch
- *   - errorOnStatus 匹配 status(404 / '5xx')→ 查 subtype 注册表 → 自动 throw 类型化错误
- *   - fetch reject(网络层)→ 包装 NetworkError(retryable)
- *   - 401 检测:on401 hook(阶段 2 接 oauth singleflight),无回调抛 AuthenticationError
- *
- * 请求方法(get/post/...)经过 plugin beforeRequest/afterRequest 包装(由 context.ts 调用本层)。
+ * adapter 只执行一次物理 I/O；它不知道 plugin、401 refresh、重试和 errorOnStatus。
+ * 这些生命周期规则统一由 context 内的 RequestExecutor 拥有。
  */
-
-import type { RequestOptions, TransportResponse, ErrorOnStatus } from "./types.js";
+import type {
+  AttemptOutcome,
+  ErrorOnStatus,
+  HttpAdapter,
+  RequestOptions,
+  TransportResponse,
+} from "./types.js";
 import {
   APIError,
-  NetworkError,
   AuthenticationError,
-  PermissionError,
-  ValidationError,
   ConfigError,
-  PolicyError,
-  InternalError,
   ConfirmationRequiredError,
+  InternalError,
+  NetworkError,
+  PermissionError,
+  PolicyError,
+  ValidationError,
   categoryOfSubtype,
   type Category,
 } from "./errs/index.js";
 
-// ============================================================================
-// errorOnStatus 匹配
-// ============================================================================
-
-/** 判断 status 是否匹配 errorOnStatus 的 key(支持 404 / '5xx' 形态)。 */
-function statusMatches(status: number, key: number | `${number}xx`): boolean {
-  if (typeof key === "number") return status === key;
-  const m = /^(\d)xx$/.exec(key);
-  if (!m) return false;
-  return Math.floor(status / 100) === Number(m[1]);
-}
-
-/** 找到第一个匹配 status 的 subtype(注册序遍历)。 */
-function matchErrorOnStatus(status: number, errorOnStatus?: ErrorOnStatus): string | undefined {
-  if (!errorOnStatus) return undefined;
-  for (const [key, subtype] of Object.entries(errorOnStatus)) {
-    const numKey = /^(\d)xx$/.test(key) ? (key as `${number}xx`) : Number(key);
-    if (statusMatches(status, numKey)) return subtype;
-  }
-  return undefined;
-}
-
-// ============================================================================
-// 单次请求(无 401 重试;401 由 transport 包装)
-// ============================================================================
-
-interface RequestOptionsInternal extends RequestOptions {
+export interface CreateFetchAdapterOptions {
   baseUrl?: string;
-}
-
-async function doFetch<T>(opts: RequestOptionsInternal): Promise<TransportResponse<T>> {
-  // 绝对 URL(http(s)://)直连,不拼 baseUrl;相对路径才拼
-  const base = /^https?:\/\//i.test(opts.path) ? "" : (opts.baseUrl ?? "");
-  const url = appendQuery(base + opts.path, opts.query);
-  const headers: Record<string, string> = { ...opts.headers };
-  let body: string | undefined;
-  if (opts.body !== undefined && opts.method !== "GET") {
-    headers["content-type"] = headers["content-type"] ?? "application/json";
-    body = typeof opts.body === "string" ? opts.body : JSON.stringify(opts.body);
-  }
-
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: opts.method,
-      headers,
-      body,
-      ...(opts.timeout !== undefined ? { signal: AbortSignal.timeout(opts.timeout) } : {}),
-    });
-  } catch (err) {
-    const isTimeout = err instanceof Error && err.name === "TimeoutError";
-    const msg = err instanceof Error ? err.message : String(err);
-    throw new NetworkError({
-      subtype: isTimeout ? "timeout" : "connection_refused",
-      message: isTimeout ? `Request timed out (${opts.timeout}ms)` : `Network error: ${msg}`,
-      retryable: true,
-      cause: err,
-    });
-  }
-
-  // 解析 body
-  let data: unknown;
-  const text = await res.text();
-  if (text) {
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = text; // 非 JSON 响应原样返回字符串
-    }
-  } else {
-    data = undefined;
-  }
-
-  const respHeaders: Record<string, string> = {};
-  res.headers.forEach((v, k) => {
-    respHeaders[k.toLowerCase()] = v;
-  });
-
-  return { status: res.status, data: data as T, headers: respHeaders };
-}
-
-/** 拼 query string(跳过 undefined/null 值)。 */
-function appendQuery(path: string, query?: Record<string, unknown>): string {
-  if (!query) return path;
-  const params = new URLSearchParams();
-  for (const [k, v] of Object.entries(query)) {
-    if (v === undefined || v === null) continue;
-    if (Array.isArray(v)) {
-      for (const item of v) params.append(k, String(item));
-    } else {
-      params.append(k, String(v));
-    }
-  }
-  const s = params.toString();
-  if (!s) return path;
-  const hashIndex = path.indexOf("#");
-  const base = hashIndex >= 0 ? path.slice(0, hashIndex) : path;
-  const hash = hashIndex >= 0 ? path.slice(hashIndex) : "";
-  const separator = base.includes("?")
-    ? base.endsWith("?") || base.endsWith("&")
-      ? ""
-      : "&"
-    : "?";
-  return `${base}${separator}${s}${hash}`;
-}
-
-function findHeaderKey(headers: Record<string, string>, name: string): string | undefined {
-  const target = name.toLowerCase();
-  return Object.keys(headers).find((key) => key.toLowerCase() === target);
-}
-
-function setHeader(headers: Record<string, string>, name: string, value: string): void {
-  const existing = findHeaderKey(headers, name);
-  if (existing) headers[existing] = value;
-  else headers[name.toLowerCase()] = value;
-}
-
-function mergeHeaders(
-  defaults?: Record<string, string>,
-  request?: Record<string, string>,
-): Record<string, string> {
-  const merged: Record<string, string> = {};
-  for (const [name, value] of Object.entries(defaults ?? {})) setHeader(merged, name, value);
-  for (const [name, value] of Object.entries(request ?? {})) setHeader(merged, name, value);
-  return merged;
-}
-
-function applyRefreshedToken(headers: Record<string, string>, token: string): void {
-  const apiKey = findHeaderKey(headers, "x-api-key");
-  if (apiKey) {
-    headers[apiKey] = token;
-    return;
-  }
-  const authorization = findHeaderKey(headers, "authorization");
-  const current = authorization ? headers[authorization] : undefined;
-  const scheme = current?.match(/^\s*(Basic|Bearer)\s/i)?.[1] ?? "Bearer";
-  setHeader(headers, "authorization", `${scheme} ${token}`);
-}
-
-// ============================================================================
-// Transport
-// ============================================================================
-
-/** string=刷新成功并重试；null=刷新失败；undefined=当前凭证不支持刷新。 */
-export type On401Hook = (req: RequestOptions) => Promise<string | null | undefined>;
-
-export interface Transport {
-  get<T = unknown>(path: string, query?: Record<string, unknown>): Promise<TransportResponse<T>>;
-  post<T = unknown>(path: string, body?: unknown): Promise<TransportResponse<T>>;
-  put<T = unknown>(path: string, body?: unknown): Promise<TransportResponse<T>>;
-  patch<T = unknown>(path: string, body?: unknown): Promise<TransportResponse<T>>;
-  delete<T = unknown>(path: string): Promise<TransportResponse<T>>;
-  request<T = unknown>(opts: RequestOptions): Promise<TransportResponse<T>>;
-}
-
-export interface CreateTransportOptions {
-  baseUrl?: string;
-  errorOnStatus?: ErrorOnStatus;
-  on401?: On401Hook;
   defaultHeaders?: Record<string, string>;
   timeout?: number;
-  /** 401 刷新后的重试准备钩子；context 用它重跑所有 beforeRequest。 */
-  beforeRetry?: (req: RequestOptions) => Promise<void>;
+  fetch?: typeof globalThis.fetch;
 }
 
-export function createTransport(opts: CreateTransportOptions = {}): Transport {
-  async function request<T>(reqOpts: RequestOptions): Promise<TransportResponse<T>> {
-    const merged: RequestOptionsInternal = {
-      ...reqOpts,
-      baseUrl: opts.baseUrl,
-      headers: mergeHeaders(opts.defaultHeaders, reqOpts.headers),
-      timeout: reqOpts.timeout ?? opts.timeout,
-    };
-
-    const first = await doFetch<T>(merged);
-
-    // 401 处理:string → 重试一次；null → 刷新失败；undefined → 当前凭证不支持刷新，
-    // 继续走普通 401 分类，而不是把 API key / 临时 bearer 错判为 refresh token 失效。
-    if (first.status === 401 && opts.on401) {
-      const newToken = await opts.on401(merged);
-      if (newToken) {
-        const retryOpts: RequestOptionsInternal = {
-          ...merged,
-          headers: { ...merged.headers },
-        };
-        applyRefreshedToken(retryOpts.headers!, newToken);
-        await opts.beforeRetry?.(retryOpts);
-        // 重试结果同样要走 errorOnStatus(否则重试仍是 401 时会被当成功数据返回)
-        const retried = await doFetch<T>(retryOpts);
-        if (retried.status === 401) {
-          throw new AuthenticationError({
-            subtype: "token_expired",
-            code: 401,
-            message: "Still rejected after refreshing credentials, please log in again",
-            hint: "run `rxcli auth login` to log in again",
-          });
-        }
-        return checkErrorOnStatus(retried);
-      }
-      if (newToken === null) {
-        throw new AuthenticationError({
-          subtype: "token_expired",
-          code: 401,
-          message: "Authentication expired (token expired or refresh failed)",
-          hint: "run `rxcli auth login` to log in again",
-        });
-      }
-    }
-
-    if (first.status === 401) {
-      const configured = matchErrorOnStatus(401, opts.errorOnStatus);
-      if (configured) {
-        throwBySubtype(configured, 401, extractErrorMessage(first.data) ?? "HTTP 401");
-      }
-      throw new AuthenticationError({
-        subtype: "no_token",
-        code: 401,
-        message: extractErrorMessage(first.data) ?? "Request not authenticated",
-        hint: "Please log in or provide valid credentials and retry",
-      });
-    }
-
-    return checkErrorOnStatus(first);
-  }
-
-  /** errorOnStatus 自动 throw(仅匹配的 status 才 throw,其余原样返回给业务包判断)。 */
-  function checkErrorOnStatus<T>(resp: TransportResponse<T>): TransportResponse<T> {
-    if (opts.errorOnStatus && resp.status >= 400) {
-      const subtype = matchErrorOnStatus(resp.status, opts.errorOnStatus);
-      if (subtype) {
-        throwBySubtype(
-          subtype,
-          resp.status,
-          extractErrorMessage(resp.data) ?? `HTTP ${resp.status}`,
-          resp.status === 429 ? extractRetryHint(resp.headers) : undefined,
-        );
-      }
-    }
-    return resp;
-  }
+/** 创建只发送一次请求的 Fetch adapter。 */
+export function createFetchAdapter(options: CreateFetchAdapterOptions = {}): HttpAdapter {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
 
   return {
-    request,
-    get: (path, query) => request({ method: "GET", path, query }),
-    post: (path, body) => request({ method: "POST", path, body }),
-    put: (path, body) => request({ method: "PUT", path, body }),
-    patch: (path, body) => request({ method: "PATCH", path, body }),
-    delete: (path) => request({ method: "DELETE", path }),
+    async send<T>(request: Readonly<RequestOptions>): Promise<AttemptOutcome<T>> {
+      const headers = mergeHeaders(options.defaultHeaders, request.headers);
+      let body: string | undefined;
+      if (request.body !== undefined && request.method !== "GET") {
+        headers["content-type"] = headers["content-type"] ?? "application/json";
+        try {
+          body = typeof request.body === "string" ? request.body : JSON.stringify(request.body);
+        } catch (cause) {
+          throw new InternalError({
+            subtype: "contract_violation",
+            message: "Request body is not JSON serializable",
+            cause,
+          });
+        }
+      }
+
+      const base = /^https?:\/\//i.test(request.path) ? "" : (options.baseUrl ?? "");
+      const url = appendQuery(base + request.path, request.query);
+      const timeout = request.timeout ?? options.timeout;
+
+      let response: Response;
+      try {
+        response = await fetchImpl(url, {
+          method: request.method,
+          headers,
+          body,
+          ...(timeout === undefined ? {} : { signal: AbortSignal.timeout(timeout) }),
+        });
+      } catch (cause) {
+        return { kind: "network-error", error: toNetworkError(cause, timeout) };
+      }
+
+      let text: string;
+      try {
+        text = await response.text();
+      } catch (cause) {
+        return { kind: "network-error", error: toNetworkError(cause, timeout) };
+      }
+
+      let data: unknown;
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = text;
+        }
+      }
+
+      const responseHeaders: Record<string, string> = {};
+      response.headers.forEach((value, name) => {
+        responseHeaders[name.toLowerCase()] = value;
+      });
+      return {
+        kind: "response",
+        response: { status: response.status, data: data as T, headers: responseHeaders },
+      };
+    },
   };
 }
 
-// —— 辅助:从响应体提取错误消息 ——
-function extractErrorMessage(data: unknown): string | undefined {
-  if (!data || typeof data !== "object") return undefined;
-  const obj = data as Record<string, unknown>;
-  return typeof obj.message === "string"
-    ? obj.message
-    : typeof obj.error === "string"
-      ? obj.error
-      : undefined;
+/** 最终响应分类。只在所有 attempt 审计结束后调用。 */
+export function throwForResponse(response: TransportResponse, errorOnStatus?: ErrorOnStatus): void {
+  if (response.status === 401) {
+    const configured = matchErrorOnStatus(401, errorOnStatus);
+    if (configured) throwBySubtype(configured, response);
+    throw new AuthenticationError({
+      subtype: "no_token",
+      code: 401,
+      message: extractErrorMessage(response.data) ?? "Request not authenticated",
+      hint: "Please log in or provide valid credentials and retry",
+    });
+  }
+
+  if (response.status < 400) return;
+  const subtype = matchErrorOnStatus(response.status, errorOnStatus);
+  if (subtype) throwBySubtype(subtype, response);
 }
 
-// —— 辅助:429 Retry-After hint ——
-function extractRetryHint(headers: Record<string, string>): string | undefined {
-  const ra = headers["retry-after"];
-  return ra ? `Retry-After: ${ra}s` : undefined;
+function matchErrorOnStatus(status: number, mapping?: ErrorOnStatus): string | undefined {
+  if (!mapping) return undefined;
+  const exact = mapping[status];
+  if (exact) return exact;
+  return mapping[`${Math.floor(status / 100)}xx` as `${number}xx`];
 }
 
-/**
- * 按 subtype 隐含的 category throw 对应错误(errorOnStatus 用)。
- * subtype → category 由 SUBTYPE_REGISTRY 决定(见 errs/index.ts);
- * category → 构造器由本表覆盖全 9 类(H3:不再只处理 authorization/authentication/api 三类)。
- */
+function throwBySubtype(subtype: string, response: TransportResponse): never {
+  const status = response.status;
+  const hint = status === 429 ? retryHint(response.headers) : undefined;
+  const problem = {
+    subtype,
+    code: status,
+    message: extractErrorMessage(response.data) ?? `HTTP ${status}`,
+    retryable: status === 429 || status >= 500,
+    ...(hint ? { hint } : {}),
+  };
+  const Constructor = CATEGORY_CONSTRUCTORS[categoryOfSubtype(subtype)];
+  throw new Constructor(problem);
+}
+
 const CATEGORY_CONSTRUCTORS: Record<Category, typeof APIError> = {
   validation: ValidationError,
   authentication: AuthenticationError,
@@ -313,10 +148,63 @@ const CATEGORY_CONSTRUCTORS: Record<Category, typeof APIError> = {
   confirmation: ConfirmationRequiredError,
 };
 
-function throwBySubtype(subtype: string, status: number, message: string, hint?: string): never {
-  const category: Category = categoryOfSubtype(subtype);
-  const retryable = status === 429 || status >= 500;
-  const common = { subtype, code: status, message, ...(hint ? { hint } : {}), retryable };
-  const Ctor = CATEGORY_CONSTRUCTORS[category] ?? APIError;
-  throw new Ctor(common);
+function toNetworkError(cause: unknown, timeout?: number): NetworkError {
+  const timedOut =
+    cause instanceof Error && (cause.name === "TimeoutError" || cause.name === "AbortError");
+  return new NetworkError({
+    subtype: timedOut ? "timeout" : "connection_refused",
+    message: timedOut
+      ? `Request timed out (${timeout ?? "unknown"}ms)`
+      : `Network error: ${cause instanceof Error ? cause.message : String(cause)}`,
+    retryable: true,
+    cause,
+  });
+}
+
+function extractErrorMessage(data: unknown): string | undefined {
+  if (!data || typeof data !== "object") return undefined;
+  const value = data as Record<string, unknown>;
+  if (typeof value.message === "string") return value.message;
+  return typeof value.error === "string" ? value.error : undefined;
+}
+
+function retryHint(headers: Record<string, string>): string | undefined {
+  const value = headers["retry-after"];
+  return value ? `Retry-After: ${value}s` : undefined;
+}
+
+function appendQuery(path: string, query?: Record<string, unknown>): string {
+  if (!query) return path;
+  const params = new URLSearchParams();
+  for (const [name, value] of Object.entries(query)) {
+    if (value === undefined || value === null) continue;
+    if (Array.isArray(value)) {
+      for (const item of value) params.append(name, String(item));
+    } else {
+      params.append(name, String(value));
+    }
+  }
+  const encoded = params.toString();
+  if (!encoded) return path;
+  const hashIndex = path.indexOf("#");
+  const base = hashIndex < 0 ? path : path.slice(0, hashIndex);
+  const hash = hashIndex < 0 ? "" : path.slice(hashIndex);
+  const separator = base.includes("?") ? (/[?&]$/.test(base) ? "" : "&") : "?";
+  return `${base}${separator}${encoded}${hash}`;
+}
+
+function mergeHeaders(
+  defaults?: Record<string, string>,
+  request?: Record<string, string>,
+): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const [name, value] of Object.entries(defaults ?? {})) setHeader(result, name, value);
+  for (const [name, value] of Object.entries(request ?? {})) setHeader(result, name, value);
+  return result;
+}
+
+function setHeader(headers: Record<string, string>, name: string, value: string): void {
+  const existing = Object.keys(headers).find((key) => key.toLowerCase() === name.toLowerCase());
+  if (existing) headers[existing] = value;
+  else headers[name.toLowerCase()] = value;
 }

@@ -81,7 +81,9 @@ export const deviceFlow: AuthFlow = {
     }
 
     // 申请设备码(模式 1 和 2 都需要)
-    const info = await deviceAuthorization(deps.cfg, deps.scope);
+    const info = deps.client
+      ? await deps.client.authorizeDevice(deps.scope)
+      : await deviceAuthorization(deps.cfg, deps.scope);
     const url = info.verification_uri_complete ?? info.verification_uri;
 
     // 模式 2:--no-wait(申请了但不轮询,抛信号让框架返回 url)

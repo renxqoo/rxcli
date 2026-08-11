@@ -36,6 +36,7 @@ const auth = createCordysAuth();
 
 const app = defineCli<RxCordysState>({
   name: "rxcordys",
+  createState: () => ({ credentials: null, credentialSource: null }),
   binName: "rxcordys",
   description: "Cordys CRM L2C 全链路 agent CLI(线索/客户/商机/合同/回款/发票/订单/审批/统计)",
   plugins: [auth],

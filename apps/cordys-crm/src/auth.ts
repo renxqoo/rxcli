@@ -10,7 +10,7 @@
  * 改用手写 Plugin(auth-patterns.md §3 骨架):
  *   - provides.namespaces.auth 注入 login/status/logout(框架自动豁免自身 beforeCommand)
  *   - beforeCommand:读凭证(env 优先 > 文件),缺失抛 AuthenticationError(no_credentials)
- *   - beforeRequest:注入三个 header
+ *   - prepareRequest:注入三个 header
  */
 
 import {
@@ -43,6 +43,10 @@ const ENV_SECRET_KEY = "CORDYS_SECRET_KEY";
 
 /** 凭证 store(磁盘,~/.rxcli/credentials/cordys.json,0600)。 */
 const store = fileStore({ dir: RXCLI_DIR });
+type AuthStore = Pick<
+  ReturnType<typeof fileStore>,
+  "loadCredentials" | "saveCredentials" | "clearCredentials"
+>;
 
 /** 从环境变量读凭证(env 优先)。 */
 function readFromEnv(): CordysCredentials | null {
@@ -54,7 +58,11 @@ function readFromEnv(): CordysCredentials | null {
 
 /** 从凭证文件读。 */
 async function readFromFile(): Promise<CordysCredentials | null> {
-  const creds = await store.loadCredentials(CREDENTIAL_NAMESPACE);
+  return readFromStore(store);
+}
+
+async function readFromStore(authStore: AuthStore): Promise<CordysCredentials | null> {
+  const creds = await authStore.loadCredentials(CREDENTIAL_NAMESPACE);
   const accessKey = creds?.accessKey;
   const secretKey = creds?.secretKey;
   if (typeof accessKey === "string" && typeof secretKey === "string") {
@@ -67,81 +75,85 @@ async function readFromFile(): Promise<CordysCredentials | null> {
 // auth 命令(login / status / logout)
 // ============================================================================
 
-const authCommands = defineCommands({
-  /** login:保存密钥对到凭证文件(直接用 store 落盘,不依赖 ctx.credentials——后者因路由豁免是 no-op)。 */
-  login: defineCommand<{ accessKey: string; secretKey: string }>({
-    name: "login",
-    description: "保存 Cordys 密钥对到凭证文件(~/.rxcli/credentials/cordys.json)",
-    args: {
-      accessKey: { type: "string", required: true, desc: "Cordys Access Key" },
-      secretKey: { type: "string", required: true, desc: "Cordys Secret Key" },
-    },
-    async run(args, _ctx) {
-      await store.saveCredentials(CREDENTIAL_NAMESPACE, {
-        accessKey: args.accessKey,
-        secretKey: args.secretKey,
-      });
-      return {
-        data: { namespace: CREDENTIAL_NAMESPACE, saved: true },
-        meta: { rollback: `rxcordys auth logout 清除已保存的密钥` },
-      };
-    },
-  }),
+function createAuthCommands(authStore: AuthStore) {
+  return defineCommands({
+    /** login:保存密钥对到凭证文件(直接用 store 落盘,不依赖 ctx.credentials——后者因路由豁免是 no-op)。 */
+    login: defineCommand<{ accessKey: string; secretKey: string }>({
+      name: "login",
+      description: "保存 Cordys 密钥对到凭证文件(~/.rxcli/credentials/cordys.json)",
+      args: {
+        accessKey: { type: "string", required: true, desc: "Cordys Access Key" },
+        secretKey: { type: "string", required: true, desc: "Cordys Secret Key" },
+      },
+      async run(args, _ctx) {
+        await authStore.saveCredentials(CREDENTIAL_NAMESPACE, {
+          accessKey: args.accessKey,
+          secretKey: args.secretKey,
+        });
+        return {
+          data: { namespace: CREDENTIAL_NAMESPACE, saved: true },
+          meta: { rollback: `rxcordys auth logout 清除已保存的密钥` },
+        };
+      },
+    }),
 
-  /** status:显示当前凭证来源(env / file / 未配置)。 */
-  status: defineCommandFromArgs({
-    name: "status",
-    description: "显示当前凭证来源(环境变量 / 凭证文件 / 未配置)",
-    args: {},
-    async run(_args, _ctx) {
-      // status 被 auth plugin 豁免 beforeCommand,故不依赖 ctx.state,自行读取凭证状态。
-      const envCreds = readFromEnv();
-      let source: "env" | "file" | null = null;
-      let configured = false;
-      if (envCreds) {
-        source = "env";
-        configured = true;
-      } else {
-        const fileCreds = await readFromFile();
-        if (fileCreds) {
-          source = "file";
+    /** status:显示当前凭证来源(env / file / 未配置)。 */
+    status: defineCommandFromArgs({
+      name: "status",
+      description: "显示当前凭证来源(环境变量 / 凭证文件 / 未配置)",
+      args: {},
+      async run(_args, _ctx) {
+        // status 被 auth plugin 豁免 beforeCommand,故不依赖 ctx.state,自行读取凭证状态。
+        const envCreds = readFromEnv();
+        let source: "env" | "file" | null = null;
+        let configured = false;
+        if (envCreds) {
+          source = "env";
           configured = true;
+        } else {
+          const fileCreds = await readFromStore(authStore);
+          if (fileCreds) {
+            source = "file";
+            configured = true;
+          }
         }
-      }
-      return {
-        data: {
-          configured,
-          source,
-          namespace: CREDENTIAL_NAMESPACE,
-          file: `${RXCLI_DIR}/credentials/${CREDENTIAL_NAMESPACE}.json`,
-          envVars: {
-            [ENV_ACCESS_KEY]: Boolean(process.env[ENV_ACCESS_KEY]),
-            [ENV_SECRET_KEY]: Boolean(process.env[ENV_SECRET_KEY]),
+        return {
+          data: {
+            configured,
+            source,
+            namespace: CREDENTIAL_NAMESPACE,
+            file: `${RXCLI_DIR}/credentials/${CREDENTIAL_NAMESPACE}.json`,
+            envVars: {
+              [ENV_ACCESS_KEY]: Boolean(process.env[ENV_ACCESS_KEY]),
+              [ENV_SECRET_KEY]: Boolean(process.env[ENV_SECRET_KEY]),
+            },
+            domainConfigured: isBaseUrlConfigured,
           },
-          domainConfigured: isBaseUrlConfigured,
-        },
-        meta: {
-          hint: !isBaseUrlConfigured
-            ? "Cordys CRM domain not set: set CORDYS_CRM_DOMAIN environment variable to your Cordys CRM address (private deployment, no default)"
-            : configured
-              ? undefined
-              : "Not configured: run `rxcordys auth login --accessKey X --secretKey Y` or set environment variables",
-        },
-      };
-    },
-  }),
+          meta: {
+            hint: !isBaseUrlConfigured
+              ? "Cordys CRM domain not set: set CORDYS_CRM_DOMAIN environment variable to your Cordys CRM address (private deployment, no default)"
+              : configured
+                ? undefined
+                : "Not configured: run `rxcordys auth login --accessKey X --secretKey Y` or set environment variables",
+          },
+        };
+      },
+    }),
 
-  /** logout:清除凭证文件(直接用 store,不依赖 ctx.credentials)。 */
-  logout: defineCommandFromArgs({
-    name: "logout",
-    description: "清除已保存的凭证文件(不影响环境变量)",
-    args: {},
-    async run(_args, _ctx) {
-      await store.clearCredentials(CREDENTIAL_NAMESPACE);
-      return { data: { namespace: CREDENTIAL_NAMESPACE, cleared: true } };
-    },
-  }),
-});
+    /** logout:清除凭证文件(直接用 store,不依赖 ctx.credentials)。 */
+    logout: defineCommandFromArgs({
+      name: "logout",
+      description: "清除已保存的凭证文件(不影响环境变量)",
+      args: {},
+      async run(_args, _ctx) {
+        await authStore.clearCredentials(CREDENTIAL_NAMESPACE);
+        return { data: { namespace: CREDENTIAL_NAMESPACE, cleared: true } };
+      },
+    }),
+  });
+}
+
+const authCommands = createAuthCommands(store);
 
 // ============================================================================
 // auth Plugin
@@ -191,16 +203,21 @@ export function createCordysAuth(): Plugin<RxCordysState> {
     },
 
     /**
-     * beforeRequest:注入三个 Cordys header。
+     * prepareRequest:注入三个 Cordys header。
      * 双 header 是 Cordys 的契约,框架 injectAuthHeader 只支持单 header,故手写。
      */
-    async beforeRequest(ctx: CommandContext<RxCordysState>, req) {
+    async prepareRequest(ctx: CommandContext<RxCordysState>, req) {
       const creds = ctx.state.credentials;
-      if (!creds) return; // 内部命令(skills)可能无凭证,不阻断
-      req.headers ??= {};
-      req.headers["X-Access-Key"] = creds.accessKey;
-      req.headers["X-Secret-Key"] = creds.secretKey;
-      req.headers["X-Request-Source"] = "SKILL";
+      if (!creds) return { ...req }; // 内部命令(skills)可能无凭证,不阻断
+      return {
+        ...req,
+        headers: {
+          ...req.headers,
+          "X-Access-Key": creds.accessKey,
+          "X-Secret-Key": creds.secretKey,
+          "X-Request-Source": "SKILL",
+        },
+      };
     },
   };
 }
@@ -234,7 +251,7 @@ export function createCordysAuthWithStore(testStore: {
   return {
     name: "cordys-auth",
     enforce: "pre",
-    provides: { namespaces: { auth: authCommands } },
+    provides: { namespaces: { auth: createAuthCommands(testStore) } },
     async beforeCommand(ctx) {
       const envCreds = readFromEnv();
       if (envCreds) {
@@ -256,13 +273,18 @@ export function createCordysAuthWithStore(testStore: {
         hint: "Run `rxcordys auth login`",
       });
     },
-    async beforeRequest(ctx, req) {
+    async prepareRequest(ctx, req) {
       const creds = ctx.state.credentials;
-      if (!creds) return;
-      req.headers ??= {};
-      req.headers["X-Access-Key"] = creds.accessKey;
-      req.headers["X-Secret-Key"] = creds.secretKey;
-      req.headers["X-Request-Source"] = "SKILL";
+      if (!creds) return { ...req };
+      return {
+        ...req,
+        headers: {
+          ...req.headers,
+          "X-Access-Key": creds.accessKey,
+          "X-Secret-Key": creds.secretKey,
+          "X-Request-Source": "SKILL",
+        },
+      };
     },
   };
 }
