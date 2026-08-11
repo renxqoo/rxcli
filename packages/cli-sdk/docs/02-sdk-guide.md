@@ -198,7 +198,7 @@ type CommandArgs =
 ```
 
 - 省略 `args`:无业务参数,`run` 收到 `{}`。
-- 省略 `type`:默认 `argv`;`pos` 按顺序列出位置参数字段,其余字段映射为 kebab-case 长 flags。
+- 省略 `type`:默认 `argv`;`pos` 按顺序列出只能裸传的位置参数字段,不同时接受同名长 flag;其余字段映射为 kebab-case 长 flags。
 - `type: "json"`:整个参数对象来自一个 JSON 文档,不允许业务 flags 或位置参数混入。
 - required、default、enum、coerce、refine、描述和类型推导全部直接使用 Zod 标准能力。
 

@@ -187,7 +187,8 @@ defineCommand({
 
 `args` 可省略；省略表示命令没有业务参数。声明 `args` 时，Zod object 是唯一的校验和
 类型来源。`type` 省略时默认 `"argv"`，`pos` 只列出作为原生命令行位置参数读取的
-schema 字段。组件化命令组可用 `defineCommands<State>({...})` 共享应用状态类型。
+schema 字段，不同时接受同名长 flag。组件化命令组可用 `defineCommands<State>({...})`
+共享应用状态类型。
 
 #### Zod JSON 参数
 

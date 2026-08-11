@@ -122,7 +122,11 @@ class DefaultCommandSchema implements CompiledCommandSchema {
       this.mode === "argv" && definition
         ? compileDescriptors(commandName, this.jsonSchema!, definition.pos ?? [])
         : Object.freeze([]);
-    this.#byFlag = new Map(this.descriptors.map((descriptor) => [descriptor.flagName, descriptor]));
+    this.#byFlag = new Map(
+      this.descriptors
+        .filter((descriptor) => !descriptor.positional)
+        .map((descriptor) => [descriptor.flagName, descriptor]),
+    );
     this.signature = Object.freeze({
       positionals: this.descriptors.filter((arg) => arg.positional).map((arg) => arg.signature),
       options: [

@@ -134,3 +134,47 @@ describe("Zod command arguments", () => {
     ]);
   });
 });
+
+describe("positional arguments reject their --flag name", () => {
+  it("accepts only the bare form for a positional field", async () => {
+    const schema = compileCommandSchema("page", {
+      schema: z.object({ payload: z.string().optional() }),
+      pos: ["payload"],
+    });
+
+    await expect(schema.resolve(['{"keyword":"x"}'], Readable.from([]))).resolves.toEqual({
+      payload: '{"keyword":"x"}',
+    });
+  });
+
+  it("rejects the --name form instead of silently discarding it", async () => {
+    const schema = compileCommandSchema("page", {
+      schema: z.object({ payload: z.string().optional() }),
+      pos: ["payload"],
+    });
+
+    await expect(
+      schema.resolve(["--payload", '{"keyword":"x"}'], Readable.from([])),
+    ).rejects.toMatchObject({
+      subtype: "invalid_argument",
+      param: "--payload",
+    });
+  });
+
+  it("still accepts flags for non-positional fields", async () => {
+    const schema = compileCommandSchema("records-page", {
+      schema: z.object({
+        module: z.string(),
+        payload: z.string().optional(),
+      }),
+      pos: ["module"],
+    });
+
+    await expect(
+      schema.resolve(["lead", "--payload", '{"keyword":"x"}'], Readable.from([])),
+    ).resolves.toEqual({
+      module: "lead",
+      payload: '{"keyword":"x"}',
+    });
+  });
+});

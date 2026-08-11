@@ -11,8 +11,8 @@ args?:
 
 - Omit `args`: the command accepts no business parameters and `run` receives `{}`.
 - Omit `args.type`: it defaults to native `argv` mode.
-- `args.pos` names schema fields consumed as positional operands, in order. Other fields become
-  kebab-case long flags.
+- `args.pos` names schema fields consumed only as positional operands, in order. They are not also
+  accepted as long flags. Other fields become kebab-case long flags.
 - Set `args.type: "json"`: the entire arguments object comes from one JSON document. Positional
   operands and business flags are invalid in this mode.
 

@@ -188,8 +188,9 @@ defineCommand({
 
 `args` is optional; omitting it means the command accepts no business parameters. When present,
 its Zod object is the only validation and type source. `type` defaults to `"argv"`; `pos` lists
-the schema fields consumed as native positional operands. For a componentized command group,
-`defineCommands<State>({...})` contextually types every command against the same application state.
+the schema fields consumed only as native positional operands, not as same-name long flags. For a
+componentized command group, `defineCommands<State>({...})` contextually types every command against
+the same application state.
 
 #### Validated JSON payloads
 
