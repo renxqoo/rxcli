@@ -227,8 +227,9 @@ function atomicWriteRc(filePath: string, content: string): void {
   }
 }
 
-/** 检测当前 shell 的 rc 文件。 */
+/** 检测当前 shell 的 rc 文件。Windows 无 rc 文件机制(PATH 靠系统设置),返回 null。 */
 function detectRcFile(): string | null {
+  if (process.platform === "win32") return null;
   const home = homedir();
   const shell = process.env.SHELL ?? "";
 

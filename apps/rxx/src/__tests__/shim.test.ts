@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+const isWindows = process.platform === "win32";
 import {
   mkdtempSync,
   rmSync,
@@ -116,7 +117,7 @@ describe("shim.ts", () => {
       expect(isInPath()).toBe(true);
     });
 
-    it("ensureInPath:不在 PATH → 写 rc 文件,返回 rc 路径", async () => {
+    it.skipIf(isWindows)("ensureInPath:不在 PATH → 写 rc 文件,返回 rc 路径", async () => {
       // 用 HOME 指向 tmp,避免污染真实 rc
       const ORIG_HOME = process.env.HOME;
       const ORIG_SHELL = process.env.SHELL;
@@ -138,7 +139,7 @@ describe("shim.ts", () => {
       }
     });
 
-    it("ensureInPath:已有完整标记块 → 幂等,不再写(null)", async () => {
+    it.skipIf(isWindows)("ensureInPath:已有完整标记块 → 幂等,不再写(null)", async () => {
       const ORIG_HOME = process.env.HOME;
       const ORIG_SHELL = process.env.SHELL;
       process.env.HOME = tmpHome;
@@ -163,7 +164,7 @@ describe("shim.ts", () => {
       }
     });
 
-    it("ensureInPath:残缺块(只有 start 无 end)→ 清理后重写完整块", async () => {
+    it.skipIf(isWindows)("ensureInPath:残缺块(只有 start 无 end)→ 清理后重写完整块", async () => {
       const ORIG_HOME = process.env.HOME;
       const ORIG_SHELL = process.env.SHELL;
       process.env.HOME = tmpHome;
