@@ -114,7 +114,7 @@ describe("auth login/logout 命令(直接用 store 落盘,不依赖 ctx.credenti
         clear: async () => {},
       },
     } as unknown as CommandContext<RxCordysState>;
-    const result = await loginCmd!.run({ accessKey: "new_ak", secretKey: "new_sk" }, ctx);
+    const result = await loginCmd!.run(ctx, { accessKey: "new_ak", secretKey: "new_sk" });
     expect(result!.data).toMatchObject({ saved: true, namespace: "cordys" });
     await expect(store.loadCredentials("cordys")).resolves.toEqual({
       accessKey: "new_ak",
@@ -131,7 +131,7 @@ describe("auth login/logout 命令(直接用 store 落盘,不依赖 ctx.credenti
       log: { info: () => {}, warn: () => {}, error: () => {} },
       credentials: { get: async () => null, save: async () => {}, clear: async () => {} },
     } as unknown as CommandContext<RxCordysState>;
-    await logoutCmd!.run({}, ctx);
+    await logoutCmd!.run(ctx, {});
     await expect(store.loadCredentials("cordys")).resolves.toBeNull();
   });
 });

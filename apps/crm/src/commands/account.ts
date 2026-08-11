@@ -14,7 +14,7 @@ export const accountCommands = defineCommands({
   profile: defineCommand({
     name: "profile",
     description: "查看当前登录用户的资料",
-    async run(_args, ctx) {
+    async run(ctx) {
       const res = await ctx.get("/proxy/api/profile");
       return { data: res.data };
     },
@@ -23,7 +23,7 @@ export const accountCommands = defineCommands({
   "admin-users": defineCommand({
     name: "admin-users",
     description: "查询全量用户列表(管理员)",
-    async run(_args, ctx) {
+    async run(ctx) {
       const res = await ctx.get("/proxy/api/admin/users");
       return { data: res.data };
     },

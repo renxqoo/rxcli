@@ -34,13 +34,13 @@ describe("qrcode 命令契约", () => {
   function makeCtx() {
     return {
       log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-    } as unknown as Parameters<typeof qrcodeCommand.run>[1];
+    } as unknown as Parameters<typeof qrcodeCommand.run>[0];
   }
 
   it("默认(无 --output):生成 ASCII 到 stderr,data.ascii=true", async () => {
     const writeSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     try {
-      const result = await qrcodeCommand.run({ url: "https://example.com" } as never, makeCtx());
+      const result = await qrcodeCommand.run(makeCtx(), { url: "https://example.com" } as never);
       expect(result?.data).toMatchObject({ ascii: true });
       expect(writeSpy).toHaveBeenCalled();
       const text = writeSpy.mock.calls[0]![0] as string;
@@ -54,10 +54,10 @@ describe("qrcode 命令契约", () => {
     const dir = mkdtempSync(join(tmpdir(), "rxcli-qr-"));
     try {
       const outPath = join(dir, "code.png");
-      const result = await qrcodeCommand.run(
-        { url: "https://example.com", output: outPath } as never,
-        makeCtx(),
-      );
+      const result = await qrcodeCommand.run(makeCtx(), {
+        url: "https://example.com",
+        output: outPath,
+      } as never);
       expect(result?.data).toMatchObject({ output: outPath });
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -66,15 +66,15 @@ describe("qrcode 命令契约", () => {
 
   it("--output 写失败(非法路径)→ InternalError", async () => {
     await expect(
-      qrcodeCommand.run(
-        { url: "https://example.com", output: "/nonexistent-dir/x/code.png" } as never,
-        makeCtx(),
-      ),
+      qrcodeCommand.run(makeCtx(), {
+        url: "https://example.com",
+        output: "/nonexistent-dir/x/code.png",
+      } as never),
     ).rejects.toBeInstanceOf(InternalError);
   });
 
   it("无效 URL(qrcode 库拒绝空串)→ InternalError,不抛裸错", async () => {
-    await expect(qrcodeCommand.run({ url: "" } as never, makeCtx())).rejects.toBeInstanceOf(
+    await expect(qrcodeCommand.run(makeCtx(), { url: "" } as never)).rejects.toBeInstanceOf(
       InternalError,
     );
   });

@@ -77,7 +77,8 @@ pnpm add @renxqoo/agent-data-cli
 一个命令 < 30 行(无鉴权场景,如公开数据):
 
 ```ts
-import { defineCli, defineCommandFromArgs } from "@renxqoo/agent-data-cli";
+import { defineCli, defineCommand } from "@renxqoo/agent-data-cli";
+import * as z from "zod";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -85,11 +86,15 @@ const app = defineCli({
   name: "myapp",
   description: "我的数据 CLI",
   commands: {
-    list: defineCommandFromArgs({
+    list: defineCommand({
       name: "list",
       description: "查询列表",
-      args: { limit: { type: "number", default: 20, desc: "返回数量上限" } },
-      async run(args, ctx) {
+      args: {
+        schema: z.object({
+          limit: z.coerce.number().min(1).max(100).default(20),
+        }),
+      },
+      async run(ctx, args) {
         const res = await ctx.get<{ items: Array<{ id: string; title: string }> }>("/items", {
           limit: args.limit,
         });
@@ -156,18 +161,23 @@ defineCli({
 })
 ```
 
-### `defineCommandFromArgs(spec)` / `defineCommand(spec)` — 声明命令
+### `defineCommand(spec)` — 声明命令
 
 ```ts
-defineCommandFromArgs({
+import * as z from "zod";
+
+defineCommand({
   name: "get",
   description: "查询单个订单",
   args: {
-    id: { type: "string", required: true, positional: true, desc: "订单 ID" },
-    verbose: { type: "boolean", desc: "详细输出" },
+    schema: z.object({
+      id: z.string().min(1).describe("订单 ID"),
+      verbose: z.boolean().describe("详细输出").default(false),
+    }),
+    pos: ["id"],
   },
   humanFormat: (data, meta) => `订单: ${data.id}`, // 可选:--no-json 自定义文本
-  async run(args, ctx) {
+  async run(ctx, args) {
     // ctx.get/post/put/patch/delete —— 请求方法直接挂 ctx
     const res = await ctx.get(`/orders/${args.id}`);
     return { data: res.data };
@@ -175,10 +185,46 @@ defineCommandFromArgs({
 });
 ```
 
-参数 schema 是类型来源时使用 `defineCommandFromArgs`。需要领域字面量联合，或命令需要读取
-`ctx.state` 时，使用 `defineCommand<Args, Result, State>`。组件化命令组使用
-`defineCommands<State>({...})`，让所有命令共享同一应用状态类型；挂载到
-`defineCli<State>` 时也会拒绝状态类型不兼容的命令组。
+`args` 可省略；省略表示命令没有业务参数。声明 `args` 时，Zod object 是唯一的校验和
+类型来源。`type` 省略时默认 `"argv"`，`pos` 只列出作为原生命令行位置参数读取的
+schema 字段，不同时接受同名长 flag。组件化命令组可用 `defineCommands<State>({...})`
+共享应用状态类型。
+
+#### Zod JSON 参数
+
+创建、更新或批量命令字段很多时，直接把 Zod 4 Schema 放入同一个 `defineCommand`：
+
+```ts
+import * as z from "zod";
+
+const CreateOrder = z.strictObject({
+  customerId: z.string(),
+  amount: z.number().positive(),
+});
+
+defineCommand({
+  name: "create",
+  description: "创建订单",
+  args: {
+    type: "json",
+    schema: CreateOrder,
+  },
+  policy: {
+    mode: "write",
+    dryRun: true,
+    confirmation: "required",
+    idempotency: "required",
+  },
+  async run(ctx, args) {
+    return { data: (await ctx.post("/orders", args)).data };
+  },
+});
+```
+
+JSON 命令只能通过 `--input`、`--input-file` 或原生 stdin 提供一个完整 JSON 文档，不能与
+业务 flags 混用。同一个 Zod Schema 提供类型推导、运行时校验和 `--input-schema` 发现，
+不存在适配器或第二套校验协议。完整来源、安全限制和写策略见
+[`docs/07-structured-input.md`](docs/07-structured-input.md)。
 
 ### `defineAuth(opts)` — OAuth 鉴权工厂
 

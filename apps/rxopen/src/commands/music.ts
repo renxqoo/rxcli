@@ -8,6 +8,7 @@
  *   changya         唱鸭随机翻唱作品
  */
 
+import * as z from "zod";
 import { defineCommands, defineCommand, printTable } from "@renxqoo/agent-data-cli";
 import { unwrap, withQuery, countMeta } from "../envelope.js";
 
@@ -33,24 +34,22 @@ export const musicCommands = defineCommands({
         { header: "更新频率", value: (r: NcmRank) => r.update_frequency },
       ]);
     },
-    async run(_args, ctx) {
+    async run(ctx) {
       const res = await ctx.get("/ncm-rank/list", withQuery());
       const list = unwrap<NcmRank[]>(res);
       return { data: list, meta: countMeta(list) };
     },
   }),
 
-  "rank-detail": defineCommand<{ id: string; size?: number }>({
+  "rank-detail": defineCommand({
     name: "rank-detail",
     description: "网易云音乐榜单详情(曲目列表)",
     args: {
-      id: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "榜单 ID(如 3778678 热歌榜;用 rank 查全部)",
-      },
-      size: { type: "number", desc: "返回曲目上限" },
+      schema: z.object({
+        id: z.string().describe("榜单 ID(如 3778678 热歌榜;用 rank 查全部)"),
+        size: z.coerce.number().describe("返回曲目上限").optional(),
+      }),
+      pos: ["id"],
     },
     humanFormat(data) {
       return printTable(data as { rank: number; title: string; artist: unknown }[], [
@@ -59,21 +58,24 @@ export const musicCommands = defineCommands({
         { header: "歌手", value: (r: { artist: unknown }) => artistStr(r.artist) },
       ]);
     },
-    async run({ id, size }, ctx) {
+    async run(ctx, { id, size }) {
       const res = await ctx.get(`/ncm-rank/${id}`, withQuery({ size }));
       const list = unwrap<unknown[]>(res);
       return { data: list, meta: countMeta(list) };
     },
   }),
 
-  lyric: defineCommand<{ query: string; clean?: boolean }>({
+  lyric: defineCommand({
     name: "lyric",
     description: "歌词搜索(QQ 音乐,返回解析后的歌词)",
     args: {
-      query: { type: "string", required: true, positional: true, desc: "歌曲/歌手关键词" },
-      clean: { type: "boolean", desc: "过滤词/曲/编曲等元信息行(默认 true,设 false 保留)" },
+      schema: z.object({
+        query: z.string().describe("歌曲/歌手关键词"),
+        clean: z.boolean().describe("过滤词/曲/编曲等元信息行(默认 true,设 false 保留)").optional(),
+      }),
+      pos: ["query"],
     },
-    async run({ query, clean }, ctx) {
+    async run(ctx, { query, clean }) {
       const res = await ctx.get("/lyric", withQuery({ query, clean }));
       return { data: unwrap<unknown>(res) };
     },
@@ -82,7 +84,7 @@ export const musicCommands = defineCommands({
   changya: defineCommand({
     name: "changya",
     description: "唱鸭随机翻唱作品(含音频 URL)",
-    async run(_args, ctx) {
+    async run(ctx) {
       const res = await ctx.get("/changya", withQuery());
       return { data: unwrap<unknown>(res) };
     },

@@ -73,12 +73,12 @@ echo 'export CORDYS_CRM_DOMAIN=https://crm.your-company.com' >> ~/.zshrc
 
 ## 常见故障
 
-| 现象                                        | 原因                    | 处理                                                          |
-| ------------------------------------------- | ----------------------- | ------------------------------------------------------------- |
-| `authentication/no_credentials`(exit 3)     | 未配置凭证              | `rxcordys auth login` 或设环境变量                            |
-| `authentication/token_expired`(exit 3, 401) | 密钥对失效/错误         | demo 环境每天回滚 → 重新创建 Key;自部署检查 Key 是否被禁用    |
-| `authorization/forbidden`(exit 3, 403)      | Key 有效但无数据权限    | Cordys 个人中心 → API Keys → 确认 Key 启用;管理员确认角色权限 |
-| HTTP 200 + `code≠100200`                    | Key 无效(`INVALID_KEY`) | 检查 Access/Secret Key 是否复制完整(无多余空格)               |
+完整 exit 码与错误码对照见 SKILL.md「错误处理」。鉴权相关的补充:
+
+| 现象 | 原因 | 处理 |
+| ---- | ---- | ---- |
+| `authentication/token_expired`(exit 3, 401) | 密钥对失效/错误或已被禁用 | 个人中心确认 Key 仍启用;必要时重建 Key 后 `auth login` |
+| HTTP 200 + `code≠100200`(如 `INVALID_KEY`) | Key 无效 | 检查 Access/Secret Key 是否复制完整(无多余空格、无换行) |
 
 ## 验证凭证
 
@@ -90,8 +90,6 @@ rxcordys whoami --json
 
 ## 获取密钥对
 
-1. 登录 Cordys(自部署或 demo.cordys.cn)
+1. 登录 Cordys 部署地址
 2. 左下角「个人中心」→「API Keys」标签 →「新增」
 3. 记下返回的 **Access Key** 和 **Secret Key**(Secret Key 仅创建时明文显示一次)
-
-> demo 环境(`demo.cordys.cn`,账号 `cordys`/`cordys`)的 Key 每天随数据回滚失效;自部署的 Key 永久有效(除非手动删除)。

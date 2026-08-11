@@ -82,7 +82,7 @@ Do not repeat a complete trigger table in the body. Keep routing after invocatio
 <!-- AUTO-GEN:END -->
 ```
 
-AUTO-GEN contains operation descriptions and signatures, not detailed argument tables. Regenerate it after command changes.
+AUTO-GEN contains operation descriptions and signatures, not detailed argument tables. When scoped commands use JSON args, it also emits transport plus `--input-schema` / `--input-example` discovery commands. Regenerate it after command or args-schema changes.
 
 For multiple focused Skills in one CLI:
 
@@ -110,6 +110,8 @@ Generated signatures follow source schema:
 | Optional array      | `[--tag <string>...]` |
 
 Put enums, ranges, fields, and pagination in references.
+
+Do not copy a structured payload's complete JSON Schema into `SKILL.md`. Link a focused field/workflow reference when semantic guidance is needed and let agents retrieve the current machine contract with `--input-schema`.
 
 ## 4. References and independent installation
 

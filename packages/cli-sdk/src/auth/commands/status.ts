@@ -20,10 +20,10 @@ export function createStatusCommand(deps: StatusCommandDeps): CommandSpec {
   const credNs = deps.credentialNamespace;
   const cmdNs = deps.commandNamespace;
 
-  return defineCommand<any, unknown>({
+  return defineCommand({
     name: "status",
     description: "Show current login status",
-    async run(_args, ctx): Promise<CommandResult> {
+    async run(ctx): Promise<CommandResult> {
       const creds = (await store.loadCredentials(credNs)) as Partial<StoredOAuthCredentials> | null;
       if (!creds?.token) {
         ctx.log.info(`Not logged in. Run \`${cmdNs} login\` to log in.`);

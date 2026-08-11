@@ -91,7 +91,7 @@ rxcordys approvals todo pending                        # Approvals pending for m
 rxcordys util raw GET /lead/view/view                  # Passthrough for uncovered endpoints
 ```
 
-Add `--dryRun` to validate only, do not submit; see `rxcordys --help` for the full command list.
+Add `--dry-run` to validate only, do not submit; see `rxcordys --help` for the full command list.
 
 ## Output contract
 

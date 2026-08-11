@@ -89,7 +89,7 @@ export default defineCli<OrdersState>({
 cli-sdk 采用 **function 风格 + 配置对象声明**(决策清单 #3)。理由:
 
 - **组合 > 继承**:框架场景要组合(管道)、要 tree-shaking(发 npm)、要好测(mock 参数)。class 继承在这三方面都劣于 function。
-- **依赖注入而非隐式 this**:命令 `run(args, ctx)` 通过 `ctx` 拿到框架注入的能力(`ctx.get`、`ctx.log` 等),不靠 class 继承链的隐式 `this`。agent 读代码时无歧义。
+- **依赖注入而非隐式 this**:命令 `run(ctx, args)` 通过 `ctx` 拿到框架注入的能力(`ctx.get`、`ctx.log` 等),不靠 class 继承链的隐式 `this`。agent 读代码时无歧义。
 
 对比:
 
@@ -100,7 +100,7 @@ class Orders extends Client {
 }
 
 // ✅ function 风格(采用):命令 run 内通过 ctx 拿能力,纯函数好测
-async run(args, ctx) {
+async run(ctx, args) {
   const res = await ctx.get('/orders', args)        // ctx.get 直接挂 ctx
   return { data: res.data.items }                   // return 数据,框架调序列化
 }
@@ -116,7 +116,7 @@ async function listOrders(requester: { get: (...)=>... }, params: Record<string,
 }
 
 // run 里调用它(把 ctx 传进去,ctx 本身就有 get 方法)
-async run(args, ctx) {
+async run(ctx, args) {
   const items = await listOrders(ctx, args)   // ctx 有 get,直接传
   return { data: items }
 }
@@ -166,7 +166,7 @@ list: defineCommand<OrderListArgs, OrderItem[]>({
   name: 'list',
   description: '查询订单列表',
   args: { limit: { type: 'number', default: 30 }, status: { type: 'string' } },
-  async run(args, ctx) {
+  async run(ctx, args) {
     // args: OrderListArgs(强类型,有补全;args.foo 报错)
     // ctx.state.user: { userId } | null(从 defineCli<State> 推导)
     const res = await ctx.get<OrderListPayload>('/orders', args)   // 泛型是响应 body 类型
@@ -181,43 +181,36 @@ list: defineCommand<OrderListArgs, OrderItem[]>({
 defineCli<OrdersState>({ ... })
 ```
 
-| 泛型     | 声明位置                      | 职责                                      |
-| -------- | ----------------------------- | ----------------------------------------- |
-| `State`  | `defineCli<State>`            | `ctx.state` 的类型,业务包级(所有命令共享) |
-| `Args`   | `defineCommand<Args, Result>` | run 的 `args` 参数类型(命令级)            |
-| `Result` | `defineCommand<Args, Result>` | run 返回的 `data` 类型(命令级)            |
+| 类型     | 声明位置                          | 职责                                      |
+| -------- | --------------------------------- | ----------------------------------------- |
+| `State`  | `defineCli<State>`                | `ctx.state` 的类型,业务包级(所有命令共享) |
+| `Args`   | `args.schema` 的 Zod output       | `run(ctx, args)` 中 `args` 的唯一类型来源 |
+| `Result` | `run` 返回的 `{ data }` 自动推导  | 命令输出类型                              |
 
-**两种强类型入口。** schema 是类型来源时用 `defineCommandFromArgs({...})` 自动得到 `ParsedArgs`;需要字面量联合或领域类型时用 `defineCommand<Args, Result>({...})` 显式声明。不要依赖无泛型 `defineCommand` 推断 schema。
+**一个入口,一个类型来源。** `defineCommand({...})` 只从 `args.schema` 的 Zod object 推导并校验参数；不接受手写 `Args` 泛型覆盖，不存在适配器或第二套 schema。
 
-### ArgsSpec + ArgSpec:参数解析规范
+### args:Zod 参数规范
 
 ```ts
-type ArgType = "string" | "number" | "boolean" | "array";
-
-interface ArgSpec {
-  type: ArgType; // 字面量联合,'strin'(拼错)报错
-  required?: boolean;
-  positional?: boolean;
-  desc?: string; // 填了进自动生成的命令文档(见 06-skills.md)
-  default?: unknown; // 简化版:不跟 type 联动
-}
-
-type ArgsSpec = Record<string, ArgSpec>;
+type CommandArgs =
+  | { type?: "argv"; schema: ZodObject; pos?: string[] }
+  | { type: "json"; schema: ZodObject; pos?: never };
 ```
 
-**args 类型两种来源:**
-
-- **interface 显式声明**(推荐,精确):写 `defineCommand<OrderListArgs, ...>`,args 按 interface 类型;spec 只管命令行解析。能写联合字面量 `'paid'|'unpaid'`、可选 `?`、复杂类型。
-- **spec 自动推导**(简单命令):使用 `defineCommandFromArgs`,cli-sdk 从 spec 推导 ParsedArgs；`required/default` 字段必有，其余字段可选。它推导不出字面量联合。
+- 省略 `args`:无业务参数,`run` 收到 `{}`。
+- 省略 `type`:默认 `argv`;`pos` 按顺序列出只能裸传的位置参数字段,不同时接受同名长 flag;其余字段映射为 kebab-case 长 flags。
+- `type: "json"`:整个参数对象来自一个 JSON 文档,不允许业务 flags 或位置参数混入。
+- required、default、enum、coerce、refine、描述和类型推导全部直接使用 Zod 标准能力。
 
 ### CommandSpec:命令结构必填
 
 ```ts
-interface CommandSpec<Args = any, Result = unknown, State = unknown> {
+interface CommandSpec<Args, Result = unknown, State = unknown> {
   name: string; // 必填,缺了编译报错
   description: string; // 必填
-  args?: ArgsSpec; // 可选(解析规范)
-  run: (args: Args, ctx: CommandContext<State>) => Promise<CommandResult<Result> | void>;
+  args?: CommandArgs;
+  policy?: CommandPolicy<Args, State>;
+  run: (ctx: CommandContext<State>, args: Args) => Promise<CommandResult<Result> | void>;
 }
 ```
 
@@ -239,11 +232,11 @@ type StructuredData = Record<string, unknown> | unknown[] | null;
 
 ```ts
 const ordersCommands = defineCommands<OrdersState>({
-  list: defineCommandFromArgs({
+  list: defineCommand({
     name: "list",
     description: "查询订单",
     args: {},
-    async run(_args, ctx) {
+    async run(ctx, _args) {
       return { data: { userId: ctx.state.user?.userId } };
     },
   }),
@@ -258,7 +251,7 @@ defineCli<OrdersState>({ commands: ordersCommands, ... });
 
 ## ctx:请求与上下文
 
-`ctx` 是 cli-sdk 注入给每个 `run(args, ctx)` 的上下文。**请求方法直接挂在 ctx 上(无 client 层);鉴权由 auth 插件 + cli-sdk 内部处理,业务包无感。**
+`ctx` 是 cli-sdk 注入给每个 `run(ctx, args)` 的上下文。**请求方法直接挂在 ctx 上(无 client 层);鉴权由 auth 插件 + cli-sdk 内部处理,业务包无感。**
 
 ```ts
 interface CommandContext<State = {}> {
@@ -351,7 +344,7 @@ async beforeCommand(ctx) {
 > 实际项目里 auth 插件会用 provider chain 取 token 再填 state.user,见 `05-credentials.md`。
 
 // 命令 run(消费者):读 state.user
-async run(args, ctx) {
+async run(ctx, args) {
 ctx.state.user?.userId // ✅ 强类型
 ctx.state.foo // ❌ 报错,没声明
 }
@@ -367,7 +360,7 @@ ctx.state.foo // ❌ 报错,没声明
 **命令通过 `return` 输出数据,不调用任何 out 方法。** run 返回 `CommandResult`,框架负责包装成统一输出格式 + 序列化到 stdout。
 
 ```ts
-async run(args, ctx): Promise<CommandResult | void> {
+async run(ctx, args): Promise<CommandResult | void> {
   const res = await ctx.get<OrderListResult>('/orders', args)
   return {
     data: res.data.items,
@@ -380,7 +373,7 @@ async run(args, ctx): Promise<CommandResult | void> {
 
 ```
 1. 跑插件 beforeCommand(填 state)
-2. 跑命令 run(args, ctx),拿返回值
+2. 跑命令 run(ctx, args),拿返回值
 3. 若有返回值:跑插件 transformOutput(transform data)
 4. 框架包装成统一输出格式 + 序列化到 stdout
 ```
@@ -400,22 +393,21 @@ async run(args, ctx): Promise<CommandResult | void> {
 
 ```ts
 import { defineCommand, errs } from "@renxqoo/agent-data-cli";
-
-interface GetOrderArgs {
-  id: string;
-}
+import * as z from "zod";
 interface Order {
   id: string;
   total: number;
   status: string;
 }
 
-export const getOrder = defineCommand<GetOrderArgs, Order>({
+export const getOrder = defineCommand({
   name: "get",
   description: "查询订单详情",
-  args: { id: { type: "string", required: true, positional: true, desc: "订单 ID" } },
-  requiresScope: "orders:read",
-  async run({ id }, ctx) {
+  args: {
+    schema: z.object({ id: z.string().describe("订单 ID") }),
+    pos: ["id"],
+  },
+  async run(ctx, { id }) {
     const res = await ctx.get<Order>(`/orders/${id}`);
     if (res.status === 404) throw new errs.NotFoundError(`订单 ${id} 不存在`);
     return { data: res.data };
@@ -428,12 +420,7 @@ export const getOrder = defineCommand<GetOrderArgs, Order>({
 ```ts
 // src/commands/orders.ts
 import { defineCommands, defineCommand, errs } from "@renxqoo/agent-data-cli";
-
-interface OrderListArgs {
-  limit?: number;
-  offset?: number;
-  status?: string;
-}
+import * as z from "zod";
 interface OrderListResult {
   items: Order[];
   hasMore: boolean;
@@ -441,15 +428,17 @@ interface OrderListResult {
 }
 
 export const ordersCommands = defineCommands({
-  list: defineCommand<OrderListArgs, OrderListResult>({
+  list: defineCommand({
     name: "list",
     description: "查询订单列表",
     args: {
-      limit: { type: "number", default: 30, desc: "返回数量上限" },
-      offset: { type: "number", default: 0, desc: "偏移量" },
-      status: { type: "string", desc: "状态: unpaid/paid/shipped" },
+      schema: z.object({
+        limit: z.coerce.number().describe("返回数量上限").default(30),
+        offset: z.coerce.number().describe("偏移量").default(0),
+        status: z.enum(["unpaid", "paid", "shipped"]).optional(),
+      }),
     },
-    async run(args, ctx) {
+    async run(ctx, args) {
       const res = await ctx.get<OrderListResult>("/orders", {
         limit: args.limit,
         offset: args.offset,
@@ -468,11 +457,11 @@ export const ordersCommands = defineCommands({
     },
   }),
 
-  get: defineCommand<{ id: string }, Order>({
+  get: defineCommand({
     name: "get",
     description: "查询订单详情",
-    args: { id: { type: "string", required: true, positional: true } },
-    async run({ id }, ctx) {
+    args: { schema: z.object({ id: z.string() }), pos: ["id"] },
+    async run(ctx, { id }) {
       const res = await ctx.get<Order>(`/orders/${id}`);
       if (res.status === 404) throw new errs.NotFoundError(`订单 ${id} 不存在`);
       return { data: res.data };
@@ -482,9 +471,11 @@ export const ordersCommands = defineCommands({
   update: defineCommand({
     name: "update",
     description: "更新订单",
-    requiresScope: "orders:write",
-    args: { id: { type: "string", required: true, positional: true }, status: { type: "string" } },
-    async run({ id, status }, ctx) {
+    args: {
+      schema: z.object({ id: z.string(), status: z.enum(["paid", "shipped"]) }),
+      pos: ["id"],
+    },
+    async run(ctx, { id, status }) {
       const res = await ctx.patch(`/orders/${id}`, { status });
       return { data: res.data };
     },
@@ -494,15 +485,13 @@ export const ordersCommands = defineCommands({
 
 ### args 字段规范
 
-| 字段         | 类型                                           | 说明                                               |
-| ------------ | ---------------------------------------------- | -------------------------------------------------- |
-| `type`       | `'string' \| 'number' \| 'boolean' \| 'array'` | 参数类型                                           |
-| `required`   | `boolean`                                      | 是否必填(默认 false)                               |
-| `positional` | `boolean`                                      | 是否位置参数(默认 flag;true 则 `<id>` 而非 `--id`) |
-| `desc`       | `string`                                       | **可选**描述(进自动生成的命令文档)                 |
-| `default`    | 同 type                                        | 默认值                                             |
+| 字段     | 类型                       | 说明                                             |
+| -------- | -------------------------- | ------------------------------------------------ |
+| `type`   | `"argv" \| "json"`       | 省略默认 argv；json 与 flags/位置参数互斥        |
+| `schema` | Zod object                 | 唯一校验、默认值、描述和类型来源                 |
+| `pos`    | schema 字段名数组          | 仅 argv 可用；按顺序映射原生位置参数             |
 
-**args 完全是业务包自己解释的参数对象**,cli-sdk 只负责解析 + 校验类型 + 填默认值,不参与参数语义。后端要 `page/pageSize` 还是 `cursor`,业务包在 `run` 里自己翻译。
+SDK 只负责 Shell token 到对象的确定性映射和 Zod 校验,不参与业务参数语义。后端要 `page/pageSize` 还是 `cursor`,业务包在 `run` 里翻译。
 
 ### 权限检查:声明式 `requiresScope` vs 命令式 `ctx.auth.requireScope()`
 
@@ -805,7 +794,7 @@ run() 返回结构化数据
 ```
 插件 beforeCommand(pre→normal→post)    填 state、改 args
   ↓
-命令 run(args, ctx)                     业务逻辑,ctx.get 发请求,return {data,meta}
+命令 run(ctx, args)                     业务逻辑,ctx.get 发请求,return {data,meta}
   ├ 每次 ctx.get/post:
   │    插件 beforeRequest(pre→normal→post)  改 req(加 header/签名/改 path)
   │    → 真正发请求(cli-sdk 内部,带鉴权)
@@ -830,8 +819,13 @@ run() 返回结构化数据
 list: defineCommand({
   name: "list",
   description: "查询订单列表",
-  args: { limit: { type: "number", default: 30 }, offset: { type: "number", default: 0 } },
-  async run(args, ctx) {
+  args: {
+    schema: z.object({
+      limit: z.coerce.number().default(30),
+      offset: z.coerce.number().default(0),
+    }),
+  },
+  async run(ctx, args) {
     const res = await ctx.get("/orders", { limit: args.limit, offset: args.offset });
     return {
       data: res.data.items,
@@ -855,8 +849,12 @@ list: defineCommand({
 list: defineCommand({
   name: "list",
   description: "查询订单列表",
-  args: { cursor: { type: "string", desc: "分页游标(从 nextToken 取)" } },
-  async run(args, ctx) {
+  args: {
+    schema: z.object({
+      cursor: z.string().describe("分页游标(从 nextToken 取)").optional(),
+    }),
+  },
+  async run(ctx, args) {
     const res = await ctx.get("/orders", { cursor: args.cursor });
     return {
       data: res.data.edges.map((e) => e.node),
@@ -969,7 +967,7 @@ rxcli-orders list | rxcli-customers get
 generate: defineCommand({
   name: 'generate', description: '生成发票',
   args: { orderId: { type: 'string' } },
-  async run(args, ctx) {
+  async run(ctx, args) {
     if (ctx.pipe.isInPipe()) {
       let count = 0
       for await (const rec of ctx.pipe.in()) {     // 异步迭代上游记录(PipeRecord)
@@ -1012,21 +1010,21 @@ describe("orders list", () => {
       },
       state: {}, // 初始 state
     });
-    // ② 直接调 run(args, ctx),拿返回值断言
-    const result = await ordersCommands.list.run({ limit: 30, offset: 0 }, ctx);
+    // ② 直接调 run(ctx, args),拿返回值断言
+    const result = await ordersCommands.list.run(ctx, { limit: 30, offset: 0 });
     expect(result.data).toEqual([{ id: "o_1", total: 100 }]);
   });
 
   it("404 抛 NotFoundError", async () => {
     const ctx = createTestCtx({ request: async () => ({ status: 404, data: {}, headers: {} }) });
-    await expect(ordersCommands.get.run({ id: "x" }, ctx)).rejects.toBeInstanceOf(
+    await expect(ordersCommands.get.run(ctx, { id: "x" })).rejects.toBeInstanceOf(
       errs.NotFoundError,
     );
   });
 });
 ```
 
-**纯函数测试**:`run(args, ctx)` 是普通函数,ctx 是注入的,mock `request` 就能测全部业务逻辑,不需要起真实 server。`createTestCtx` 还可注入 mock 的 `log`/`pipe` 等。
+**纯函数测试**:`run(ctx, args)` 是普通函数,ctx 是注入的,mock `request` 就能测全部业务逻辑,不需要起真实 server。`createTestCtx` 还可注入 mock 的 `log`/`pipe` 等。
 
 ---
 
@@ -1035,6 +1033,7 @@ describe("orders list", () => {
 ```ts
 // src/commands/orders.ts
 import { defineCommands, defineCommand, errs } from '@renxqoo/agent-data-cli'
+import * as z from 'zod'
 
 interface Order { id: string; total: number; status: string }
 interface OrderListResult { items: Order[]; hasMore: boolean; nextCursor?: string }
@@ -1042,8 +1041,8 @@ interface OrderListResult { items: Order[]; hasMore: boolean; nextCursor?: strin
 export const ordersCommands = defineCommands({
   list: defineCommand({
     name: 'list', description: '查询订单列表',
-    args: { limit: { type: 'number', default: 30 }, status: { type: 'string' } },
-    async run(args, ctx) {
+    args: { schema: z.object({ limit: z.coerce.number().default(30), status: z.string().optional() }) },
+    async run(ctx, args) {
       const res = await ctx.get<OrderListResult>('/orders', { limit: args.limit, ...(args.status && { status: args.status }) })
       return {
         data: res.data.items,
@@ -1051,10 +1050,10 @@ export const ordersCommands = defineCommands({
       }
     },
   }),
-  get: defineCommand<{ id: string }, Order>({
+  get: defineCommand({
     name: 'get', description: '查询订单详情',
-    args: { id: { type: 'string', required: true, positional: true } },
-    async run({ id }, ctx) {
+    args: { schema: z.object({ id: z.string() }), pos: ['id'] },
+    async run(ctx, { id }) {
       const res = await ctx.get<Order>(`/orders/${id}`)
       if (res.status === 404) throw new errs.NotFoundError(`订单 ${id} 不存在`)
       return { data: res.data }

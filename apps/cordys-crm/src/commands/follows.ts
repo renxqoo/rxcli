@@ -14,208 +14,162 @@
  * 设计:plan/record 作为命令,接受 <parent> 参数决定路径前缀;form 模块无关。
  */
 
+import * as z from "zod";
 import { defineCommands, defineCommand, errs, type CommandGroup } from "@renxqoo/agent-data-cli";
 import { FOLLOW_MODULES, isOneOf } from "../constants.js";
-import { unwrap, buildPagePayload, pagedMeta, parseJsonBody, type PagedData } from "../envelope.js";
-import { ensureConfirmed, assertHasId, assertHasField } from "./leads.js";
+import { unwrap, unwrapPaged, buildPagePayload, pagedMeta, parseJsonBody } from "../envelope.js";
+import { assertHasId, assertHasField } from "./leads.js";
+
+const writePolicy = { mode: "write", dryRun: true, confirmation: "required" } as const;
 
 export const followsCommands: CommandGroup = defineCommands({
   /** plan:跟进计划分页查询。 */
-  plan: defineCommand<{ parent: string; payload: string }>({
+  plan: defineCommand({
     name: "plan",
     description: "跟进计划分页查询(parent ∈ lead/account/opportunity)",
     args: {
-      parent: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "父模块(lead/account/opportunity)",
-      },
-      payload: {
-        type: "string",
-        positional: true,
-        desc: "分页载荷(JSON 或关键词,body 含 sourceId)",
-      },
+      schema: z.object({
+        parent: z.string().describe("父模块(lead/account/opportunity)"),
+        payload: z.string().describe("分页载荷(JSON 或关键词,body 含 sourceId)").optional(),
+      }),
+      pos: ["parent"],
     },
-    async run(args, ctx) {
-      assertParent(args.parent);
-      const res = await ctx.post(
-        `/${args.parent}/follow/plan/page`,
-        buildPagePayload(args.payload),
-      );
-      const data = unwrap<PagedData>(res);
+    async run(ctx, { parent, payload }) {
+      assertParent(parent);
+      const body = buildPagePayload(payload);
+      assertSourceId(body, parent, "plan");
+      const res = await ctx.post(`/${parent}/follow/plan/page`, body);
+      const data = unwrapPaged(res);
       return { data: data.list, meta: pagedMeta(data) };
     },
   }),
 
   /** record:跟进记录分页查询。 */
-  record: defineCommand<{ parent: string; payload: string }>({
+  record: defineCommand({
     name: "record",
     description: "跟进记录分页查询(parent ∈ lead/account/opportunity)",
     args: {
-      parent: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "父模块(lead/account/opportunity)",
-      },
-      payload: {
-        type: "string",
-        positional: true,
-        desc: "分页载荷(JSON 或关键词,body 含 sourceId)",
-      },
+      schema: z.object({
+        parent: z.string().describe("父模块(lead/account/opportunity)"),
+        payload: z.string().describe("分页载荷(JSON 或关键词,body 含 sourceId)").optional(),
+      }),
+      pos: ["parent"],
     },
-    async run(args, ctx) {
-      assertParent(args.parent);
-      const res = await ctx.post(
-        `/${args.parent}/follow/record/page`,
-        buildPagePayload(args.payload),
-      );
-      const data = unwrap<PagedData>(res);
+    async run(ctx, { parent, payload }) {
+      assertParent(parent);
+      const body = buildPagePayload(payload);
+      assertSourceId(body, parent, "record");
+      const res = await ctx.post(`/${parent}/follow/record/page`, body);
+      const data = unwrapPaged(res);
       return { data: data.list, meta: pagedMeta(data) };
     },
   }),
 
   /** form:跟进计划/记录的表单定义(模块无关,统一路径)。 */
-  form: defineCommand<{ type: string }>({
+  form: defineCommand({
     name: "form",
     description: "跟进计划/记录的表单字段定义",
     args: {
-      type: { type: "string", required: true, positional: true, desc: "类型(plan 或 record)" },
+      schema: z.object({ type: z.string().describe("类型(plan 或 record)") }),
+      pos: ["type"],
     },
-    async run(args, ctx) {
-      if (args.type !== "plan" && args.type !== "record") {
+    async run(ctx, { type }) {
+      if (type !== "plan" && type !== "record") {
         throw new errs.ValidationError({
           subtype: "invalid_argument",
           param: "<type>",
-          message: `form type must be plan or record, got "${args.type}"`,
+          message: `form type must be plan or record, got "${type}"`,
         });
       }
-      const res = await ctx.get(`/follow/${args.type}/module/form`);
+      const res = await ctx.get(`/follow/${type}/module/form`);
       return { data: unwrap(res) };
     },
   }),
 
   /** plan-add:新增跟进计划(必填 content, method, owner, type)。 */
-  "plan-add": defineCommand<{ parent: string; data: string; dryRun: boolean; yes: boolean }>({
+  "plan-add": defineCommand({
     name: "plan-add",
     description: "新增跟进计划(必填 content, method, owner, type)",
     args: {
-      parent: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "父模块(lead/account/opportunity)",
-      },
-      data: { type: "string", required: true, positional: true, desc: "跟进计划 JSON" },
-      dryRun: { type: "boolean", desc: "仅校验不提交" },
-      yes: { type: "boolean", desc: "跳过确认直接提交" },
+      schema: z.object({
+        parent: z.string().describe("父模块(lead/account/opportunity)"),
+        data: z.string().describe("跟进计划 JSON"),
+      }),
+      pos: ["parent", "data"],
     },
-    async run(args, ctx) {
-      assertParent(args.parent);
-      const body = parseJsonBody(args.data, "<data>");
+    policy: writePolicy,
+    async run(ctx, { parent, data }) {
+      assertParent(parent);
+      const body = parseJsonBody(data, "<data>");
       for (const f of ["content", "method", "owner", "type"]) {
         assertHasField(body, "Create follow-up plan", f);
       }
-      if (args.dryRun) return { data: null, meta: { dryRun: true } };
-      ensureConfirmed(
-        args.yes,
-        "Create follow-up plan",
-        "rxcordys follows plan-add <parent> '<json>' --yes",
-      );
-      const res = await ctx.post(`/${args.parent}/follow/plan/add`, body);
+      const res = await ctx.post(`/${parent}/follow/plan/add`, body);
       return { data: unwrap(res) };
     },
   }),
 
   /** plan-update:更新跟进计划(需含 id)。 */
-  "plan-update": defineCommand<{ parent: string; data: string; dryRun: boolean; yes: boolean }>({
+  "plan-update": defineCommand({
     name: "plan-update",
     description: "更新跟进计划(需含 id + 必填字段)",
     args: {
-      parent: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "父模块(lead/account/opportunity)",
-      },
-      data: { type: "string", required: true, positional: true, desc: "跟进计划 JSON(含 id)" },
-      dryRun: { type: "boolean", desc: "仅校验不提交" },
-      yes: { type: "boolean", desc: "跳过确认直接提交" },
+      schema: z.object({
+        parent: z.string().describe("父模块(lead/account/opportunity)"),
+        data: z.string().describe("跟进计划 JSON(含 id)"),
+      }),
+      pos: ["parent", "data"],
     },
-    async run(args, ctx) {
-      assertParent(args.parent);
-      const body = parseJsonBody(args.data, "<data>");
+    policy: writePolicy,
+    async run(ctx, { parent, data }) {
+      assertParent(parent);
+      const body = parseJsonBody(data, "<data>");
       assertHasId(body, "Update follow-up plan");
-      if (args.dryRun) return { data: null, meta: { dryRun: true } };
-      ensureConfirmed(
-        args.yes,
-        "Update follow-up plan",
-        "rxcordys follows plan-update <parent> '<json>' --yes",
-      );
-      const res = await ctx.post(`/${args.parent}/follow/plan/update`, body);
+      const res = await ctx.post(`/${parent}/follow/plan/update`, body);
       return { data: unwrap(res) };
     },
   }),
 
   /** record-add:新增跟进记录(必填 content, followMethod, owner, type)。 */
-  "record-add": defineCommand<{ parent: string; data: string; dryRun: boolean; yes: boolean }>({
+  "record-add": defineCommand({
     name: "record-add",
     description: "新增跟进记录(必填 content, followMethod, owner, type)",
     args: {
-      parent: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "父模块(lead/account/opportunity)",
-      },
-      data: { type: "string", required: true, positional: true, desc: "跟进记录 JSON" },
-      dryRun: { type: "boolean", desc: "仅校验不提交" },
-      yes: { type: "boolean", desc: "跳过确认直接提交" },
+      schema: z.object({
+        parent: z.string().describe("父模块(lead/account/opportunity)"),
+        data: z.string().describe("跟进记录 JSON"),
+      }),
+      pos: ["parent", "data"],
     },
-    async run(args, ctx) {
-      assertParent(args.parent);
-      const body = parseJsonBody(args.data, "<data>");
+    policy: writePolicy,
+    async run(ctx, { parent, data }) {
+      assertParent(parent);
+      const body = parseJsonBody(data, "<data>");
       for (const f of ["content", "followMethod", "owner", "type"]) {
         assertHasField(body, "Create follow-up record", f);
       }
-      if (args.dryRun) return { data: null, meta: { dryRun: true } };
-      ensureConfirmed(
-        args.yes,
-        "Create follow-up record",
-        "rxcordys follows record-add <parent> '<json>' --yes",
-      );
-      const res = await ctx.post(`/${args.parent}/follow/record/add`, body);
+      const res = await ctx.post(`/${parent}/follow/record/add`, body);
       return { data: unwrap(res) };
     },
   }),
 
   /** record-update:更新跟进记录(需含 id)。 */
-  "record-update": defineCommand<{ parent: string; data: string; dryRun: boolean; yes: boolean }>({
+  "record-update": defineCommand({
     name: "record-update",
     description: "更新跟进记录(需含 id + 必填字段)",
     args: {
-      parent: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "父模块(lead/account/opportunity)",
-      },
-      data: { type: "string", required: true, positional: true, desc: "跟进记录 JSON(含 id)" },
-      dryRun: { type: "boolean", desc: "仅校验不提交" },
-      yes: { type: "boolean", desc: "跳过确认直接提交" },
+      schema: z.object({
+        parent: z.string().describe("父模块(lead/account/opportunity)"),
+        data: z.string().describe("跟进记录 JSON(含 id)"),
+      }),
+      pos: ["parent", "data"],
     },
-    async run(args, ctx) {
-      assertParent(args.parent);
-      const body = parseJsonBody(args.data, "<data>");
+    policy: writePolicy,
+    async run(ctx, { parent, data }) {
+      assertParent(parent);
+      const body = parseJsonBody(data, "<data>");
       assertHasId(body, "Update follow-up record");
-      if (args.dryRun) return { data: null, meta: { dryRun: true } };
-      ensureConfirmed(
-        args.yes,
-        "Update follow-up record",
-        "rxcordys follows record-update <parent> '<json>' --yes",
-      );
-      const res = await ctx.post(`/${args.parent}/follow/record/update`, body);
+      const res = await ctx.post(`/${parent}/follow/record/update`, body);
       return { data: unwrap(res) };
     },
   }),
@@ -229,6 +183,22 @@ function assertParent(parent: string): void {
       param: "<parent>",
       message: `follow parent module must be lead/account/opportunity, got "${parent}"`,
       hint: `Valid: ${FOLLOW_MODULES.join(", ")}`,
+    });
+  }
+}
+
+/**
+ * 校验分页载荷含 sourceId。跟进按父记录维度查询,缺 sourceId 时 Cordys 服务端
+ * 返回误导性的 500「没有操作权限」;在此前置为清晰的 missing_required。
+ */
+function assertSourceId(body: Record<string, unknown>, parent: string, kind: string): void {
+  const sid = body.sourceId;
+  if (sid === undefined || sid === null || sid === "") {
+    throw new errs.ValidationError({
+      subtype: "missing_required",
+      param: "sourceId",
+      message: `follows ${kind} requires sourceId (the parent ${parent} record id)`,
+      hint: `Provide via payload, e.g. --payload '{"sourceId":"<id>"}'`,
     });
   }
 }

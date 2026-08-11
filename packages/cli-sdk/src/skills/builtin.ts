@@ -11,6 +11,7 @@
  */
 
 import { type SkillTarget } from "./targets.js";
+import * as z from "zod";
 import type { CommandGroup, DefineCliOptions } from "../types.js";
 import { ConfigError } from "../errs/index.js";
 import { rawText } from "../output.js";
@@ -45,8 +46,13 @@ export function createBuiltinSkillsCommands(
       name: "list",
       description: "List all skills, or list one level under a skill",
       internal: true,
-      args: { name: { type: "string", positional: true, desc: "skill name or name/subpath" } },
-      async run(args) {
+      args: {
+        schema: z.object({
+          name: z.string().describe("skill name or name/subpath").optional(),
+        }),
+        pos: ["name"],
+      },
+      async run(_ctx, args) {
         if (!args.name) {
           const all = repository.list();
           return { data: all, meta: { count: all.length } };
@@ -63,14 +69,12 @@ export function createBuiltinSkillsCommands(
         "Read a skill's SKILL.md or reference (raw content to stdout, output contract exception)",
       internal: true,
       args: {
-        name: {
-          type: "string",
-          required: true,
-          positional: true,
-          desc: "skill name or name/subpath",
-        },
+        schema: z.object({
+          name: z.string().describe("skill name or name/subpath"),
+        }),
+        pos: ["name"],
       },
-      async run(args) {
+      async run(_ctx, args) {
         return rawText(repository.read(args.name));
       },
     },
@@ -144,23 +148,15 @@ export function createBuiltinSkillsCommands(
         "Generate SKILL.md command docs from defineCommands (refreshes the AUTO-GEN block)",
       internal: true,
       args: {
-        name: {
-          type: "string",
-          required: true,
-          positional: true,
-          desc: "skill name (= directory name)",
-        },
-        init: {
-          type: "boolean",
-          desc: "Generate the full SKILL.md skeleton (with {{FILL}} placeholders). Requires --force when SKILL.md already exists.",
-        },
-        force: {
-          type: "boolean",
-          desc: "With --init, overwrite an existing SKILL.md (otherwise --init on an existing file is refused to protect hand-written content).",
-        },
-        lang: { type: "string", desc: "Skeleton language: 'en' (default) or 'zh'", default: "en" },
+        schema: z.object({
+          name: z.string().describe("skill name (= directory name)"),
+          init: z.boolean().default(false),
+          force: z.boolean().default(false),
+          lang: z.enum(["en", "zh"]).default("en"),
+        }),
+        pos: ["name"],
       },
-      async run(args) {
+      async run(_ctx, args) {
         const result = repository.generate({
           name: args.name,
           initialize: Boolean(args.init),

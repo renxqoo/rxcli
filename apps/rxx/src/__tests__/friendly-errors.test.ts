@@ -52,7 +52,7 @@ function parseErr(stderr: string): any {
 
 // server 由 globalSetup 起,这里不再起/停
 
-const COMMON_ARGS = ["--insecure", "--private-endpoints", "--yes"];
+const COMMON_ARGS = ["--insecure", "--private-endpoints", "--auto-confirm"];
 
 describe("坏 manifest 友好错误处理", () => {
   it("缺 api.baseUrl → validation/invalid_config + 字段定位 hint", async () => {
@@ -144,7 +144,7 @@ describe("坏 manifest 友好错误处理", () => {
   });
 
   it("非法 URL → validation/invalid_argument + param:url", async () => {
-    const { stderr, code } = await runRxx(["init", "not a url", "--yes"]);
+    const { stderr, code } = await runRxx(["init", "not a url", "--auto-confirm"]);
     expect(code).toBe(2);
     const err = parseErr(stderr);
     expect(err.error.subtype).toBe("invalid_argument");
@@ -156,7 +156,7 @@ describe("坏 manifest 友好错误处理", () => {
       "init",
       `${baseUrl}/manifests/demo-orders`,
       "--private-endpoints",
-      "--yes",
+      "--auto-confirm",
     ]);
     expect(code).toBe(2);
     const err = parseErr(stderr);

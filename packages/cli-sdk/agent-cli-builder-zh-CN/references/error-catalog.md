@@ -132,7 +132,7 @@ defineCli({
 ```ts
 // 该 status 需要命令专属语义时，不要把它放进全局 errorOnStatus
 get: defineCommand({
-  async run({ id }, ctx) {
+  async run(ctx, { id }) {
     const res = await ctx.get(`/orders/${id}`)
     // 特殊:404 在这里给业务专属 hint
     if (res.status === 404) {
@@ -216,7 +216,11 @@ defineCli({
   errorOnStatus: { 404: "not_foundd" }, // ← 拼错
   // → defineCli 立刻 throw:subtype "not_foundd"(配在 status 404)未在 SUBTYPE_REGISTRY 登记
 });
+
+// 结构化写命令不要手工抛此错误；声明 operation.confirmation: "required"
 ```
+
+写命令由运行时在 Zod 校验、dry-run 和幂等策略之后、进入业务 `run` 之前统一确认。argv 和 JSON 模式使用同一个 `policy`；不要在业务 `run` 中重复确认。
 
 所以 `errorOnStatus` 的值必须和下表 §1 的标准 subtype **逐字一致**。新增自定义 subtype 时,先登记:
 

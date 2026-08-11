@@ -15,10 +15,10 @@ import type {
   Plugin,
 } from "./types.js";
 import type { IdentityHint } from "./credentials/types.js";
-import { MISSING_FLAG_VALUE } from "./args.js";
 import {
   hasCommandHelp,
   matchRoute,
+  MISSING_FLAG_VALUE,
   parseFrameworkArgs,
   type FrameworkArgs,
   type RoutedCommand,
@@ -29,7 +29,7 @@ import {
   validateErrorOnStatus,
 } from "./command-registry.js";
 import { createContext, identityKey } from "./context.js";
-import { serializeError } from "./envelope.js";
+import { serializeError, serializeSuccess } from "./envelope.js";
 import { errs, exitCodeOf, toCliError } from "./errs/index.js";
 import { renderCommandHelp, renderHelp } from "./help.js";
 import { detectBinName, detectVersion } from "./package-detect.js";
@@ -38,6 +38,7 @@ import { runCommand } from "./pipeline.js";
 import { qrcodeCommand } from "./qrcode.js";
 import { createFetchAdapter } from "./request.js";
 import { createBuiltinSkillsCommands } from "./skills/builtin.js";
+import * as z from "zod";
 
 type DefaultFormat = "auto" | "json" | "human";
 
@@ -56,8 +57,7 @@ interface CompiledApplication<State> {
 
 interface CommandInvocation<State> {
   matched: RoutedCommand<State>;
-  rawOptions: Record<string, unknown>;
-  rawPositionals: string[];
+  rawArgv: string[];
   humanReadable: boolean;
   pluginArgs?: Record<string, unknown>;
 }
@@ -104,16 +104,47 @@ class CliApplicationRuntime<State> implements App {
       return;
     }
 
-    const parsed = matched.schema.tokenize(rest);
+    if (matched.schema.mode === "json" && this.#renderInputDiscovery(matched, rest)) return;
     const pluginArgs = framework.apiKey === undefined ? undefined : { apiKey: framework.apiKey };
     const exitCode = await this.#execute({
       matched,
-      rawOptions: parsed.options,
-      rawPositionals: parsed.positionals,
-      humanReadable: resolveHumanReadable(framework.format, this.#compiled.defaultFormat),
+      rawArgv: rest,
+      humanReadable: resolveHumanReadable(
+        framework.format,
+        this.#compiled.defaultFormat,
+        matched.schema.mode === "json" && !hasExplicitJsonInput(rest),
+      ),
       ...(pluginArgs ? { pluginArgs } : {}),
     });
     process.exitCode = exitCode;
+  }
+
+  #renderInputDiscovery(matched: RoutedCommand<State>, argv: readonly string[]): boolean {
+    const wantsSchema = argv.includes("--input-schema");
+    const wantsExample = argv.includes("--input-example");
+    if (!wantsSchema && !wantsExample) return false;
+    if (argv.length !== 1) {
+      throw new errs.ValidationError({
+        subtype: "invalid_argument",
+        param: argv.find((value) => value !== "--input-schema" && value !== "--input-example"),
+        message: "Input discovery flags cannot be combined with command input or arguments",
+      });
+    }
+    if (wantsSchema && wantsExample) {
+      throw new errs.ValidationError({
+        subtype: "invalid_argument",
+        param: "--input-schema",
+        message: "--input-schema and --input-example are mutually exclusive",
+      });
+    }
+    const schema = matched.spec.args!.schema;
+    const metadata = z.globalRegistry.get(schema) as { examples?: readonly unknown[] } | undefined;
+    const data = wantsSchema
+      ? { schema: matched.schema.jsonSchema }
+      : { example: metadata?.examples?.[0] ?? null };
+    process.stdout.write(serializeSuccess(data, undefined, { source: this.#compiled.name }) + "\n");
+    process.exitCode = 0;
+    return true;
   }
 
   #renderMissingRoute(argv: string[], leadingHelp: boolean, emptyCommand: boolean): void {
@@ -138,7 +169,9 @@ class CliApplicationRuntime<State> implements App {
   async #execute(invocation: CommandInvocation<State>): Promise<number> {
     const { matched } = invocation;
     const adapter = createFetchAdapter({ baseUrl: this.#compiled.baseUrl });
-    const pipe = process.stdin.isTTY ? emptyPipe() : createPipeReader(process.stdin);
+    const inputOwnsStdin = matched.schema.mode === "json";
+    const pipe =
+      inputOwnsStdin || process.stdin.isTTY ? emptyPipe() : createPipeReader(process.stdin);
     const ctx = createContext<State>({
       state: this.#compiled.createState(),
       adapter,
@@ -219,8 +252,12 @@ function resolveStateFactory<State>(options: DefineCliOptions<State>): () => Sta
   return () => ({}) as State;
 }
 
-function resolveHumanReadable(format: FrameworkArgs["format"], fallback: DefaultFormat): boolean {
-  const stdinIsPipe = !process.stdin.isTTY;
+function resolveHumanReadable(
+  format: FrameworkArgs["format"],
+  fallback: DefaultFormat,
+  inputOwnsStdin = false,
+): boolean {
+  const stdinIsPipe = !inputOwnsStdin && !process.stdin.isTTY;
   if (format === "json") return false;
   if (format === "human") return !stdinIsPipe;
   if (fallback === "json") return false;
@@ -228,7 +265,9 @@ function resolveHumanReadable(format: FrameworkArgs["format"], fallback: Default
   return !!process.stdout.isTTY && !stdinIsPipe;
 }
 
-function parseInvocationArgs<State>(invocation: CommandInvocation<State>): Record<string, unknown> {
+async function parseInvocationArgs<State>(
+  invocation: CommandInvocation<State>,
+): Promise<Record<string, unknown>> {
   if (invocation.pluginArgs?.apiKey === MISSING_FLAG_VALUE) {
     throw new errs.ValidationError({
       subtype: "missing_required",
@@ -236,7 +275,17 @@ function parseInvocationArgs<State>(invocation: CommandInvocation<State>): Recor
       message: "Argument --api-key requires a value",
     });
   }
-  return invocation.matched.schema.parseTokens(invocation.rawOptions, invocation.rawPositionals);
+  return invocation.matched.schema.resolve(invocation.rawArgv, process.stdin);
+}
+
+function hasExplicitJsonInput(argv: readonly string[]): boolean {
+  return argv.some(
+    (value) =>
+      value === "--input" ||
+      value.startsWith("--input=") ||
+      value === "--input-file" ||
+      value.startsWith("--input-file="),
+  );
 }
 
 function readIdentity<State>(ctx: CommandContext<State>): "user" | "bot" | undefined {

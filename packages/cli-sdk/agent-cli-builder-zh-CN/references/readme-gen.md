@@ -108,7 +108,16 @@ Agent 或脚本调用时显式加 `--json`。成功结果写 stdout，错误和�
 
 不要写“列表自动生成分页”。只有命令返回 `meta.pagination` 时才说明 `complete` 和 `nextToken`。
 
-常用命令来自 `--help`，每条示例都必须能运行。不要统一添加 `--dryRun`、`--yes` 或其他未定义参数。
+常用命令来自 `--help`，每条示例都必须能运行。不要虚构 `--dryRun`；结构化写操作只有在 `operation` 声明后才会出现短横线形式的 `--dry-run` 和 `--yes`。
+
+JSON 参数命令示例优先展示安全的文件或原生 stdin 调用及 schema 发现，不要在 README 塞长内联载荷：
+
+```bash
+{{bin}} orders create --input-file ./order.json --idempotency-key <stable-key> --yes
+{{bin}} orders create --input-schema
+```
+
+说明载荷必须且只能选择一个来源，并提醒内联敏感值可能进入 shell 历史或进程列表。
 
 开发章节只列真实脚本：
 

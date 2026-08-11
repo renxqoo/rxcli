@@ -158,7 +158,7 @@ const authCommands = defineCommands({
   }),
   logout: defineCommand({
     name: "logout",
-    async run(_args, _ctx) {
+    async run(_ctx, _args) {
       await store.clearCredentials(opts.namespace);
       return { data: { cleared: true } };
     },
@@ -180,7 +180,7 @@ return {
 
 // 错误:login 里用 ctx.credentials.save()
 //   login 被 provides 豁免 beforeCommand → ctx.credentials 是 no-op → 不落盘
-//   async run(args, ctx) { await ctx.credentials.save(...) }  // ← bug
+//   async run(ctx, args) { await ctx.credentials.save(...) }  // ← bug
 ```
 
 > 判断规则:**`provides` 贡献的命令里,凭证读写一律用 `store`(闭包),不用 `ctx.credentials`**。`ctx.credentials` 只在业务命令(非 plugin provides)里可靠——此时 beforeCommand 已跑过,包装已生效。

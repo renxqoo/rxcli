@@ -122,7 +122,7 @@ $ rxcli-orders list --status unpaid | rxcli-invoices generate
 下游命令代码(开发者写):
 
 ```ts
-async run(args, ctx) {
+async run(ctx, args) {
   for await (const rec of ctx.pipe.in()) {       // 异步迭代上游记录
     await ctx.post('/invoices', { orderId: rec.id })
   }

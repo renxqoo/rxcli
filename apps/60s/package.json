@@ -42,7 +42,8 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@renxqoo/agent-data-cli": "workspace:*"
+    "@renxqoo/agent-data-cli": "workspace:*",
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

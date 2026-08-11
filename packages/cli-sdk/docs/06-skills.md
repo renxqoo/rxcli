@@ -273,9 +273,11 @@ defineCli({
 // 命令定义
 list: defineCommand({
   args: {
-    limit:  { type: 'number', default: 30 },
-    offset: { type: 'number', default: 0 },
-    status: { type: 'string' },
+    schema: z.object({
+      limit: z.coerce.number().default(30),
+      offset: z.coerce.number().default(0),
+      status: z.string().optional(),
+    }),
   },
 })
 
@@ -285,7 +287,7 @@ rxcli-orders list [--limit <number>] [--offset <number>] [--status <string>]
 
 ```ts
 get: defineCommand({
-  args: { id: { type: 'string', required: true, positional: true } },
+  args: { schema: z.object({ id: z.string() }), pos: ['id'] },
 })
 
 // 生成的签名
@@ -296,19 +298,23 @@ rxcli-orders get <id>
 
 ---
 
-## args 的 `desc` 字段(提升文档质量)
+## Zod 的 `.describe()`（提升文档质量）
 
-每个 arg 可选填 `desc`(描述)。填了进文档,不填是 `—`:
+直接在 Zod 字段上调用 `.describe()`；描述会进入生成文档，未填写时显示 `—`：
 
 ```ts
 args: {
-  limit:  { type: 'number', default: 30, desc: '返回数量上限(1-100)' },
-  status: { type: 'string', desc: '状态: unpaid/paid/shipped/cancelled' },
-  force:  { type: 'boolean', desc: '跳过确认' },
-}
+  schema: z.object({
+    limit: z.coerce.number().min(1).max(100).default(30).describe("返回数量上限（1-100）"),
+    status: z.enum(["unpaid", "paid", "shipped", "cancelled"])
+      .describe("订单状态")
+      .optional(),
+    force: z.boolean().default(false).describe("跳过确认"),
+  }),
+},
 ```
 
-**填 desc 几乎零成本,但文档质量大幅提升。** 强烈建议业务包给每个参数填 desc——这是自动生成文档质量的关键。
+建议为每个业务参数填写 `.describe()`，这是自动生成 help 和 Skill 参数文档的文字来源。
 
 ---
 

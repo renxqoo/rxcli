@@ -108,7 +108,16 @@ Agents and scripts should pass `--json`. Successful data goes to stdout; errors 
 
 Do not claim pagination is automatic. Mention `complete` and `nextToken` only for commands that return `meta.pagination`.
 
-Derive command examples from `--help` and execute each one. Never add `--dryRun`, `--yes`, or another flag that is not defined.
+Derive command examples from `--help` and execute each one. Never invent `--dryRun`; structured operations expose the kebab-case `--dry-run` and `--yes` flags only when declared by `operation`.
+
+For a structured command, show one safe file or stdin invocation plus discovery rather than a long inline payload:
+
+```bash
+{{bin}} orders create --input-file ./order.json --idempotency-key <stable-key> --yes
+{{bin}} orders create --input-schema
+```
+
+Explain that exactly one input source is required and that inline secrets may leak through shell history or process listings.
 
 List only real scripts:
 

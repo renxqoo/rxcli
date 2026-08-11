@@ -46,7 +46,7 @@ describe("端到端:init + run + list + remove", () => {
       `${baseUrl}/manifests/demo-orders`,
       "--insecure",
       "--private-endpoints",
-      "--yes",
+      "--auto-confirm",
     ]);
     expect(code).toBe(0);
     const out = JSON.parse(stdout.trim().split("\n").pop()!);
@@ -149,7 +149,7 @@ describe("端到端:init + run + list + remove", () => {
       `${baseUrl}/manifests/demo-products`,
       "--insecure",
       "--private-endpoints",
-      "--yes",
+      "--auto-confirm",
     ]);
     const { stdout, code } = await runRxx([
       "run",
@@ -233,7 +233,7 @@ describe("动态注册:运行时新增服务,客户端零改动", () => {
       `${baseUrl}/manifests/demo-tasks`,
       "--insecure",
       "--private-endpoints",
-      "--yes",
+      "--auto-confirm",
     ]);
     expect(initOut.code).toBe(0);
     const initData = JSON.parse(initOut.stdout.trim().split("\n").pop()!);
@@ -312,7 +312,7 @@ describe("update flags 对齐 init(--unsigned / --lang)", () => {
       `${baseUrl}/manifests/demo-orders`,
       "--insecure",
       "--private-endpoints",
-      "--yes",
+      "--auto-confirm",
     ]);
     // update 带 --unsigned —— flag 被接受,不会因 unknown flag 报错
     const updateOut = await runRxx([
@@ -321,7 +321,7 @@ describe("update flags 对齐 init(--unsigned / --lang)", () => {
       "--insecure",
       "--private-endpoints",
       "--unsigned",
-      "--yes",
+      "--auto-confirm",
     ]);
     expect(updateOut.code).toBe(0);
     const updateData = JSON.parse(updateOut.stdout.trim().split("\n").pop()!);
@@ -336,7 +336,7 @@ describe("update flags 对齐 init(--unsigned / --lang)", () => {
       "--private-endpoints",
       "--lang",
       "zh",
-      "--yes",
+      "--auto-confirm",
     ]);
     expect(updateOut.code).toBe(0);
     // 读生成的 skill 文件,验证含 zh 模板的中文标题(cli-sdk gen.ts zh 模板用 "## 命令")
@@ -354,7 +354,7 @@ describe("update flags 对齐 init(--unsigned / --lang)", () => {
       "--private-endpoints",
       "--lang",
       "en",
-      "--yes",
+      "--auto-confirm",
     ]);
     expect(updateOut.code).toBe(0);
     const skillMd = join(tmpHome, "skills", "demo-orders", "SKILL.md");

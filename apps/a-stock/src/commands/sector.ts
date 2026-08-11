@@ -8,39 +8,25 @@
  *   - top                     涨幅 / 跌幅 / 成交额 TOP 板块
  */
 
+import * as z from "zod";
 import { defineCommands, defineCommand, errs } from "@renxqoo/agent-data-cli";
 import { getSectorList, getSectorStocks } from "../services/stock.js";
-import { getQuote } from "../services/quote.js";
 
 const VALID_KINDS = ["industry", "concept", "area"] as const;
 type SectorKind = (typeof VALID_KINDS)[number];
 
 export const sectorCommands = defineCommands({
-  list: defineCommand<
-    {
-      kind?: string;
-      page?: number;
-      size?: number;
-    },
-    unknown[]
-  >({
+  list: defineCommand({
     name: "list",
     description: "查询板块列表(行业 / 概念 / 地域)",
     args: {
-      kind: {
-        type: "string",
-        desc: "板块类型:industry|concept|area (默认 industry)",
-      },
-      page: {
-        type: "number",
-        desc: "页码(默认 1)",
-      },
-      size: {
-        type: "number",
-        desc: "单页条数(默认 100)",
-      },
+      schema: z.object({
+        kind: z.string().describe("板块类型:industry|concept|area (默认 industry)").optional(),
+        page: z.coerce.number().describe("页码(默认 1)").optional(),
+        size: z.coerce.number().describe("单页条数(默认 100)").optional(),
+      }),
     },
-    async run({ kind, page, size }) {
+    async run(_ctx, { kind, page, size }) {
       const k = (kind ?? "industry") as SectorKind;
       if (!VALID_KINDS.includes(k)) {
         throw new errs.ValidationError({
@@ -64,26 +50,18 @@ export const sectorCommands = defineCommands({
     },
   }),
 
-  stocks: defineCommand<{ code: string; page?: number; size?: number }, unknown[]>({
+  stocks: defineCommand({
     name: "stocks",
     description: "查询板块成分股",
     args: {
-      code: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "板块代码(如 BK1600)",
-      },
-      page: {
-        type: "number",
-        desc: "页码(默认 1)",
-      },
-      size: {
-        type: "number",
-        desc: "单页条数(默认 100)",
-      },
+      schema: z.object({
+        code: z.string().describe("板块代码(如 BK1600)"),
+        page: z.coerce.number().describe("页码(默认 1)").optional(),
+        size: z.coerce.number().describe("单页条数(默认 100)").optional(),
+      }),
+      pos: ["code"],
     },
-    async run({ code, page, size }) {
+    async run(_ctx, { code, page, size }) {
       const data = await getSectorStocks(code, {
         page: page ?? 1,
         size: size ?? 100,
@@ -98,18 +76,16 @@ export const sectorCommands = defineCommands({
     },
   }),
 
-  quote: defineCommand<{ code: string }, unknown>({
+  quote: defineCommand({
     name: "quote",
     description: "查询板块实时行情",
     args: {
-      code: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "板块代码(如 BK1600)",
-      },
+      schema: z.object({
+        code: z.string().describe("板块代码(如 BK1600)"),
+      }),
+      pos: ["code"],
     },
-    async run({ code }) {
+    async run(_ctx, { code }) {
       // 板块代码是 BK 前缀,东财 secid 是 BK + 数字
       // 板块报价走东财,腾讯不直接支持 BK
       const data = await getSectorList({ kind: "industry", size: 5000 });

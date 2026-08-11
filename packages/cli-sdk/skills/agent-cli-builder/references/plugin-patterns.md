@@ -14,6 +14,7 @@ Use plugins for cross-cutting behavior such as authentication, fixed headers, si
 | Hook                 | Runs                              | Typical use                                          |
 | -------------------- | --------------------------------- | ---------------------------------------------------- |
 | `beforeCommand`      | Before command `run`              | Resolve identity, initialize state, reject execution |
+| `observeInput`       | After JSON args validation/redaction | Audit JSON provenance without raw data             |
 | `beforeRequest`      | Before each `ctx.*` attempt       | Headers, tenant, signatures                          |
 | `observeRequest`     | After each physical attempt       | Metrics and awaited audit side effects               |
 | `handleUnauthorized` | After a 401 response              | Refresh a context-bound credential once              |
@@ -30,6 +31,8 @@ Typical order:
 - HMAC signing: `post`, after headers and body are final.
 
 Write lifecycle tests when two plugins depend on registration order.
+
+`observeInput` receives the route, input metadata and cloned `redactedArgs`; it never receives raw JSON. Register `sensitive` JSON Pointers in the root Zod schema metadata and keep observers telemetry-only. Observer failures are logged and cannot change command execution.
 
 ## 2. Common patterns
 

@@ -17,9 +17,18 @@
 列表命令如实填 `pagination`,agent 才能判断"是否续拉":
 
 ```ts
-list: defineCommand({
-  args: { cursor: { type: 'string', desc: '续拉游标(从上次 nextToken 取)' } },
-  async run(args, ctx) {
+import * as z from 'zod'
+import { defineCommand } from '@renxqoo/agent-data-cli'
+
+export const list = defineCommand({
+  name: 'list',
+  description: '查询列表',
+  args: {
+    schema: z.object({
+      cursor: z.string().describe('续拉游标(从上次 nextToken 取)').optional(),
+    }),
+  },
+  async run(ctx, args) {
     const res = await ctx.get('/items', { cursor: args.cursor })
     return {
       data: res.data.items,
@@ -59,9 +68,16 @@ list: defineCommand({
 下游命令用 `ctx.pipe.isInPipe()` 分流:在管道里就读上游记录,不在就用参数。
 
 ```ts
-generate: defineCommand({
-  args: { orderId: { type: 'string' } },     // 既支持管道,又支持参数
-  async run(args, ctx) {
+import * as z from 'zod'
+import { defineCommand, errs } from '@renxqoo/agent-data-cli'
+
+export const generate = defineCommand({
+  name: 'generate',
+  description: '生成发票',
+  args: {
+    schema: z.object({ orderId: z.string().optional() }),
+  }, // 既支持管道,又支持参数
+  async run(ctx, args) {
     if (ctx.pipe.isInPipe()) {
       let count = 0
       for await (const rec of ctx.pipe.in()) {
@@ -98,6 +114,8 @@ interface PipeRecord {
 
 > **管道保护是自动的**:被管道时(stdin 非 TTY),即使 `--no-json` 也强制输出 JSON,保护下游解析。
 
+JSON 参数命令会独占原生 stdin 读取完整 JSON 文档；该次调用的 `PipeApi` 为空，同一条流不能同时承载框架成功输出。必须明确选择 JSON stdin 或 `ctx.pipe`，禁止根据内容猜测分流。
+
 ---
 
 ## 3. `humanFormat` 自定义 `--no-json` 输出
@@ -107,13 +125,15 @@ interface PipeRecord {
 ```ts
 import { defineCommand, printTable } from '@renxqoo/agent-data-cli'
 
-list: defineCommand({
+export const list = defineCommand({
+  name: 'list',
+  description: '查询订单',
   humanFormat: (data) => printTable(data as any[], [
     { header: 'ID', value: (r: any) => r.id },
     { header: '总额', value: (r: any) => `¥${r.total}`, align: 'right' },
     { header: '状态', value: (r: any) => ({ paid: '已支付', shipped: '已发货' })[r.status] ?? r.status },
   ]),
-  async run(args, ctx) { /* ... */ },
+  async run(ctx, args) { /* ... */ },
 }),
 ```
 

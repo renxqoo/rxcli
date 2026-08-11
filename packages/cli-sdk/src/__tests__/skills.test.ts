@@ -32,6 +32,7 @@ import {
 import { defineCommand, defineCommands } from "../index.js";
 import { NotFoundError } from "../errs/index.js";
 import type { DefineCliOptions } from "../types.js";
+import * as z from "zod";
 
 describe("cleanSubPath: 路径穿越校验(安全边界)", () => {
   it("合法相对路径通过", () => {
@@ -65,7 +66,7 @@ describe("gen: 命令签名生成", () => {
       spec: defineCommand({
         name: "get",
         description: "查详情",
-        args: { id: { type: "string", required: true, positional: true } },
+        args: { schema: z.object({ id: z.string() }), pos: ["id"] },
         async run() {},
       }),
     };
@@ -78,7 +79,12 @@ describe("gen: 命令签名生成", () => {
       spec: defineCommand({
         name: "list",
         description: "列表",
-        args: { limit: { type: "number", default: 30 }, status: { type: "string" } },
+        args: {
+          schema: z.object({
+            limit: z.coerce.number().default(30),
+            status: z.string().optional(),
+          }),
+        },
         async run() {},
       }),
     };
@@ -94,11 +100,11 @@ describe("gen: 命令签名生成", () => {
       spec: defineCommand({
         name: "force",
         description: "强制",
-        args: { yes: { type: "boolean" } },
+        args: { schema: z.object({ force: z.boolean().default(false) }) },
         async run() {},
       }),
     };
-    expect(signatureLine("rxcli", cmd)).toBe("rxcli force [--yes]");
+    expect(signatureLine("rxcli", cmd)).toBe("rxcli force [--force]");
   });
 
   it("array flag 的元素类型签名是 string", () => {
@@ -107,11 +113,11 @@ describe("gen: 命令签名生成", () => {
       spec: defineCommand({
         name: "search",
         description: "search",
-        args: { tag: { type: "array" } },
+        args: { schema: z.object({ tag: z.array(z.string()).default([]) }) },
         async run() {},
       }),
     };
-    expect(signatureLine("rxcli", cmd)).toBe("rxcli search [--tag <string>...]");
+    expect(signatureLine("rxcli", cmd)).toBe("rxcli search [--tag <value>...]");
   });
 });
 
@@ -121,13 +127,17 @@ describe("gen: AUTO-GEN 块生成", () => {
       list: defineCommand({
         name: "list",
         description: "查询订单列表",
-        args: { limit: { type: "number", default: 30, desc: "返回数量上限" } },
+        args: {
+          schema: z.object({
+            limit: z.coerce.number().describe("返回数量上限").default(30),
+          }),
+        },
         async run() {},
       }),
       get: defineCommand({
         name: "get",
         description: "查询订单详情",
-        args: { id: { type: "string", required: true, positional: true } },
+        args: { schema: z.object({ id: z.string() }), pos: ["id"] },
         async run() {},
       }),
     }),
@@ -152,7 +162,9 @@ describe("gen: AUTO-GEN 块生成", () => {
         list: defineCommand({
           name: "list",
           description: "有参命令",
-          args: { limit: { type: "number", default: 10, desc: "上限" } },
+          args: {
+            schema: z.object({ limit: z.coerce.number().describe("上限").default(10) }),
+          },
           async run() {},
         }),
       }),
@@ -289,7 +301,11 @@ describe("gen: lang 参数(中英文)", () => {
       list: defineCommand({
         name: "list",
         description: "查询订单列表",
-        args: { limit: { type: "number", desc: "返回数量上限" } },
+        args: {
+          schema: z.object({
+            limit: z.coerce.number().describe("返回数量上限").optional(),
+          }),
+        },
         async run() {},
       }),
     }),
@@ -311,8 +327,10 @@ describe("gen: lang 参数(中英文)", () => {
 
   it("argsTable lang='en' (默认) → 英文表头 + yes/no", () => {
     const table = argsTable({
-      id: { type: "string", required: true, desc: "ID" },
-      tag: { type: "string", desc: "标签" },
+      schema: z.object({
+        id: z.string().describe("ID"),
+        tag: z.string().describe("标签").optional(),
+      }),
     });
     expect(table).toContain("| Argument | Type | Required | Default | Description |");
     expect(table).toMatch(/\| .* \| .* \| yes \|/); // id required
@@ -322,8 +340,10 @@ describe("gen: lang 参数(中英文)", () => {
   it("argsTable lang='zh' → 中文表头 + 是/否", () => {
     const table = argsTable(
       {
-        id: { type: "string", required: true, desc: "ID" },
-        tag: { type: "string", desc: "标签" },
+        schema: z.object({
+          id: z.string().describe("ID"),
+          tag: z.string().describe("标签").optional(),
+        }),
       },
       "zh",
     );

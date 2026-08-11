@@ -5,6 +5,7 @@
  * 修复后应转 green。每个测试注释标明 bug 编号和根因。
  */
 import { describe, it, expect } from "vitest";
+import * as z from "zod";
 import { createTestCtx } from "../test-utils.js";
 import { defineCommand, defineCli } from "../define.js";
 import { runCommand as executeCommand, type RunCommandOptions } from "../pipeline.js";
@@ -66,8 +67,8 @@ describe("BUG-SDK-3: 单短氢 flag 不应静默当 positional", () => {
       commands: {
         greet: defineCommand({
           name: "greet",
-          args: { name: { type: "string", positional: true, required: true } },
-          async run(args) {
+          args: { schema: z.object({ name: z.string() }), pos: ["name"] },
+          async run(_ctx, args) {
             return { data: args };
           },
         }),

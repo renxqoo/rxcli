@@ -25,11 +25,7 @@ function assert(condition, message) {
 }
 
 try {
-  run(process.execPath, [
-    join(packageDir, "node_modules/typescript/bin/tsc"),
-    "-p",
-    "tsconfig.json",
-  ]);
+  run("pnpm", ["run", "build"]);
   const packedOutput = run("npm", ["pack", "--ignore-scripts", "--pack-destination", temporaryDir]);
   const tarballName = packedOutput.split(/\r?\n/).at(-1);
   assert(tarballName, "pnpm pack did not return a tarball name");
@@ -47,7 +43,7 @@ try {
     "package/docs/04-errors.md",
     "package/docs/05-credentials.md",
     "package/docs/06-skills.md",
-    "package/src/index.ts",
+    "package/docs/07-structured-input.md",
   ];
 
   for (const entry of requiredEntries) {
@@ -57,6 +53,10 @@ try {
     assert(
       !entry.includes("/__tests__/") && !entry.endsWith(".test.ts"),
       `published package must not contain test source: ${entry}`,
+    );
+    assert(
+      !entry.startsWith("package/src/"),
+      `published package must not contain source: ${entry}`,
     );
   }
 
@@ -71,7 +71,7 @@ try {
   const installedPackage = join(consumerModules, "@renxqoo", "agent-data-cli");
   mkdirSync(installedPackage, { recursive: true });
   run("tar", ["-xzf", tarballPath, "-C", installedPackage, "--strip-components=1"]);
-  for (const dependency of ["qrcode", "yaml"]) {
+  for (const dependency of ["qrcode", "yaml", "zod"]) {
     symlinkSync(
       join(packageDir, "node_modules", dependency),
       join(consumerModules, dependency),
@@ -91,14 +91,17 @@ try {
   writeFileSync(
     join(consumerDir, "smoke.mjs"),
     [
-      'import { defineCli, defineCommandFromArgs, errs } from "@renxqoo/agent-data-cli";',
+      'import { defineCli, defineCommand, errs } from "@renxqoo/agent-data-cli";',
       'import * as errorExports from "@renxqoo/agent-data-cli/errs";',
       'import * as credentialExports from "@renxqoo/agent-data-cli/credentials";',
       'import * as skillExports from "@renxqoo/agent-data-cli/skills";',
-      "if (!defineCli || !defineCommandFromArgs || !errs) throw new Error('root export failed');",
+      'import * as z from "zod";',
+      "if (!defineCli || !defineCommand || !errs) throw new Error('root export failed');",
       "if (!errorExports.errs) throw new Error('errs subpath failed');",
       "if (!credentialExports.memoryStore) throw new Error('credentials subpath failed');",
       "if (!skillExports.listSkills) throw new Error('skills subpath failed');",
+      "const command = defineCommand({ name: 'create', description: 'create', args: { type: 'json', schema: z.object({ id: z.string() }) }, async run(_ctx, args) { return { data: args }; } });",
+      "if (command.args?.type !== 'json') throw new Error('direct Zod args failed');",
     ].join("\n"),
   );
   run("node", ["smoke.mjs"], consumerDir);

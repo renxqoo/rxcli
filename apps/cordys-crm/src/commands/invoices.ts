@@ -12,90 +12,96 @@
  * 注:发票无全局搜索路径;通过 contracts/accounts 的 invoice-stat 获取统计。
  */
 
+import * as z from "zod";
+import { defineCommands, defineCommand, type CommandGroup } from "@renxqoo/agent-data-cli";
 import {
-  defineCommands,
-  defineCommand,
-  type CommandGroup,
-  defineCommandFromArgs,
-} from "@renxqoo/agent-data-cli";
-import { unwrap, buildPagePayload, pagedMeta, parseJsonBody, type PagedData } from "../envelope.js";
-import { ensureConfirmed, assertHasId } from "./leads.js";
+  unwrap,
+  detailPath,
+  unwrapPaged,
+  buildPagePayload,
+  pagedMeta,
+  parseJsonBody,
+} from "../envelope.js";
+import { assertHasId } from "./leads.js";
 
 const MODULE = "invoice";
 
 export const invoicesCommands: CommandGroup = defineCommands({
-  list: defineCommand<{ opts: string }>({
+  list: defineCommand({
     name: "list",
     description: "发票视图列表",
-    args: { opts: { type: "string", desc: "查询参数 JSON" } },
-    async run(args, ctx) {
-      const query = args.opts ? (JSON.parse(args.opts) as Record<string, unknown>) : {};
+    args: {
+      schema: z.object({ opts: z.string().describe("查询参数 JSON").optional() }),
+    },
+    async run(ctx, { opts }) {
+      const query = opts ? (JSON.parse(opts) as Record<string, unknown>) : {};
       const res = await ctx.get(`/${MODULE}/view/list`, query);
       return { data: unwrap(res) };
     },
   }),
 
-  get: defineCommand<{ id: string }>({
+  get: defineCommand({
     name: "get",
     description: "发票详情",
-    args: { id: { type: "string", required: true, positional: true, desc: "发票 ID" } },
-    async run(args, ctx) {
-      const res = await ctx.get(`/${MODULE}/${encodeURIComponent(args.id)}`);
+    args: {
+      schema: z.object({ id: z.string().describe("发票 ID") }),
+      pos: ["id"],
+    },
+    async run(ctx, { id }) {
+      const res = await ctx.get(detailPath(MODULE, id));
       return { data: unwrap(res) };
     },
   }),
 
-  page: defineCommand<{ payload: string }>({
+  page: defineCommand({
     name: "page",
     description: "发票分页列表",
-    args: { payload: { type: "string", positional: true, desc: "分页载荷(JSON 或关键词)" } },
-    async run(args, ctx) {
-      const res = await ctx.post(`/${MODULE}/page`, buildPagePayload(args.payload));
-      const data = unwrap<PagedData>(res);
+    args: {
+      schema: z.object({ payload: z.string().describe("分页载荷(JSON 或关键词)").optional() }),
+      pos: ["payload"],
+    },
+    async run(ctx, { payload }) {
+      const res = await ctx.post(`/${MODULE}/page`, buildPagePayload(payload));
+      const data = unwrapPaged(res);
       return { data: data.list, meta: pagedMeta(data) };
     },
   }),
 
-  form: defineCommandFromArgs({
+  form: defineCommand({
     name: "form",
     description: "发票表单字段定义",
-    args: {},
-    async run(_args, ctx) {
+    async run(ctx) {
       const res = await ctx.get(`/${MODULE}/module/form`);
       return { data: unwrap(res) };
     },
   }),
 
-  add: defineCommand<{ data: string; dryRun: boolean; yes: boolean }>({
+  add: defineCommand({
     name: "add",
     description: "新增发票",
     args: {
-      data: { type: "string", required: true, positional: true, desc: "发票数据 JSON" },
-      dryRun: { type: "boolean", desc: "仅校验不提交" },
-      yes: { type: "boolean", desc: "跳过确认直接提交" },
+      schema: z.object({ data: z.string().describe("发票数据 JSON") }),
+      pos: ["data"],
     },
-    async run(args, ctx) {
-      const body = parseJsonBody(args.data, "<data>");
-      if (args.dryRun) return { data: null, meta: { dryRun: true } };
-      ensureConfirmed(args.yes, "新增发票", "rxcordys invoices add '<json>' --yes");
+    policy: { mode: "write", dryRun: true, confirmation: "required" },
+    async run(ctx, { data }) {
+      const body = parseJsonBody(data, "<data>");
       const res = await ctx.post(`/${MODULE}/add`, body);
       return { data: unwrap(res) };
     },
   }),
 
-  update: defineCommand<{ data: string; dryRun: boolean; yes: boolean }>({
+  update: defineCommand({
     name: "update",
     description: "更新发票(全量更新,需含 id)",
     args: {
-      data: { type: "string", required: true, positional: true, desc: "发票数据 JSON(含 id)" },
-      dryRun: { type: "boolean", desc: "仅校验不提交" },
-      yes: { type: "boolean", desc: "跳过确认直接提交" },
+      schema: z.object({ data: z.string().describe("发票数据 JSON(含 id)") }),
+      pos: ["data"],
     },
-    async run(args, ctx) {
-      const body = parseJsonBody(args.data, "<data>");
+    policy: { mode: "write", dryRun: true, confirmation: "required" },
+    async run(ctx, { data }) {
+      const body = parseJsonBody(data, "<data>");
       assertHasId(body, "Update invoice");
-      if (args.dryRun) return { data: null, meta: { dryRun: true } };
-      ensureConfirmed(args.yes, "Update invoice", "rxcordys invoices update '<json>' --yes");
       const res = await ctx.post(`/${MODULE}/update`, body);
       return { data: unwrap(res) };
     },

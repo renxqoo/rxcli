@@ -7,37 +7,34 @@
  *   3. installFlow(确认 → 缓存 → skill → shim → PATH)
  *
  * 安装/确认逻辑在 install-flow.ts,与 update 共用(O4)。
+ *
+ * 注:`--yes` 是 cli-sdk 的保留框架 flag(write policy 确认),故非交互跳过确认改用 `--auto-confirm`。
  */
 
-import { defineCommand, errs } from "@renxqoo/agent-data-cli";
+import * as z from "zod";
+import { defineCommand } from "@renxqoo/agent-data-cli";
 import { fetchManifest, type FetchOptions, LoaderError } from "../manifest/loader.js";
-import { isInstalled, readPublicKey, readService } from "../registry.js";
+import { readService } from "../registry.js";
 import { installFlow } from "../install-flow.js";
 import { rxxError } from "../errors.js";
 
-export interface InitArgs {
-  url: string;
-  insecure?: boolean;
-  "private-endpoints"?: boolean;
-  unsigned?: boolean;
-  yes?: boolean;
-  lang?: "en" | "zh";
-}
-
-export const initCommand = defineCommand<InitArgs>({
+export const initCommand = defineCommand({
   name: "init",
   description:
     "Install a dynamic service from a manifest URL (manifest → CLI + skill + distribution)",
   args: {
-    url: { type: "string", required: true, positional: true, desc: "manifest URL (https://...)" },
-    insecure: { type: "boolean", desc: "allow HTTP (local dev)" },
-    "private-endpoints": { type: "boolean", desc: "allow internal endpoints (local dev)" },
-    unsigned: { type: "boolean", desc: "allow unsigned manifest (WARNING: untrusted)" },
-    yes: { type: "boolean", desc: "skip confirmation (non-interactive)" },
-    lang: { type: "string", desc: "skill document language (en/zh)", default: "en" },
+    schema: z.object({
+      url: z.string().describe("manifest URL (https://...)"),
+      insecure: z.boolean().describe("allow HTTP (local dev)").optional(),
+      "private-endpoints": z.boolean().describe("allow internal endpoints (local dev)").optional(),
+      unsigned: z.boolean().describe("allow unsigned manifest (WARNING: untrusted)").optional(),
+      autoConfirm: z.boolean().describe("skip confirmation (non-interactive)").optional(),
+      lang: z.string().describe("skill document language (en/zh)").default("en"),
+    }),
+    pos: ["url"],
   },
   internal: true,
-  async run(args) {
+  async run(_ctx, args) {
     try {
       // C5 修复:前置读 pinning key,只 fetch 一次
       const existingName = guessNameFromUrl(args.url);
@@ -72,7 +69,7 @@ export const initCommand = defineCommand<InitArgs>({
 
       // installFlow 复用(O4):确认 → 缓存 → skill → shim
       return await installFlow(fetched, {
-        yes: args.yes,
+        yes: args.autoConfirm,
         lang: args.lang === "zh" ? "zh" : "en",
         previousKeyFingerprint: previousFp,
       });

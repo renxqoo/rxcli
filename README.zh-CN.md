@@ -32,9 +32,10 @@
 | **Agent 与人共用一套 CLI** | 管道和 CI 自动获得 JSON；交互式终端获得易读文本或支持中日韩字符宽度的表格。也可通过 `--json`、`--no-json` 显式指定。 |
 | **Agent Skill 自发现** | CLI 可以列出、读取、生成并同步自己的 `SKILL.md`，让 Agent 知道何时使用、如何调用。 |
 | **组件化鉴权** | 复用凭证 Provider、OAuth Device Flow、Token 刷新和自动生成的鉴权命令，也可以接入双 Header、HMAC 等业务鉴权方案。 |
-| **Schema 驱动的类型安全命令** | `defineCommandFromArgs` 直接根据命令 Schema 推导必填、可选、默认值和基础参数类型。 |
+| **Schema 驱动的类型安全命令** | `defineCommand` 直接根据命令 Schema 推导必填、可选、默认值和基础参数类型。 |
+| **直接使用 Zod 的结构化输入** | 大量或嵌套载荷直接用 Zod 4 完成类型推导、校验、发现、脱敏、dry-run、确认和幂等。 |
 | **天然可组合** | 结构化 stdout 不受污染，诊断信息进入 stderr，一个命令的 envelope 可以自动转成下游管道记录。 |
-| **无需修改框架即可扩展** | 六个生命周期 Hook 与插件贡献命令机制，可以实现鉴权、审计、请求转换、重试、输出转换和错误标准化。 |
+| **无需修改框架即可扩展** | 八个生命周期 Hook 与插件贡献命令机制，可以实现鉴权、输入审计、请求转换、重试、输出转换和错误标准化。 |
 
 仓库内包含公开数据、金融数据、CRM 和 OAuth 业务应用。这些真实项目证明了同一套框架可以覆盖免鉴权 API、静态多 Header 鉴权和交互式 OAuth，而不仅仅适用于演示项目。
 
@@ -130,14 +131,14 @@ pnpm add @renxqoo/agent-data-cli
 ```ts
 import {
   defineCli,
-  defineCommandFromArgs,
+  defineCommand,
 } from "@renxqoo/agent-data-cli";
 
 interface TodoListResponse {
   items: Array<{ id: string; title: string; completed: boolean }>;
 }
 
-const list = defineCommandFromArgs({
+const list = defineCommand({
   name: "list",
   description: "查询待办列表",
   args: {

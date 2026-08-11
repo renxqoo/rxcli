@@ -16,8 +16,12 @@ Return truthful pagination metadata so an agent can decide whether to continue:
 list: defineCommand({
   name: "list",
   description: "List items",
-  args: { cursor: { type: "string", desc: "Continuation token from the previous result" } },
-  async run(args, ctx) {
+  args: {
+    schema: z.object({
+      cursor: z.string().describe("Continuation token from the previous result").optional(),
+    }),
+  },
+  async run(ctx, args) {
     const res = await ctx.get<{ items: Item[]; hasMore: boolean; nextCursor?: string }>("/items", {
       cursor: args.cursor,
     });
@@ -52,8 +56,12 @@ Branch on `ctx.pipe.isInPipe()`: read records when piped and accept explicit arg
 generate: defineCommand({
   name: "generate",
   description: "Generate invoices",
-  args: { orderId: { type: "string", desc: "Order ID when not reading from a pipe" } },
-  async run(args, ctx) {
+  args: {
+    schema: z.object({
+      orderId: z.string().describe("Order ID when not reading from a pipe").optional(),
+    }),
+  },
+  async run(ctx, args) {
     if (ctx.pipe.isInPipe()) {
       let generated = 0;
       for await (const record of ctx.pipe.in()) {
@@ -85,6 +93,8 @@ The reader accepts one complete successful JSON envelope up to 16 MiB. It does n
 
 Piped execution forces JSON even when `--no-json` is present, protecting downstream parsing.
 
+JSON-argument commands claim native stdin for their JSON document. The runtime supplies an empty `PipeApi` for that invocation, so the same stream cannot also carry a successful framework envelope. Choose JSON stdin or `ctx.pipe` explicitly; never guess from content.
+
 ## 3. `humanFormat`
 
 The framework already renders arrays as tables and objects as key-value details. Add `humanFormat` only when human-facing output needs custom columns or labels.
@@ -101,7 +111,7 @@ list: defineCommand({
       { header: "Total", value: (row) => `$${row.total}`, align: "right" },
       { header: "Status", value: (row) => row.status },
     ]),
-  async run(args, ctx) {
+  async run(ctx, args) {
     // ...
   },
 });

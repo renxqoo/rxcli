@@ -16,85 +16,95 @@
  *   POST   /lead/follow/record/page 跟进记录(follows 模块覆盖)
  */
 
+import * as z from "zod";
+import { defineCommands, defineCommand, errs, type CommandGroup } from "@renxqoo/agent-data-cli";
 import {
-  defineCommands,
-  defineCommand,
-  errs,
-  type CommandGroup,
-  defineCommandFromArgs,
-} from "@renxqoo/agent-data-cli";
-import { unwrap, buildPagePayload, pagedMeta, parseJsonBody, type PagedData } from "../envelope.js";
+  unwrap,
+  detailPath,
+  unwrapPaged,
+  buildPagePayload,
+  pagedMeta,
+  parseJsonBody,
+} from "../envelope.js";
 
 const MODULE = "lead";
 
 export const leadsCommands: CommandGroup = defineCommands({
-  list: defineCommand<{ opts: string }>({
+  list: defineCommand({
     name: "list",
     description: "线索视图列表(/{module}/view/list)",
-    args: { opts: { type: "string", desc: "查询参数 JSON" } },
-    async run(args, ctx) {
-      const query = args.opts ? (JSON.parse(args.opts) as Record<string, unknown>) : {};
+    args: {
+      schema: z.object({ opts: z.string().describe("查询参数 JSON").optional() }),
+    },
+    async run(ctx, { opts }) {
+      const query = opts ? (JSON.parse(opts) as Record<string, unknown>) : {};
       const res = await ctx.get(`/${MODULE}/view/list`, query);
       return { data: unwrap(res) };
     },
   }),
 
-  get: defineCommand<{ id: string }>({
+  get: defineCommand({
     name: "get",
     description: "线索详情",
-    args: { id: { type: "string", required: true, positional: true, desc: "线索 ID" } },
-    async run(args, ctx) {
-      const res = await ctx.get(`/${MODULE}/${encodeURIComponent(args.id)}`);
+    args: {
+      schema: z.object({ id: z.string().describe("线索 ID") }),
+      pos: ["id"],
+    },
+    async run(ctx, { id }) {
+      const res = await ctx.get(detailPath(MODULE, id));
       return { data: unwrap(res) };
     },
   }),
 
-  page: defineCommand<{ payload: string }>({
+  page: defineCommand({
     name: "page",
     description: "线索分页列表(带筛选/排序/关键词)",
-    args: { payload: { type: "string", positional: true, desc: "分页载荷(JSON 或关键词)" } },
-    async run(args, ctx) {
-      const res = await ctx.post(`/${MODULE}/page`, buildPagePayload(args.payload));
-      const data = unwrap<PagedData>(res);
+    args: {
+      schema: z.object({ payload: z.string().describe("分页载荷(JSON 或关键词)").optional() }),
+      pos: ["payload"],
+    },
+    async run(ctx, { payload }) {
+      const res = await ctx.post(`/${MODULE}/page`, buildPagePayload(payload));
+      const data = unwrapPaged(res);
       return { data: data.list, meta: pagedMeta(data) };
     },
   }),
 
-  search: defineCommand<{ payload: string }>({
+  search: defineCommand({
     name: "search",
     description: "全局搜索线索",
-    args: { payload: { type: "string", positional: true, desc: "搜索载荷(JSON 或关键词)" } },
-    async run(args, ctx) {
-      const res = await ctx.post(`/global/search/${MODULE}`, buildPagePayload(args.payload));
-      const data = unwrap<PagedData>(res);
+    args: {
+      schema: z.object({ payload: z.string().describe("搜索载荷(JSON 或关键词)").optional() }),
+      pos: ["payload"],
+    },
+    async run(ctx, { payload }) {
+      const res = await ctx.post(`/global/search/${MODULE}`, buildPagePayload(payload));
+      const data = unwrapPaged(res);
       return { data: data.list, meta: pagedMeta(data) };
     },
   }),
 
-  form: defineCommandFromArgs({
+  form: defineCommand({
     name: "form",
     description: "线索表单字段定义(写入前必读)",
-    args: {},
-    async run(_args, ctx) {
+    async run(ctx) {
       const res = await ctx.get(`/${MODULE}/module/form`);
       return { data: unwrap(res) };
     },
   }),
 
-  add: defineCommand<{ data: string; dryRun: boolean; yes: boolean }>({
+  add: defineCommand({
     name: "add",
     description: "新增线索(必填:name, phone, products[])",
     args: {
-      data: { type: "string", required: true, positional: true, desc: "线索数据 JSON" },
-      dryRun: { type: "boolean", desc: "仅校验不提交" },
-      yes: { type: "boolean", desc: "跳过确认直接提交" },
+      schema: z.object({ data: z.string().describe("线索数据 JSON") }),
+      pos: ["data"],
     },
-    async run(args, ctx) {
-      const body = parseJsonBody(args.data, "<data>");
-      // 字段校验在 dryRun/confirm 之前(dryRun 也要校验必填字段)
+    policy: { mode: "write", dryRun: true, confirmation: "required" },
+    async run(ctx, { data }) {
+      const body = parseJsonBody(data, "<data>");
+      // 业务字段校验(真实执行路径;--dry-run 由框架在 run 前拦截)
       assertHasField(body, "Create lead", "name");
-      if (args.dryRun) return { data: null, meta: { dryRun: true } };
-      ensureConfirmed(args.yes, "Create lead", "rxcordys leads add '<json>' --yes");
       const res = await ctx.post(`/${MODULE}/add`, body);
       return {
         data: unwrap(res),
@@ -103,66 +113,54 @@ export const leadsCommands: CommandGroup = defineCommands({
     },
   }),
 
-  update: defineCommand<{ data: string; dryRun: boolean; yes: boolean }>({
+  update: defineCommand({
     name: "update",
     description: "更新线索(全量更新,需含 id + 全部必填字段)",
     args: {
-      data: { type: "string", required: true, positional: true, desc: "线索数据 JSON(含 id)" },
-      dryRun: { type: "boolean", desc: "仅校验不提交" },
-      yes: { type: "boolean", desc: "跳过确认直接提交" },
+      schema: z.object({ data: z.string().describe("线索数据 JSON(含 id)") }),
+      pos: ["data"],
     },
-    async run(args, ctx) {
-      const body = parseJsonBody(args.data, "<data>");
+    policy: { mode: "write", dryRun: true, confirmation: "required" },
+    async run(ctx, { data }) {
+      const body = parseJsonBody(data, "<data>");
       assertHasId(body, "Lead");
-      if (args.dryRun) return { data: null, meta: { dryRun: true } };
-      ensureConfirmed(args.yes, "Update lead", "rxcordys leads update '<json>' --yes");
       const res = await ctx.post(`/${MODULE}/update`, body);
       return { data: unwrap(res) };
     },
   }),
 
-  "batch-update": defineCommand<{ data: string; dryRun: boolean; yes: boolean }>({
+  "batch-update": defineCommand({
     name: "batch-update",
     description: "批量更新线索(ids[], fieldId, fieldValue)",
     args: {
-      data: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "批量数据 JSON(含 ids[]/fieldId/fieldValue)",
-      },
-      dryRun: { type: "boolean", desc: "仅校验不提交" },
-      yes: { type: "boolean", desc: "跳过确认直接提交" },
+      schema: z.object({
+        data: z.string().describe("批量数据 JSON(含 ids[]/fieldId/fieldValue)"),
+      }),
+      pos: ["data"],
     },
-    async run(args, ctx) {
-      const body = parseJsonBody(args.data, "<data>");
-      if (args.dryRun) return { data: null, meta: { dryRun: true } };
-      ensureConfirmed(args.yes, "批量更新线索", "rxcordys leads batch-update '<json>' --yes");
+    policy: { mode: "write", dryRun: true, confirmation: "required" },
+    async run(ctx, { data }) {
+      const body = parseJsonBody(data, "<data>");
       const res = await ctx.post(`/${MODULE}/batch/update`, body);
       return { data: unwrap(res) };
     },
   }),
 
   /** transition:线索转客户(/lead/transition/account,必填 clueId + name)。 */
-  transition: defineCommand<{ data: string; dryRun: boolean; yes: boolean }>({
+  transition: defineCommand({
     name: "transition",
     description: "线索转客户(必填 clueId, name)",
     args: {
-      data: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: '转换数据 JSON(如 {"clueId":"L1","name":"客户A"})',
-      },
-      dryRun: { type: "boolean", desc: "仅校验不提交" },
-      yes: { type: "boolean", desc: "跳过确认直接提交" },
+      schema: z.object({
+        data: z.string().describe('转换数据 JSON(如 {"clueId":"L1","name":"客户A"})'),
+      }),
+      pos: ["data"],
     },
-    async run(args, ctx) {
-      const body = parseJsonBody(args.data, "<data>");
+    policy: { mode: "write", dryRun: true, confirmation: "required" },
+    async run(ctx, { data }) {
+      const body = parseJsonBody(data, "<data>");
       assertHasField(body, "Lead to account", "clueId");
       assertHasField(body, "Lead to account", "name");
-      if (args.dryRun) return { data: null, meta: { dryRun: true } };
-      ensureConfirmed(args.yes, "Lead to account", "rxcordys leads transition '<json>' --yes");
       const res = await ctx.post(`/${MODULE}/transition/account`, body);
       return {
         data: unwrap(res),
@@ -172,24 +170,21 @@ export const leadsCommands: CommandGroup = defineCommands({
   }),
 
   /** transform:线索转商机(/lead/transform,必填 clueId)。 */
-  transform: defineCommand<{ data: string; dryRun: boolean; yes: boolean }>({
+  transform: defineCommand({
     name: "transform",
     description: "线索转商机(必填 clueId,可选 oppCreated/oppName)",
     args: {
-      data: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: '转换数据 JSON(如 {"clueId":"L1","oppCreated":true,"oppName":"商机X"})',
-      },
-      dryRun: { type: "boolean", desc: "仅校验不提交" },
-      yes: { type: "boolean", desc: "跳过确认直接提交" },
+      schema: z.object({
+        data: z
+          .string()
+          .describe('转换数据 JSON(如 {"clueId":"L1","oppCreated":true,"oppName":"商机X"})'),
+      }),
+      pos: ["data"],
     },
-    async run(args, ctx) {
-      const body = parseJsonBody(args.data, "<data>");
+    policy: { mode: "write", dryRun: true, confirmation: "required" },
+    async run(ctx, { data }) {
+      const body = parseJsonBody(data, "<data>");
       assertHasField(body, "Lead to opportunity", "clueId");
-      if (args.dryRun) return { data: null, meta: { dryRun: true } };
-      ensureConfirmed(args.yes, "Lead to opportunity", "rxcordys leads transform '<json>' --yes");
       const res = await ctx.post(`/${MODULE}/transform`, body);
       return {
         data: unwrap(res),
@@ -202,16 +197,9 @@ export const leadsCommands: CommandGroup = defineCommands({
 // ============================================================================
 // 共享写入校验辅助(供各模块命令复用)
 // ============================================================================
-
-/** 高危写入需 --yes 确认;未传则抛 ConfirmationRequiredError(exit 10)。 */
-export function ensureConfirmed(yes: boolean | undefined, action: string, retryCmd: string): void {
-  if (yes) return;
-  throw new errs.ConfirmationRequiredError({
-    subtype: "high_risk_write",
-    message: `${action} is a high-risk operation and requires confirmation`,
-    hint: `Add --yes to confirm, or use: ${retryCmd}`,
-  });
-}
+// 注:高危写入的 --yes 确认与 --dry-run 预览由 cli-sdk 的 write policy 接管
+// (policy: { mode: "write", dryRun: true, confirmation: "required" }),
+// 框架在 run 前强制校验;此处仅保留 body 结构校验辅助。
 
 /** 校验 body 含 id 字段(更新操作)。 */
 export function assertHasId(body: unknown, label: string): void {

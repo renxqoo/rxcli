@@ -78,7 +78,17 @@ const VALID_AUTH_FLOWS: ReadonlySet<string> = new Set([
 ]);
 
 // 框架保留参数名(和 cli-sdk RESERVED_FRAMEWORK_ARGS 对齐;接受轻微重复,不污染 cli-sdk API)
-const RESERVED_ARG_NAMES: ReadonlySet<string> = new Set(["json", "api-key", "help", "version"]);
+const RESERVED_ARG_NAMES: ReadonlySet<string> = new Set([
+  "json",
+  "api-key",
+  "help",
+  "version",
+  "input",
+  "input-file",
+  "input-stdin",
+  "input-schema",
+  "input-example",
+]);
 
 // 命令名/namespace 名 charset:字母数字+连字符+下划线。
 // 拒绝空格、/、\ 等(破坏 argv 解析);不强制小写(namespace 可大写如驼峰场景)。
@@ -434,8 +444,40 @@ function validateCommand(cmd: any, path: string, ctx: Ctx): void {
   }
   // args
   if (cmd.args !== undefined) validateArgs(cmd.args, `${path}.args`, ctx);
+  if (cmd.input !== undefined) validateStructuredInput(cmd.input, `${path}.input`, ctx);
+  if (cmd.operation !== undefined) validateOperation(cmd.operation, `${path}.operation`, ctx);
+  if (cmd.input !== undefined && cmd.operation === undefined) {
+    addError(ctx, `${path}.operation`, "structured input commands must declare operation policy");
+  }
+  if (cmd.input !== undefined && cmd.args) {
+    for (const name of ["dry-run", "yes", "idempotency-key"]) {
+      if (name in cmd.args) {
+        addError(
+          ctx,
+          `${path}.args.${name}`,
+          `argument name "${name}" is reserved by structured commands`,
+        );
+      }
+    }
+  }
+  if (cmd.input === undefined && cmd.operation !== undefined) {
+    addError(ctx, `${path}.input`, "operation policy requires structured input");
+  }
   // http
   validateHttp(cmd.http, `${path}.http`, ctx);
+  if (cmd.operation?.kind === "write" && cmd.http?.method === "GET") {
+    addError(ctx, `${path}.http.method`, "write operations cannot use GET");
+  }
+  if (cmd.input !== undefined) {
+    const body = cmd.http?.body;
+    if (!body || typeof body !== "object" || body.kind !== "input") {
+      addError(
+        ctx,
+        `${path}.http.body`,
+        'structured input commands must map the validated payload with { "kind": "input" }',
+      );
+    }
+  }
   // response
   if (!cmd.response || typeof cmd.response !== "object") {
     addError(ctx, `${path}.response`, `${path}.response is required`);
@@ -448,6 +490,110 @@ function validateCommand(cmd: any, path: string, ctx: Ctx): void {
   }
   if (cmd.response?.pagination)
     validatePagination(cmd.response.pagination, `${path}.response.pagination`, ctx);
+}
+
+function validateStructuredInput(input: any, path: string, ctx: Ctx): void {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    addError(ctx, path, `${path} must be an object`);
+    return;
+  }
+  if (
+    !input.jsonSchema ||
+    typeof input.jsonSchema !== "object" ||
+    Array.isArray(input.jsonSchema)
+  ) {
+    addError(ctx, `${path}.jsonSchema`, `${path}.jsonSchema must be an object`);
+  } else {
+    validateSchemaNode(input.jsonSchema, `${path}.jsonSchema`, ctx, new Set());
+  }
+  if (input.version !== undefined && !SEMVER_RE.test(input.version)) {
+    addError(ctx, `${path}.version`, `${path}.version must be semver`);
+  }
+  if (input.sources !== undefined) {
+    if (!Array.isArray(input.sources) || input.sources.length === 0) {
+      addError(ctx, `${path}.sources`, `${path}.sources must be a non-empty array`);
+    } else {
+      const allowed = new Set(["inline", "file", "stdin"]);
+      const unique = new Set(input.sources);
+      if (
+        unique.size !== input.sources.length ||
+        input.sources.some((source: any) => !allowed.has(source))
+      ) {
+        addError(
+          ctx,
+          `${path}.sources`,
+          `${path}.sources contains duplicate or unsupported values`,
+        );
+      }
+    }
+  }
+  if (input.sensitive !== undefined) {
+    if (
+      !Array.isArray(input.sensitive) ||
+      input.sensitive.some((value: any) => typeof value !== "string" || !value.startsWith("/"))
+    ) {
+      addError(ctx, `${path}.sensitive`, `${path}.sensitive must contain RFC 6901 JSON Pointers`);
+    }
+  }
+  for (const [name, value] of Object.entries(input.limits ?? {})) {
+    if (!Number.isSafeInteger(value) || (value as number) <= 0) {
+      addError(
+        ctx,
+        `${path}.limits.${name}`,
+        `${path}.limits.${name} must be a positive safe integer`,
+      );
+    }
+  }
+}
+
+function validateSchemaNode(node: unknown, path: string, ctx: Ctx, seen: Set<object>): void {
+  if (!node || typeof node !== "object") return;
+  if (seen.has(node as object)) return;
+  seen.add(node as object);
+  if (Array.isArray(node)) {
+    node.forEach((child, index) => validateSchemaNode(child, `${path}[${index}]`, ctx, seen));
+    return;
+  }
+  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    if (key === "$ref" && typeof value === "string" && !value.startsWith("#/$defs/")) {
+      addError(ctx, `${path}.$ref`, "remote and non-$defs JSON Schema references are forbidden");
+    }
+    if (key === "pattern") {
+      addError(
+        ctx,
+        `${path}.pattern`,
+        "JSON Schema pattern is not supported in untrusted dynamic manifests",
+        "Use enum, numeric bounds, structural constraints, or authoritative server validation.",
+      );
+    }
+    validateSchemaNode(value, `${path}.${key}`, ctx, seen);
+  }
+}
+
+function validateOperation(operation: any, path: string, ctx: Ctx): void {
+  if (!operation || typeof operation !== "object") {
+    addError(ctx, path, `${path} must be an object`);
+    return;
+  }
+  if (operation.kind !== "read" && operation.kind !== "write") {
+    addError(ctx, `${path}.kind`, `${path}.kind must be read or write`);
+    return;
+  }
+  if (operation.kind === "read" && Object.keys(operation).some((key) => key !== "kind")) {
+    addError(ctx, path, "read operations cannot declare write policies");
+  }
+  if (
+    operation.confirmation !== undefined &&
+    operation.confirmation !== "required" &&
+    operation.confirmation !== "none"
+  ) {
+    addError(ctx, `${path}.confirmation`, "confirmation must be required or none");
+  }
+  if (operation.idempotency !== undefined) {
+    if (!operation.idempotency || !["required", "optional"].includes(operation.idempotency.mode)) {
+      addError(ctx, `${path}.idempotency.mode`, "idempotency.mode must be required or optional");
+    }
+  }
 }
 
 function validateHttp(http: any, path: string, ctx: Ctx): void {
@@ -475,6 +621,18 @@ function validateHttp(http: any, path: string, ctx: Ctx): void {
   // body 只在写方法
   if (http.body !== undefined && (http.method === "GET" || http.method === "DELETE")) {
     addError(ctx, `${path}.body`, `${path}.body should not be set for ${http.method}`);
+  }
+  if (http.body?.kind === "input") {
+    if (
+      http.body.pointer !== undefined &&
+      (typeof http.body.pointer !== "string" || !http.body.pointer.startsWith("/"))
+    ) {
+      addError(
+        ctx,
+        `${path}.body.pointer`,
+        `${path}.body.pointer must be an RFC 6901 JSON Pointer`,
+      );
+    }
   }
 }
 

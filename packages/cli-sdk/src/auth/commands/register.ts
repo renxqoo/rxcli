@@ -4,6 +4,7 @@
 import * as readline from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { defineCommand } from "../../define.js";
+import * as z from "zod";
 import { errs } from "../../errs/index.js";
 import type { CommandResult, CommandSpec } from "../../types.js";
 import type { ConfigStore } from "../../credentials/types.js";
@@ -16,18 +17,20 @@ export interface RegisterCommandDeps {
   clientMetadata?: ClientMetadata;
 }
 
-export function createRegisterCommand(deps: RegisterCommandDeps): CommandSpec {
+export function createRegisterCommand(deps: RegisterCommandDeps): CommandSpec<any> {
   const { baseUrl, store } = deps;
   const cmdNs = deps.commandNamespace;
 
-  return defineCommand<any, unknown>({
+  return defineCommand({
     name: "register",
     description:
       "Register this machine's CLI client (exchange a registration token for standalone credentials)",
     args: {
-      token: { type: "string", desc: "Registration token (interactive prompt if omitted)" },
+      schema: z.object({
+        token: z.string().describe("Registration token (interactive prompt if omitted)").optional(),
+      }),
     },
-    async run(args, ctx): Promise<CommandResult> {
+    async run(ctx, args): Promise<CommandResult> {
       let token = args.token as string | undefined;
       if (!token) {
         if (!stdin.isTTY) {

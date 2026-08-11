@@ -1,6 +1,8 @@
 # 模块端点速查
 
 > Cordys 核心设计:模块作为路径段。一级模块(lead/account/opportunity/contact/contract/order)有通用 view/get/page/search;斜杠模块代表子资源。
+>
+> 本文件补充 SKILL.md AUTO-GEN 命令表没有的**端点路径与 HTTP 方法**;命令签名以 AUTO-GEN 为准。
 
 ## 命令 → namespace 映射
 

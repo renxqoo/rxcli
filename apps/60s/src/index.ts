@@ -16,7 +16,7 @@
  *   - 二进制/重定向输出(qrcode/bing image)只暴露 URL/base64 字段
  */
 
-import { defineCli, defineCommand, type CommandContext } from "@renxqoo/agent-data-cli";
+import { defineCli, defineCommand } from "@renxqoo/agent-data-cli";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { realpathSync } from "node:fs";
@@ -46,7 +46,7 @@ const DEFAULT_BASE_URL = "https://60s.viki.moe/v2";
 const bingCommand = defineCommand({
   name: "bing",
   description: "必应每日壁纸(标题 + 1080P/4K 封面)",
-  async run(_args: Record<string, never>, ctx: CommandContext<Rx60sState>) {
+  async run(ctx) {
     const res = await ctx.get("/bing", withQuery());
     return {
       data: unwrap<{ title: string; cover: string; cover_4k: string; copyright: string }>(res),
@@ -62,7 +62,7 @@ const app = defineCli<Rx60sState>({
   plugins: [],
   // 顶层快捷命令(高频接口直达,免去 namespace 前缀)
   commands: {
-    "60s": newsCommands.today!, // rx60s 60s → 每天 60 秒
+    "60s": { ...newsCommands.today!, name: "60s" }, // rx60s 60s → 每天 60 秒(顶层快捷,等同 news today)
     bing: bingCommand, // rx60s bing → 必应每日壁纸
     weibo: hotCommands.weibo!,
     zhihu: hotCommands.zhihu!,

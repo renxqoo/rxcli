@@ -1,27 +1,45 @@
 /** Public command-definition API. Application assembly lives behind one deep runtime boundary. */
 
-import type { App, ArgsSpec, CommandGroup, CommandSpec, DefineCliOptions } from "./types.js";
-import type { ParsedArgs } from "./args.js";
+import type * as z from "zod";
+import type {
+  App,
+  CommandArgs,
+  CommandGroup,
+  CommandSpec,
+  DefineCliOptions,
+  NoArgs,
+} from "./types.js";
 import { createCliApplication } from "./cli-application.js";
 import { validateCommandSpec } from "./command-registry.js";
 
-/** Declare and validate one command. */
-export function defineCommand<Args = any, Result = unknown, State = unknown>(
-  spec: CommandSpec<Args, Result, State>,
-): CommandSpec<Args, Result, State> {
+type ObjectSchema = z.ZodObject;
+
+type SchemaCommandDefinition<Schema extends ObjectSchema, Result, State> = Omit<
+  CommandSpec<z.output<Schema>, Result, State>,
+  "args"
+> & {
+  args: CommandArgs<Schema>;
+};
+
+type NoArgsCommandDefinition<Result, State> = Omit<CommandSpec<NoArgs, Result, State>, "args"> & {
+  args?: undefined;
+};
+
+/** Define a command. Zod is the only argument contract and type source. */
+export function defineCommand<Schema extends ObjectSchema, Result = unknown, State = unknown>(
+  spec: SchemaCommandDefinition<Schema, Result, State>,
+): CommandSpec<z.output<Schema>, Result, State>;
+
+/** Define a command with no business parameters. */
+export function defineCommand<Result = unknown, State = unknown>(
+  spec: NoArgsCommandDefinition<Result, State>,
+): CommandSpec<NoArgs, Result, State>;
+
+export function defineCommand(
+  spec: CommandSpec<any, unknown, any>,
+): CommandSpec<any, unknown, any> {
   validateCommandSpec(spec.name, spec);
   return spec;
-}
-
-/** Infer command argument types directly from the declared schema. */
-export function defineCommandFromArgs<
-  const Schema extends ArgsSpec,
-  Result = unknown,
-  State = unknown,
->(
-  spec: Omit<CommandSpec<ParsedArgs<Schema>, Result, State>, "args"> & { args: Schema },
-): CommandSpec<ParsedArgs<Schema>, Result, State> {
-  return defineCommand<ParsedArgs<Schema>, Result, State>(spec);
 }
 
 /** Declare a command group whose keys are the canonical command names. */

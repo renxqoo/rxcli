@@ -31,28 +31,24 @@
 }
 ```
 
-保留实际使用的 `build`、`typecheck`、`test` 和 `prepack` 脚本。不要为满足模板添加无法运行的脚本。
+保留实际使用的 `build`、`typecheck`、`test` 和 `prepack` 脚本。不要为满足模板添加无法运行的脚本。发布编译产物而不是 `src`；分发的 JavaScript 或独立二进制应 bundle 并压缩，需要线上排障时保留 source map。必须检查实际 pack 产物，不能把单纯 TypeScript 编译当成发布验证。
 
 ## 2. 命令定义
 
 ```ts
-import { defineCommandFromArgs, defineCommands, errs } from "@renxqoo/agent-data-cli";
+import { defineCommand, defineCommands } from "@renxqoo/agent-data-cli";
+import * as z from "zod";
 
 export const todoCommands = defineCommands({
-  list: defineCommandFromArgs({
+  list: defineCommand({
     name: "list",
     description: "查询待办列表",
     args: {
-      limit: { type: "number", default: 20, desc: "返回数量上限，范围 1-100" },
+      schema: z.object({
+        limit: z.coerce.number().int().min(1).max(100).describe("返回数量上限").default(20),
+      }),
     },
-    async run(args, ctx) {
-      if (args.limit < 1 || args.limit > 100) {
-        throw new errs.ValidationError({
-          subtype: "out_of_range",
-          param: "--limit",
-          message: "--limit 必须在 1-100 之间",
-        });
-      }
+    async run(ctx, args) {
       const res = await ctx.get<{ items: Array<{ id: string; title: string }> }>("/todos", {
         limit: args.limit,
       });
@@ -64,17 +60,39 @@ export const todoCommands = defineCommands({
 
 参数规则：
 
-| 配置               | 行为                                          |
-| ------------------ | --------------------------------------------- |
-| `type`             | 仅支持 `string`、`number`、`boolean`、`array` |
-| `required: true`   | 必填；不能同时声明 `default`                  |
-| `positional: true` | 使用 `<id>` / `[<id>]`，否则使用 flag         |
-| `desc`             | 进入生成的命令文档；每个参数都应填写          |
-| boolean 无 default | 未传时为 `undefined`                          |
+| 配置                         | 行为                                               |
+| ---------------------------- | -------------------------------------------------- |
+| 省略 `args`                  | 无业务参数，`run` 收到 `{}`                        |
+| 省略 `type` / `"argv"`      | 原生 argv 模式                                     |
+| `schema`                     | 直接 Zod object；唯一校验和类型来源                |
+| `pos: ["id"]`               | schema 字段 `id` 作为位置参数读取                  |
+| `type: "json"`              | 一个完整 JSON 文档；不允许业务 flags 或 `pos`      |
 
-必填 positional 不能放在可选 positional 后面。参数 schema 在装配期校验，但数值范围、枚举和跨参数关系仍由命令验证。
+必填位置参数不能放在可选位置参数后。argv 数字使用 `z.coerce.number()`，因为 Shell token 是字符串。必填、默认值、枚举、refine、transform、描述和 `run(ctx, args)` 中 `args` 的推导全部由 Zod 表达。
 
-schema 是类型来源时使用 `defineCommandFromArgs`：`required`/`default` 字段推导为必有，其余字段推导为可选。需要字面量联合或命令要读取 `ctx.state` 时使用 `defineCommand<ExactArgs, Result, State>`；组件化的有状态命令组使用 `defineCommands<State>({...})`，状态不兼容的命令组不能挂到 `defineCli<State>`。`json`、`api-key`、`help`、`version` 是框架保留参数，业务命令不能重复声明；框架参数可放在命令路径前或后。
+`defineCommand` 是唯一命令定义 API；禁止手写 `Args` 泛型覆盖或增加 helper wrapper。组件化有状态命令组使用 `defineCommands<State>({...})`。
+
+字段很多或存在嵌套载荷时，业务包直接依赖 Zod 4，并把 Schema 传入命令：
+
+```ts
+import * as z from "zod";
+
+const UpdateOrder = z.strictObject({ id: z.string(), status: z.string() });
+
+const update = defineCommand({
+  name: "update",
+  description: "更新订单",
+  args: { type: "json", schema: UpdateOrder },
+  policy: { mode: "write", confirmation: "required", idempotency: "required" },
+  async run(ctx, args) {
+    return { data: (await ctx.post("/orders/update", args)).data };
+  },
+});
+```
+
+不要包装 Zod，也不要引入第二套 schema 协议。运行时校验、args 推导、help 和 `--input-schema` 都来自同一个 Zod object。JSON 来源、Shell 组合和写策略见 `structured-input.md`。
+
+框架保留参数包括 `json`、`no-json`、`api-key`、`help`、`version`、`input`、`input-file`、`input-schema`、`input-example`、`dry-run`、`yes` 和 `idempotency-key`。不存在 `--input-stdin`；管道和重定向就是原生 stdin。
 
 ## 3. CLI 装配与入口
 
@@ -145,7 +163,7 @@ if (isMainEntry() && process.argv[2] === "install") {
 
 ## 4. 运行时上下文
 
-`run(args, ctx)` 可使用：
+所有命令都收到 `run(ctx, args)`；argv 和 JSON 模式中的 `args` 都只包含 Zod 校验后的对象，框架策略和输入来源元数据不会混入。命令可使用：
 
 - `ctx.get/post/put/patch/delete`：返回 `{ status, data, headers }`。
 - `ctx.request`：需要自定义 method、query、body、header 或 timeout 时使用。

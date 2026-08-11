@@ -4,13 +4,9 @@
  * update 复用 installFlow(O4:不再跳过信任确认),支持指纹变更高亮(C7)。
  */
 
+import * as z from "zod";
 import { defineCommand, type CommandResult } from "@renxqoo/agent-data-cli";
-import {
-  listInstalled,
-  readService,
-  removeService,
-  type InstalledServiceFull,
-} from "../registry.js";
+import { listInstalled, readService, removeService } from "../registry.js";
 import { removeSkill } from "../skill-gen.js";
 import { removeShim } from "../shim.js";
 import { fetchManifest } from "../manifest/loader.js";
@@ -26,9 +22,8 @@ import { assertSafeServiceName } from "../security.js";
 export const listCommand = defineCommand({
   name: "list",
   description: "List all installed dynamic services",
-  args: {},
   internal: true,
-  async run(): Promise<CommandResult> {
+  async run(_ctx): Promise<CommandResult> {
     try {
       const services = listInstalled();
       return {
@@ -54,28 +49,22 @@ export const listCommand = defineCommand({
 // update(复用 installFlow:确认 → 缓存 → skill → shim)
 // ============================================================================
 
-export interface UpdateArgs {
-  name: string;
-  insecure?: boolean;
-  "private-endpoints"?: boolean;
-  unsigned?: boolean;
-  yes?: boolean;
-  lang?: "en" | "zh";
-}
-
-export const updateCommand = defineCommand<UpdateArgs>({
+export const updateCommand = defineCommand({
   name: "update",
   description: "Re-fetch and update an installed service's manifest",
   args: {
-    name: { type: "string", required: true, positional: true, desc: "service name" },
-    insecure: { type: "boolean", desc: "allow HTTP" },
-    "private-endpoints": { type: "boolean", desc: "allow internal endpoints" },
-    unsigned: { type: "boolean", desc: "allow unsigned manifest (WARNING: untrusted)" },
-    yes: { type: "boolean", desc: "skip confirmation" },
-    lang: { type: "string", desc: "skill document language (en/zh)", default: "en" },
+    schema: z.object({
+      name: z.string().describe("service name"),
+      insecure: z.boolean().describe("allow HTTP").optional(),
+      "private-endpoints": z.boolean().describe("allow internal endpoints").optional(),
+      unsigned: z.boolean().describe("allow unsigned manifest (WARNING: untrusted)").optional(),
+      autoConfirm: z.boolean().describe("skip confirmation").optional(),
+      lang: z.string().describe("skill document language (en/zh)").default("en"),
+    }),
+    pos: ["name"],
   },
   internal: true,
-  async run(args): Promise<CommandResult> {
+  async run(_ctx, args): Promise<CommandResult> {
     try {
       const existing = readService(args.name);
       if (!existing) {
@@ -92,7 +81,7 @@ export const updateCommand = defineCommand<UpdateArgs>({
 
       // 复用 installFlow(O4:有确认 + 指纹变更提示 C7)
       const result = await installFlow(fetched, {
-        yes: args.yes,
+        yes: args.autoConfirm,
         lang: args.lang === "zh" ? "zh" : "en",
         previousKeyFingerprint: existing.keyFingerprint,
       });
@@ -119,39 +108,36 @@ export const updateCommand = defineCommand<UpdateArgs>({
 // remove
 // ============================================================================
 
-export interface RemoveArgs {
-  name: string;
-}
-
-export const removeCommand = defineCommand<RemoveArgs>({
+export const removeCommand = defineCommand({
   name: "remove",
   description: "Remove an installed dynamic service (manifest + skill + shim)",
   args: {
-    name: { type: "string", required: true, positional: true, desc: "service name" },
+    schema: z.object({ name: z.string().describe("service name") }),
+    pos: ["name"],
   },
   internal: true,
-  async run(args): Promise<CommandResult> {
+  async run(_ctx, { name }): Promise<CommandResult> {
     try {
       // 先校验 name 合法性(非法 name 是参数错误 exit 2,不是清理失败)
-      assertSafeServiceName(args.name);
+      assertSafeServiceName(name);
 
       // 事务化:收集每步结果,部分失败时报告清单(不静默吞错)
       const steps: { name: string; ok: boolean; error?: string }[] = [];
       let existed = false;
       try {
-        existed = removeService(args.name);
+        existed = removeService(name);
         steps.push({ name: "registry", ok: true });
       } catch (e) {
         steps.push({ name: "registry", ok: false, error: (e as Error).message });
       }
       try {
-        removeSkill(args.name);
+        removeSkill(name);
         steps.push({ name: "skill", ok: true });
       } catch (e) {
         steps.push({ name: "skill", ok: false, error: (e as Error).message });
       }
       try {
-        removeShim(args.name);
+        removeShim(name);
         steps.push({ name: "shim", ok: true });
       } catch (e) {
         steps.push({ name: "shim", ok: false, error: (e as Error).message });
@@ -160,7 +146,7 @@ export const removeCommand = defineCommand<RemoveArgs>({
       return {
         data: {
           removed: existed,
-          name: args.name,
+          name,
           steps,
           ...(failed.length > 0 ? { partial: true, failedSteps: failed.map((s) => s.name) } : {}),
         },

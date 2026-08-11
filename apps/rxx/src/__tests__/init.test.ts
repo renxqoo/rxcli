@@ -127,8 +127,12 @@ describe("initCommand —— TOFU fallback", () => {
 
     // doMock 后再 import,initCommand 才会绑定 mock 过的 fetchManifest
     const { initCommand } = await import("../commands/init.js");
-    const args = { url: "https://x.example.com/tofu-test.json", yes: true, lang: "en" as const };
-    const result = await initCommand.run!(args as any, {} as any);
+    const args = {
+      url: "https://x.example.com/tofu-test.json",
+      autoConfirm: true,
+      lang: "en" as const,
+    };
+    const result = await initCommand.run!({} as any, args as any);
 
     expect(fetchCallCount).toBe(2);
     expect(process.stderr.write).toHaveBeenCalledWith(expect.stringMatching(/TOFU/i));
@@ -177,8 +181,12 @@ describe("initCommand —— TOFU fallback", () => {
     vi.spyOn(process.stderr, "write").mockImplementation(() => true);
 
     const { initCommand } = await import("../commands/init.js");
-    const args = { url: "https://x.example.com/fresh-svc.json", yes: true, lang: "en" as const };
-    await initCommand.run!(args as any, {} as any);
+    const args = {
+      url: "https://x.example.com/fresh-svc.json",
+      autoConfirm: true,
+      lang: "en" as const,
+    };
+    await initCommand.run!({} as any, args as any);
     expect(fetchCallCount).toBe(1);
     vi.doUnmock("../manifest/loader.js");
     vi.doUnmock("../install-flow.js");
@@ -205,8 +213,8 @@ describe("initCommand —— TOFU fallback", () => {
     vi.spyOn(process.stderr, "write").mockImplementation(() => true);
 
     const { initCommand } = await import("../commands/init.js");
-    const args = { url: "https://x.example.com/x.json", yes: true, lang: "en" as const };
-    await expect(initCommand.run!(args as any, {} as any)).rejects.toThrow(/net down/);
+    const args = { url: "https://x.example.com/x.json", autoConfirm: true, lang: "en" as const };
+    await expect(initCommand.run!({} as any, args as any)).rejects.toThrow(/net down/);
     expect(fetchManifestMock).toHaveBeenCalledTimes(1);
     vi.doUnmock("../manifest/loader.js");
     vi.doUnmock("../install-flow.js");

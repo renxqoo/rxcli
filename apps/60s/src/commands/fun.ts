@@ -12,48 +12,63 @@
  *   moyu       摸鱼办·打工人日历(节假日/倒计时/进度)
  */
 
+import * as z from "zod";
 import { defineCommands, defineCommand } from "@renxqoo/agent-data-cli";
 import { unwrap, withQuery } from "../envelope.js";
 
 export const funCommands = defineCommands({
-  hitokoto: defineCommand<{ id?: number }>({
+  hitokoto: defineCommand({
     name: "hitokoto",
     description: "一言(随机短句,可指定 id)",
-    args: { id: { type: "number", desc: "指定索引(越界返回 not_found)" } },
-    async run({ id }, ctx) {
+    args: {
+      schema: z.object({
+        id: z.coerce.number().describe("指定索引(越界返回 not_found)").optional(),
+      }),
+    },
+    async run(ctx, { id }) {
       const res = await ctx.get("/hitokoto", withQuery({ id }));
       return { data: unwrap<{ index: number; hitokoto: string }>(res) };
     },
   }),
 
-  duanzi: defineCommand<{ id?: number }>({
+  duanzi: defineCommand({
     name: "duanzi",
     description: "段子(随机中文段子)",
-    args: { id: { type: "number", desc: "指定索引(越界返回 not_found)" } },
-    async run({ id }, ctx) {
+    args: {
+      schema: z.object({
+        id: z.coerce.number().describe("指定索引(越界返回 not_found)").optional(),
+      }),
+    },
+    async run(ctx, { id }) {
       const res = await ctx.get("/duanzi", withQuery({ id }));
       return { data: unwrap<{ index: number; duanzi: string }>(res) };
     },
   }),
 
-  "dad-joke": defineCommand<{ id?: number }>({
+  "dad-joke": defineCommand({
     name: "dad-joke",
     description: "冷笑话(英文 dad joke)",
-    args: { id: { type: "number", desc: "指定索引(越界返回 not_found)" } },
-    async run({ id }, ctx) {
+    args: {
+      schema: z.object({
+        id: z.coerce.number().describe("指定索引(越界返回 not_found)").optional(),
+      }),
+    },
+    async run(ctx, { id }) {
       const res = await ctx.get("/dad-joke", withQuery({ id }));
       return { data: unwrap<{ index: number; content: string }>(res) };
     },
   }),
 
-  fabing: defineCommand<{ name?: string; id?: number }>({
+  fabing: defineCommand({
     name: "fabing",
     description: "发病文学(模板替换 [name])",
     args: {
-      name: { type: "string", desc: "替换模板里的名字(默认'主人')" },
-      id: { type: "number", desc: "指定模板索引(越界返回 not_found)" },
+      schema: z.object({
+        name: z.string().describe("替换模板里的名字(默认'主人')").optional(),
+        id: z.coerce.number().describe("指定模板索引(越界返回 not_found)").optional(),
+      }),
     },
-    async run({ name, id }, ctx) {
+    async run(ctx, { name, id }) {
       const res = await ctx.get("/fabing", withQuery({ name, id }));
       return { data: unwrap<{ index: number; saying: string }>(res) };
     },
@@ -62,27 +77,35 @@ export const funCommands = defineCommands({
   kfc: defineCommand({
     name: "kfc",
     description: "肯德基疯狂星期四文案",
-    async run(_args, ctx) {
+    async run(ctx) {
       const res = await ctx.get("/kfc", withQuery());
       return { data: unwrap<{ index: number; kfc: string }>(res) };
     },
   }),
 
-  answer: defineCommand<{ id?: number }>({
+  answer: defineCommand({
     name: "answer",
     description: "答案之书(随机答案)",
-    args: { id: { type: "number", desc: "指定索引(越界返回 not_found)" } },
-    async run({ id }, ctx) {
+    args: {
+      schema: z.object({
+        id: z.coerce.number().describe("指定索引(越界返回 not_found)").optional(),
+      }),
+    },
+    async run(ctx, { id }) {
       const res = await ctx.get("/answer", withQuery({ id }));
       return { data: unwrap<{ index: number; answer: string }>(res) };
     },
   }),
 
-  luck: defineCommand<{ id?: number }>({
+  luck: defineCommand({
     name: "luck",
     description: "今日运势(运势等级 + 幸运提示)",
-    args: { id: { type: "number", desc: "指定索引(越界返回 not_found)" } },
-    async run({ id }, ctx) {
+    args: {
+      schema: z.object({
+        id: z.coerce.number().describe("指定索引(越界返回 not_found)").optional(),
+      }),
+    },
+    async run(ctx, { id }) {
       const res = await ctx.get("/luck", withQuery({ id }));
       return {
         data: unwrap<{
@@ -95,11 +118,15 @@ export const funCommands = defineCommands({
     },
   }),
 
-  moyu: defineCommand<{ date?: string }>({
+  moyu: defineCommand({
     name: "moyu",
     description: "摸鱼办·打工人日历(节假日/倒计时/进度)",
-    args: { date: { type: "string", desc: "指定日期(默认今天)" } },
-    async run({ date }, ctx) {
+    args: {
+      schema: z.object({
+        date: z.string().describe("指定日期(默认今天)").optional(),
+      }),
+    },
+    async run(ctx, { date }) {
       const res = await ctx.get("/moyu", withQuery({ date }));
       return { data: unwrap<unknown>(res) };
     },

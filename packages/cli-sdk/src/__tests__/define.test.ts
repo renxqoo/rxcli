@@ -4,8 +4,9 @@
  * 这是原先最大的覆盖缺口(define.ts 此前零测试),集中验证 S2/S4/H1/H5/M1/M2/M9/M10。
  */
 import { describe, it, expect, expectTypeOf, vi, beforeEach, afterEach } from "vitest";
-import { defineCli, defineCommand, defineCommandFromArgs, errs } from "../index.js";
+import { defineCli, defineCommand, errs } from "../index.js";
 import type { CommandSpec } from "../types.js";
+import * as z from "zod";
 
 // 捕获 stdout/stderr + exitCode
 let stdoutBuf = "";
@@ -42,15 +43,17 @@ function parseStderr() {
 
 describe("schema-first command typing", () => {
   it("keeps optional flags optional and required/default flags present", () => {
-    defineCommandFromArgs({
+    defineCommand({
       name: "typed",
       description: "typed",
       args: {
-        query: { type: "string" },
-        limit: { type: "number", default: 20 },
-        id: { type: "string", required: true },
+        schema: z.object({
+          query: z.string().optional(),
+          limit: z.coerce.number().default(20),
+          id: z.string(),
+        }),
       },
-      async run(args) {
+      async run(_ctx, args) {
         expectTypeOf(args.query).toEqualTypeOf<string | undefined>();
         expectTypeOf(args.limit).toEqualTypeOf<number>();
         expectTypeOf(args.id).toEqualTypeOf<string>();
@@ -258,8 +261,8 @@ describe("H1: --no-wait 布尔取反", () => {
         login: defineCommand({
           name: "login",
           description: "login",
-          args: { wait: { type: "boolean", desc: "阻塞" } },
-          async run(args) {
+          args: { schema: z.object({ wait: z.boolean().default(true) }) },
+          async run(_ctx, args) {
             captured = (args as { wait?: unknown }).wait;
             return { data: { ok: true } };
           },
@@ -280,8 +283,8 @@ describe("H1: --no-wait 布尔取反", () => {
         login: defineCommand({
           name: "login",
           description: "login",
-          args: { wait: { type: "boolean", desc: "阻塞" } },
-          async run(args) {
+          args: { schema: z.object({ wait: z.boolean().default(true) }) },
+          async run(_ctx, args) {
             captured = (args as { wait?: unknown }).wait;
             return { data: { ok: true } };
           },
@@ -380,8 +383,8 @@ describe("M2: 负数 flag 值", () => {
         list: defineCommand({
           name: "list",
           description: "list",
-          args: { limit: { type: "number", desc: "limit" } },
-          async run(args) {
+          args: { schema: z.object({ limit: z.coerce.number().optional() }) },
+          async run(_ctx, args) {
             captured = (args as { limit?: unknown }).limit;
             return { data: [] };
           },
@@ -448,8 +451,8 @@ describe("M10: -- 分隔符之后全为 positional", () => {
         echo: defineCommand({
           name: "echo",
           description: "echo",
-          args: { msg: { type: "string", positional: true, desc: "msg" } },
-          async run(args) {
+          args: { schema: z.object({ msg: z.string().optional() }), pos: ["msg"] },
+          async run(_ctx, args) {
             capturedPos = [(args as { msg?: string }).msg ?? ""];
             return { data: { ok: true } };
           },
@@ -475,10 +478,13 @@ describe("M10: -- 分隔符之后全为 positional", () => {
           name: "echo",
           description: "echo",
           args: {
-            msg: { type: "string", positional: true, desc: "msg" },
-            verbose: { type: "boolean", desc: "verbose" },
+            schema: z.object({
+              msg: z.string().optional(),
+              verbose: z.boolean().default(false),
+            }),
+            pos: ["msg"],
           },
-          async run(args) {
+          async run(_ctx, args) {
             capturedMsg = (args as { msg?: string }).msg ?? "";
             capturedVerbose = String((args as { verbose?: boolean }).verbose);
             return { data: 1 };
@@ -516,7 +522,7 @@ describe("路由: namespaces 多级匹配", () => {
           get: defineCommand({
             name: "get",
             description: "get order",
-            args: { id: { type: "string", required: true, positional: true } },
+            args: { schema: z.object({ id: z.string() }), pos: ["id"] },
             async run() {
               called = "orders.get";
               return { data: {} };

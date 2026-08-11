@@ -12,7 +12,7 @@
  */
 
 import { compileCommandSchema, type ArgumentDescriptor } from "../command-schema.js";
-import type { CommandSpec, DefineCliOptions, ArgsSpec } from "../types.js";
+import type { CommandArgs, CommandSpec, DefineCliOptions } from "../types.js";
 import { stringify as stringifyYaml } from "yaml";
 import { InternalError } from "../errs/index.js";
 import { validateSkillName } from "./path-guard.js";
@@ -130,14 +130,14 @@ export function flattenCommands(
 
 /** 生成单个命令的签名行(如 `rxcli-orders list [--limit <number>] [--status <string>]`)。 */
 export function signatureLine(binName: string, cmd: FlatCommand): string {
-  const sig = compileCommandSchema(cmd.spec.name, cmd.spec.args).signature;
+  const sig = compileCommandSchema(cmd.spec.name, cmd.spec.args, cmd.spec.policy).signature;
   const pos = sig.positionals.join(" ");
   const opts = sig.options.join(" ");
   return [`${binName} ${cmd.path}`, pos, opts].filter(Boolean).join(" ").trim();
 }
 
 /** 生成参数说明表(markdown)。 */
-export function argsTable(argsSpec: ArgsSpec | undefined, lang: GenLang = "en"): string {
+export function argsTable(argsSpec: CommandArgs | undefined, lang: GenLang = "en"): string {
   if (!argsSpec) return "";
   const t = GEN_STRINGS[lang];
   const rows = compileCommandSchema("skill-doc", argsSpec).descriptors.map((argument) => {
@@ -147,13 +147,13 @@ export function argsTable(argsSpec: ArgsSpec | undefined, lang: GenLang = "en"):
   return [t.argTableHeader, "|------|------|:----:|------|------|", ...rows].join("\n");
 }
 
-/** 参数在签名里的展示形态(对齐 args.ts 的 signatureOfArgs,但表格用 flag 名)。 */
+/** 参数在签名里的展示形态；表格使用位置参数名或 kebab-case flag 名。 */
 function argumentTableLabel(argument: ArgumentDescriptor): string {
   if (argument.positional) {
     return argument.required ? `<${argument.name}>` : `[<${argument.name}>]`;
   }
-  if (argument.type === "boolean") return `--${argument.name}`;
-  return `--${argument.name} <${argument.type}>`;
+  if (argument.type === "boolean") return `--${argument.flagName}`;
+  return `--${argument.flagName} <${argument.type}>`;
 }
 
 function formatDefault(def: unknown): string {
@@ -217,6 +217,32 @@ export function generateAutogenBlock(
     const desc = escapeCell(cmd.spec.description ?? "");
     const sig = escapeCell(signatureLine(binName, cmd)).replace(/`/g, "\\`");
     lines.push(`| ${desc} | \`${sig}\` |`);
+  }
+
+  const structured = cmds.filter((cmd) => cmd.spec.args?.type === "json");
+  if (structured.length > 0) {
+    lines.push("");
+    lines.push(lang === "zh" ? "### JSON 参数" : "### JSON arguments");
+    lines.push("");
+    lines.push(
+      lang === "zh"
+        ? "| 命令 | 输入方式 | Schema / 示例 |"
+        : "| Command | Input | Schema / example |",
+    );
+    lines.push("|------|------|------|");
+    for (const cmd of structured) {
+      lines.push(
+        `| \`${escapeCell(cmd.path)}\` | \`--input / --input-file / stdin\` | ` +
+          `\`${escapeCell(`${binName} ${cmd.path} --input-schema`)}\` / ` +
+          `\`${escapeCell(`${binName} ${cmd.path} --input-example`)}\` |`,
+      );
+    }
+    lines.push("");
+    lines.push(
+      lang === "zh"
+        ? "必须提供一个完整 JSON 文档；JSON 参数不能与业务 flags 或位置参数合并。"
+        : "Provide one complete JSON document; JSON arguments cannot be merged with business flags or positional operands.",
+    );
   }
 
   return lines.join("\n").trimEnd();

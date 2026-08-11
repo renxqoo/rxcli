@@ -221,7 +221,7 @@ throw new errs.ValidationError({
 ### 模式 A:命令自己判断 status,throw 类型化错误
 
 ```ts
-async run({ id }, ctx) {
+async run(ctx, { id }) {
   const res = await ctx.get(`/orders/${id}`)
   if (res.status === 404) throw new errs.NotFoundError(`订单 ${id} 不存在`)
   if (res.status === 403) throw new errs.PermissionError({ subtype: 'forbidden', message: '无权访问该订单' })
@@ -266,7 +266,7 @@ export default defineCli({
 ### 下层已返回类型化错误 → 透传
 
 ```ts
-async run(args, ctx) {
+async run(ctx, args) {
   try {
     const res = await ctx.get('/orders')
     return { data: res.data }

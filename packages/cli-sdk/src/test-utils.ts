@@ -30,7 +30,7 @@ export interface CreateTestCtxOptions<State> {
 }
 
 /**
- * 创建测试用 ctx。业务包直接调 run(args, ctx) 测逻辑:
+ * 创建测试用 ctx。业务包直接调 run(ctx, args) 测逻辑:
  *
  * ```ts
  * const ctx = createTestCtx({
@@ -39,7 +39,7 @@ export interface CreateTestCtxOptions<State> {
  *     throw new Error(`unexpected ${opts.path}`)
  *   },
  * })
- * const result = await cmd.run({ limit: 30 }, ctx)
+ * const result = await cmd.run(ctx, { limit: 30 })
  * expect(result.data).toEqual([...])
  * ```
  */

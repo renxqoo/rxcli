@@ -13,6 +13,7 @@ import type {
   UnauthorizedDecision,
   StructuredData,
   CommandResult,
+  CommandInputEvent,
 } from "./types.js";
 import { InternalError } from "./errs/index.js";
 import { isStructuredData } from "./output.js";
@@ -67,6 +68,30 @@ export async function runBeforeCommand<State>(
     // 精确豁免:plugin 自己的命令跳自己的 beforeCommand(不跳别的 plugin)
     if (isOwnedRoute(ownedRoutes?.get(p), route)) continue;
     await p.beforeCommand!(ctx);
+  }
+}
+
+/** Input observers receive only provenance and the contract-redacted validated value. */
+export async function observeInput<State>(
+  plugins: Plugin<State>[],
+  ctx: CommandContext<State>,
+  event: Readonly<CommandInputEvent>,
+): Promise<void> {
+  for (const plugin of withHook(plugins, "observeInput")) {
+    try {
+      await plugin.observeInput!(
+        ctx,
+        Object.freeze({
+          route: Object.freeze([...event.route]),
+          meta: Object.freeze({ ...event.meta }),
+          redactedArgs: structuredClone(event.redactedArgs),
+        }),
+      );
+    } catch (error) {
+      ctx.log.warn(
+        `observeInput hook failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 }
 

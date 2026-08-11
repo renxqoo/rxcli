@@ -25,7 +25,7 @@ describe("news.today", () => {
         });
       },
     });
-    const result = await newsCommands.today.run({ date: undefined, forceUpdate: undefined }, ctx);
+    const result = await newsCommands.today.run(ctx, { date: undefined, forceUpdate: undefined });
     expect(result.data).toMatchObject({ date: "2026-08-09" });
     expect((result.data as { news: string[] }).news[0]).toBe("测试新闻");
   });
@@ -37,7 +37,7 @@ describe("news.today", () => {
         return ok({ date: "2026-08-09", news: [] });
       },
     });
-    await newsCommands.today.run({ forceUpdate: true }, ctx);
+    await newsCommands.today.run(ctx, { forceUpdate: true });
   });
 
   it("humanFormat 渲染 string[] 新闻为序号列表(不出现 undefined)", () => {
@@ -67,7 +67,7 @@ describe("hot.weibo", () => {
         ]);
       },
     });
-    const result = await hotCommands.weibo.run({}, ctx);
+    const result = await hotCommands.weibo.run(ctx, {});
     expect(result.data).toHaveLength(2);
     expect(result.meta?.count).toBe(2);
     expect(result.meta?.pagination?.complete).toBe(true);
@@ -86,7 +86,7 @@ describe("tool.fanyi", () => {
         });
       },
     });
-    const result = await toolCommands.fanyi.run({ text: "hello", to: "zh-CHS" }, ctx);
+    const result = await toolCommands.fanyi.run(ctx, { text: "hello", to: "zh-CHS" });
     expect((result.data as { target: { text: string } }).target.text).toBe("你好");
   });
 });
@@ -100,10 +100,12 @@ describe("health.assess", () => {
         return ok({ bmi: { value: 22.9, category: "正常" } });
       },
     });
-    const result = await healthCommands.assess.run(
-      { height: 175, weight: 70, gender: "male", age: 30 },
-      ctx,
-    );
+    const result = await healthCommands.assess.run(ctx, {
+      height: 175,
+      weight: 70,
+      gender: "male",
+      age: 30,
+    });
     expect((result.data as { bmi: { value: number } }).bmi.value).toBe(22.9);
   });
 });
@@ -132,7 +134,7 @@ describe("news.rss(XML 解析)", () => {
         headers: { "content-type": "application/xml" },
       }),
     });
-    const result = await newsCommands.rss.run({}, ctx);
+    const result = await newsCommands.rss.run(ctx, {});
     const items = result.data as { title: string; link: string; description: string }[];
     expect(items).toHaveLength(2);
     expect(items[0].title).toBe("每天 60s 第 1 条");

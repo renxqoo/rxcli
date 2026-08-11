@@ -23,6 +23,7 @@
  *   POST /approval-flow/webhook/test
  */
 
+import * as z from "zod";
 import {
   defineCommands,
   defineCommand,
@@ -31,213 +32,242 @@ import {
   type CommandGroup,
 } from "@renxqoo/agent-data-cli";
 import { APPROVAL_TODO_KINDS, APPROVAL_ACTIONS, isOneOf } from "../constants.js";
-import { unwrap, buildPagePayload, pagedMeta, parseJsonBody, type PagedData } from "../envelope.js";
-import { ensureConfirmed } from "./leads.js";
+import { unwrap, unwrapPaged, buildPagePayload, pagedMeta, parseJsonBody } from "../envelope.js";
+
+const writePolicy = { mode: "write", dryRun: true, confirmation: "required" } as const;
 
 export const approvalsCommands: CommandGroup = defineCommands({
   /** todo:审批待办查询(kind ∈ pending/processed/initiated/cc/count)。 */
-  todo: defineCommand<{ kind: string; payload: string }>({
+  todo: defineCommand({
     name: "todo",
     description: "查询审批待办(pending/processed/initiated/cc/count)",
     args: {
-      kind: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "待办类型(pending/processed/initiated/cc/count)",
-      },
-      payload: {
-        type: "string",
-        desc: "分页/筛选载荷 JSON(含可选 resourceType: ALL/QUOTATION/CONTRACT/ORDER/INVOICE)",
-      },
+      schema: z.object({
+        kind: z.string().describe("待办类型(pending/processed/initiated/cc/count)"),
+        payload: z
+          .string()
+          .describe("分页/筛选载荷 JSON(含可选 resourceType: ALL/QUOTATION/CONTRACT/ORDER/INVOICE)")
+          .optional(),
+      }),
+      pos: ["kind"],
     },
-    async run(args, ctx) {
-      if (!isOneOf(args.kind, APPROVAL_TODO_KINDS)) {
+    async run(ctx, { kind, payload }) {
+      if (!isOneOf(kind, APPROVAL_TODO_KINDS)) {
         throw new errs.ValidationError({
           subtype: "invalid_argument",
           param: "<kind>",
-          message: `todo kind must be ${APPROVAL_TODO_KINDS.join("/")}, got "${args.kind}"`,
+          message: `todo kind must be ${APPROVAL_TODO_KINDS.join("/")}, got "${kind}"`,
         });
       }
       // count 是 GET,其余是 POST 分页
-      if (args.kind === "count") {
+      if (kind === "count") {
         const res = await ctx.get(`/approval-todo/pending/count`);
         return { data: unwrap(res) };
       }
-      const body = buildPagePayload(args.payload);
-      const res = await ctx.post(`/approval-todo/${args.kind}/page`, body);
-      const data = unwrap<PagedData>(res);
+      const body = buildPagePayload(payload);
+      const res = await ctx.post(`/approval-todo/${kind}/page`, body);
+      const data = unwrapPaged(res);
       return { data: data.list, meta: pagedMeta(data) };
     },
   }),
 
   /** action:审批动作(approve/reject/back/sign/revoke/batch-approve/batch-reject)。 */
-  action: defineCommand<{ action: string; data: string; dryRun: boolean; yes: boolean }>({
+  action: defineCommand({
     name: "action",
     description: "执行审批动作(approve/reject/back/sign/revoke/batch-approve/batch-reject)",
     args: {
-      action: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "动作类型(approve/reject/back/sign/revoke/batch-approve/batch-reject)",
-      },
-      data: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "动作数据 JSON(含审批单 ID 等)",
-      },
-      dryRun: { type: "boolean", desc: "仅校验不提交" },
-      yes: { type: "boolean", desc: "跳过确认直接提交" },
+      schema: z.object({
+        action: z
+          .string()
+          .describe("动作类型(approve/reject/back/sign/revoke/batch-approve/batch-reject)"),
+        data: z.string().describe("动作数据 JSON(含审批单 ID 等)"),
+      }),
+      pos: ["action", "data"],
     },
-    async run(args, ctx) {
-      if (!isOneOf(args.action, APPROVAL_ACTIONS)) {
+    policy: { mode: "write", dryRun: true, confirmation: "required" },
+    async run(ctx, { action, data }) {
+      if (!isOneOf(action, APPROVAL_ACTIONS)) {
         throw new errs.ValidationError({
           subtype: "invalid_argument",
           param: "<action>",
-          message: `action must be ${APPROVAL_ACTIONS.join("/")}, got "${args.action}"`,
+          message: `action must be ${APPROVAL_ACTIONS.join("/")}, got "${action}"`,
         });
       }
-      const body = parseJsonBody(args.data, "<data>");
-      if (args.dryRun) return { data: null, meta: { dryRun: true } };
-      ensureConfirmed(
-        args.yes,
-        `Approval action ${args.action}`,
-        `rxcordys approvals action ${args.action} '<json>' --yes`,
-      );
-      const res = await ctx.post(`/approval-action/${args.action}`, body);
+      const body = parseJsonBody(data, "<data>");
+      const res = await ctx.post(`/approval-action/${action}`, body);
       return {
         data: unwrap(res),
-        meta: { rollback: `审批动作 ${args.action} 执行后不可自动撤销,需联系发起人或管理员` },
+        meta: { rollback: `审批动作 ${action} 执行后不可自动撤销,需联系发起人或管理员` },
       };
     },
   }),
 
   /** resource:审批资源(push 推送 / revoke 撤销 / simple-detail / detail)。 */
-  resource: defineCommand<{ action: string; arg: string }>({
+  resource: defineCommand({
     name: "resource",
     description: "审批资源操作(push/revoke/simple-detail/detail)",
     args: {
-      action: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "操作(push/revoke/simple-detail/detail)",
-      },
-      arg: { type: "string", desc: "push/revoke 传 JSON;simple-detail/detail 传 resourceId" },
+      schema: z.object({
+        action: z.string().describe("操作(push/revoke/simple-detail/detail)"),
+        arg: z
+          .string()
+          .describe("push/revoke 传 JSON;simple-detail/detail 传 resourceId")
+          .optional(),
+      }),
+      pos: ["action"],
     },
-    async run(args, ctx) {
-      switch (args.action) {
+    async run(ctx, { action, arg }) {
+      switch (action) {
         case "push":
         case "revoke": {
-          const body = parseJsonBody(args.arg, "<arg>");
-          const res = await ctx.post(`/approval-resource/${args.action}`, body);
+          const body = parseJsonBody(arg, "<arg>");
+          const res = await ctx.post(`/approval-resource/${action}`, body);
           return { data: unwrap(res) };
         }
         case "simple-detail":
         case "detail": {
-          if (!args.arg) {
+          if (!arg) {
             throw new errs.ValidationError({
               subtype: "missing_required",
               param: "<arg>",
-              message: `${args.action} requires resourceId`,
+              message: `${action} requires resourceId`,
             });
           }
-          const res = await ctx.get(
-            `/approval-resource/${args.action}/${encodeURIComponent(args.arg)}`,
-          );
+          const res = await ctx.get(`/approval-resource/${action}/${encodeURIComponent(arg)}`);
           return { data: unwrap(res) };
         }
         default:
           throw new errs.ValidationError({
             subtype: "invalid_argument",
             param: "<action>",
-            message: `resource action must be push/revoke/simple-detail/detail, got "${args.action}"`,
+            message: `resource action must be push/revoke/simple-detail/detail, got "${action}"`,
           });
       }
     },
   }),
 
-  /** flow:审批流程配置(page/get/add/update/enable/disable/by-form/setting/webhook-test)。 */
-  flow: defineCommand<{
-    action: string;
-    arg: string;
-    payload: string;
-    dryRun: boolean;
-    yes: boolean;
-  }>({
+  /**
+   * flow:审批流程配置的「读」操作(page/get/enable/disable/by-form/setting)。
+   *
+   * 注:cli-sdk 的 write policy 是命令级,无法对单条 dispatch 命令的部分 action 生效,
+   * 故写操作(add/update/webhook-test)已拆为独立命令 flow-add/flow-update/flow-webhook-test,
+   * 各自套用 --dry-run / --yes 确认门;此处只保留读 action。
+   * (enable/disable 是 GET 幂等开关,保留在此;如需更严格可后续再拆。)
+   */
+  flow: defineCommand({
     name: "flow",
-    description: "审批流程配置(page/get/add/update/enable/disable/by-form/setting/webhook-test)",
+    description:
+      "审批流程配置-读(page/get/enable/disable/by-form/setting;写见 flow-add/flow-update/flow-webhook-test)",
     args: {
-      action: {
-        type: "string",
-        required: true,
-        positional: true,
-        desc: "操作(page/get/add/update/enable/disable/by-form/setting/webhook-test)",
-      },
-      arg: { type: "string", desc: "get/enable/disable/by-form/setting 传 id 或 formType" },
-      payload: { type: "string", desc: "page/add/update/webhook-test 的 body JSON" },
-      dryRun: { type: "boolean", desc: "仅校验不提交(add/update)" },
-      yes: { type: "boolean", desc: "跳过确认直接提交(add/update)" },
+      schema: z.object({
+        action: z
+          .string()
+          .describe("操作(page/get/add/update/enable/disable/by-form/setting/webhook-test)"),
+        arg: z.string().describe("get/enable/disable/by-form/setting 传 id 或 formType").optional(),
+        payload: z.string().describe("page/add/update/webhook-test 的 body JSON").optional(),
+      }),
+      pos: ["action"],
     },
-    async run(args, ctx) {
-      switch (args.action) {
+    async run(ctx, { action, arg, payload }) {
+      switch (action) {
         case "page": {
-          const res = await ctx.post(`/approval-flow/page`, buildPagePayload(args.payload));
-          const data = unwrap<PagedData>(res);
+          const res = await ctx.post(`/approval-flow/page`, buildPagePayload(payload));
+          const data = unwrapPaged(res);
           return { data: data.list, meta: pagedMeta(data) };
         }
         case "get":
         case "enable":
         case "disable": {
-          if (!args.arg) throw missingIdError(args.action);
+          if (!arg) throw missingIdError(action);
           const suffix =
-            args.action === "enable"
-              ? `?enable=true`
-              : args.action === "disable"
-                ? `?enable=false`
-                : "";
+            action === "enable" ? `?enable=true` : action === "disable" ? `?enable=false` : "";
           const path =
-            args.action === "enable" || args.action === "disable"
-              ? `/approval-flow/enable/${encodeURIComponent(args.arg)}${suffix}`
-              : `/approval-flow/get/${encodeURIComponent(args.arg)}`;
+            action === "enable" || action === "disable"
+              ? `/approval-flow/enable/${encodeURIComponent(arg)}${suffix}`
+              : `/approval-flow/get/${encodeURIComponent(arg)}`;
           const res = await ctx.get(path);
           return { data: unwrap(res) };
         }
         case "by-form":
         case "setting": {
-          if (!args.arg) throw missingIdError(args.action, "formType");
+          if (!arg) throw missingIdError(action, "formType");
           const path =
-            args.action === "by-form"
-              ? `/approval-flow/get-by-form-type/${encodeURIComponent(args.arg)}`
-              : `/approval-flow/status-permission/setting/${encodeURIComponent(args.arg)}`;
+            action === "by-form"
+              ? `/approval-flow/get-by-form-type/${encodeURIComponent(arg)}`
+              : `/approval-flow/status-permission/setting/${encodeURIComponent(arg)}`;
           const res = await ctx.get(path);
           return { data: unwrap(res) };
         }
         case "add":
         case "update":
-        case "webhook-test": {
-          const body = args.payload ? parseJsonBody(args.payload, "<payload>") : {};
-          if (args.action !== "webhook-test") {
-            if (args.dryRun) return { data: null, meta: { dryRun: true } };
-            ensureConfirmed(
-              args.yes,
-              `Approval flow ${args.action}`,
-              `rxcordys approvals flow ${args.action} '<json>' --yes`,
-            );
-          }
-          const res = await ctx.post(`/approval-flow/${args.action}`, body);
-          return { data: unwrap(res) };
-        }
+        case "webhook-test":
+          // 写操作已拆为独立命令(flow-add/flow-update/flow-webhook-test)以套用写入确认门。
+          // cli-sdk 的 write policy 是命令级,无法对单条 dispatch 命令的部分 action 生效。
+          throw new errs.ValidationError({
+            subtype: "invalid_argument",
+            param: "<action>",
+            message: `flow ${action} is a write and has moved to a dedicated command for confirmation gating`,
+            hint: `Use: approvals flow-${action} <data> [--dry-run] [--yes]`,
+          });
         default:
           throw new errs.ValidationError({
             subtype: "invalid_argument",
             param: "<action>",
-            message: `flow action unsupported: "${args.action}"`,
+            message: `flow action unsupported: "${action}"`,
             hint: "Valid: page/get/add/update/enable/disable/by-form/setting/webhook-test",
           });
       }
+    },
+  }),
+
+  /** flow-add:新增审批流程配置(独立写命令,套用 --dry-run / --yes)。 */
+  "flow-add": defineCommand({
+    name: "flow-add",
+    description: "新增审批流程配置(原 flow add;独立命令以套用写入确认门)",
+    args: {
+      schema: z.object({ data: z.string().describe("审批流程配置 JSON") }),
+      pos: ["data"],
+    },
+    policy: writePolicy,
+    async run(ctx, { data }) {
+      const body = parseJsonBody(data, "<data>");
+      const res = await ctx.post(`/approval-flow/add`, body);
+      return {
+        data: unwrap(res),
+        meta: { rollback: "审批流程新增后可通过 approvals flow-update 或管理界面调整" },
+      };
+    },
+  }),
+
+  /** flow-update:更新审批流程配置(独立写命令)。 */
+  "flow-update": defineCommand({
+    name: "flow-update",
+    description: "更新审批流程配置(原 flow update;独立命令以套用写入确认门)",
+    args: {
+      schema: z.object({ data: z.string().describe("审批流程配置 JSON(含 id)") }),
+      pos: ["data"],
+    },
+    policy: writePolicy,
+    async run(ctx, { data }) {
+      const body = parseJsonBody(data, "<data>");
+      const res = await ctx.post(`/approval-flow/update`, body);
+      return { data: unwrap(res) };
+    },
+  }),
+
+  /** flow-webhook-test:触发审批流程 webhook 测试(独立写命令)。 */
+  "flow-webhook-test": defineCommand({
+    name: "flow-webhook-test",
+    description: "触发审批流程 webhook 测试(原 flow webhook-test;独立命令以套用写入确认门)",
+    args: {
+      schema: z.object({ data: z.string().describe("webhook 测试 JSON") }),
+      pos: ["data"],
+    },
+    policy: writePolicy,
+    async run(ctx, { data }) {
+      const body = parseJsonBody(data, "<data>");
+      const res = await ctx.post(`/approval-flow/webhook/test`, body);
+      return { data: unwrap(res) };
     },
   }),
 });

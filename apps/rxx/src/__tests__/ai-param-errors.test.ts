@@ -33,42 +33,42 @@ const getCmd: ManifestCommand = {
 describe("AI 参数错误 —— 数值范围(AI 高频传错 limit)", () => {
   it("超大数(精度丢失)→ out_of_range + param + 精确值", () => {
     const cmd = manifestToCommand("list", listCmd);
-    return expect(cmd.run({ limit: 999999999999999999999 }, noopCtx as any)).rejects.toMatchObject({
+    return expect(cmd.run(noopCtx as any, { limit: 999999999999999999999 })).rejects.toMatchObject({
       subtype: "out_of_range",
       param: "limit",
     });
   });
   it("负数 → out_of_range + message 含 >= 1", () => {
     const cmd = manifestToCommand("list", listCmd);
-    return expect(cmd.run({ limit: -5 }, noopCtx as any)).rejects.toMatchObject({
+    return expect(cmd.run(noopCtx as any, { limit: -5 })).rejects.toMatchObject({
       subtype: "out_of_range",
       param: "limit",
     });
   });
   it("0(< min:1)→ out_of_range", () => {
     const cmd = manifestToCommand("list", listCmd);
-    return expect(cmd.run({ limit: 0 }, noopCtx as any)).rejects.toMatchObject({
+    return expect(cmd.run(noopCtx as any, { limit: 0 })).rejects.toMatchObject({
       subtype: "out_of_range",
       param: "limit",
     });
   });
   it("小数(默认必须整数)→ out_of_range", () => {
     const cmd = manifestToCommand("list", listCmd);
-    return expect(cmd.run({ limit: 3.5 }, noopCtx as any)).rejects.toMatchObject({
+    return expect(cmd.run(noopCtx as any, { limit: 3.5 })).rejects.toMatchObject({
       subtype: "out_of_range",
       param: "limit",
     });
   });
   it("超过 max → out_of_range + message 含 <= 100", () => {
     const cmd = manifestToCommand("list", listCmd);
-    return expect(cmd.run({ limit: 101 }, noopCtx as any)).rejects.toMatchObject({
+    return expect(cmd.run(noopCtx as any, { limit: 101 })).rejects.toMatchObject({
       subtype: "out_of_range",
       param: "limit",
     });
   });
   it("Infinity → out_of_range(非有限)", () => {
     const cmd = manifestToCommand("list", listCmd);
-    return expect(cmd.run({ limit: Infinity }, noopCtx as any)).rejects.toMatchObject({
+    return expect(cmd.run(noopCtx as any, { limit: Infinity })).rejects.toMatchObject({
       subtype: "out_of_range",
       param: "limit",
     });
@@ -79,7 +79,7 @@ describe("AI 参数错误 —— path 参数(AI 复制粘贴常见错误)", () =
   it("空串 → 精确提示 empty(非 path traversal)", async () => {
     const cmd = manifestToCommand("get", getCmd);
     try {
-      await cmd.run({ id: "" }, noopCtx as any);
+      await cmd.run(noopCtx as any, { id: "" });
       throw new Error("should throw");
     } catch (e: any) {
       expect(e.subtype).toBe("missing_required");
@@ -90,7 +90,7 @@ describe("AI 参数错误 —— path 参数(AI 复制粘贴常见错误)", () =
   it("纯空格 → 提示 all whitespace", async () => {
     const cmd = manifestToCommand("get", getCmd);
     try {
-      await cmd.run({ id: "   " }, noopCtx as any);
+      await cmd.run(noopCtx as any, { id: "   " });
       throw new Error("should throw");
     } catch (e: any) {
       expect(e.message).toMatch(/whitespace/i);
@@ -99,7 +99,7 @@ describe("AI 参数错误 —— path 参数(AI 复制粘贴常见错误)", () =
   it("前后空格 → 提示 trim(含原值)", async () => {
     const cmd = manifestToCommand("get", getCmd);
     try {
-      await cmd.run({ id: " ord_001 " }, noopCtx as any);
+      await cmd.run(noopCtx as any, { id: " ord_001 " });
       throw new Error("should throw");
     } catch (e: any) {
       expect(e.message).toMatch(/whitespace/i);
@@ -109,7 +109,7 @@ describe("AI 参数错误 —— path 参数(AI 复制粘贴常见错误)", () =
   it("单引号包裹 → 提示 remove quotes", async () => {
     const cmd = manifestToCommand("get", getCmd);
     try {
-      await cmd.run({ id: "'ord_001'" }, noopCtx as any);
+      await cmd.run(noopCtx as any, { id: "'ord_001'" });
       throw new Error("should throw");
     } catch (e: any) {
       expect(e.message).toMatch(/quotes/i);
@@ -118,7 +118,7 @@ describe("AI 参数错误 —— path 参数(AI 复制粘贴常见错误)", () =
   it("双引号包裹 → 提示 remove quotes", async () => {
     const cmd = manifestToCommand("get", getCmd);
     try {
-      await cmd.run({ id: '"ord_001"' }, noopCtx as any);
+      await cmd.run(noopCtx as any, { id: '"ord_001"' });
       throw new Error("should throw");
     } catch (e: any) {
       expect(e.message).toMatch(/quotes/i);
@@ -127,7 +127,7 @@ describe("AI 参数错误 —— path 参数(AI 复制粘贴常见错误)", () =
   it("path traversal 仍被拦(../etc)→ traversal 提示", async () => {
     const cmd = manifestToCommand("get", getCmd);
     try {
-      await cmd.run({ id: "../etc/passwd" }, noopCtx as any);
+      await cmd.run(noopCtx as any, { id: "../etc/passwd" });
       throw new Error("should throw");
     } catch (e: any) {
       expect(e.message).toMatch(/traversal|safe path/i);
@@ -138,14 +138,14 @@ describe("AI 参数错误 —— path 参数(AI 复制粘贴常见错误)", () =
 describe("AI 参数错误 —— 正常值不被误伤", () => {
   it("合法 limit(50)→ 正常请求", () => {
     const cmd = manifestToCommand("list", listCmd);
-    return expect(cmd.run({ limit: 50 }, noopCtx as any)).resolves.toBeDefined();
+    return expect(cmd.run(noopCtx as any, { limit: 50 })).resolves.toBeDefined();
   });
   it("合法 id(ord_001)→ 正常请求", () => {
     const cmd = manifestToCommand("get", getCmd);
-    return expect(cmd.run({ id: "ord_001" }, noopCtx as any)).resolves.toBeDefined();
+    return expect(cmd.run(noopCtx as any, { id: "ord_001" })).resolves.toBeDefined();
   });
   it("id 含合法特殊字符(下划线/连字符/数字)→ 正常", () => {
     const cmd = manifestToCommand("get", getCmd);
-    return expect(cmd.run({ id: "ord_001-v2" }, noopCtx as any)).resolves.toBeDefined();
+    return expect(cmd.run(noopCtx as any, { id: "ord_001-v2" })).resolves.toBeDefined();
   });
 });
