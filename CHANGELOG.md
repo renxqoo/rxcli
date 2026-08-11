@@ -40,6 +40,22 @@
   - `context.ts` 复用 `pipe.ts` 的 `emptyPipe`,删除重复实现。
   - `helpers.ts` 抽 `persistRefreshedToken`,两条 401 续期路径共用落盘逻辑。
 
+## [@renxqoo/rxx-cli@0.2.0] - 2026-08-11
+
+动态 agent-native CLI 运行时(manifest → 可执行 CLI + 多 agent 分发)。本次随 cli-sdk contracts 重构一并发布(rxx 依赖新的 `Plugin.prepareRequest` 与拆分后的 contract 模块)。
+
+### Added
+- 新 app `apps/rxx/`:`rxx init <url>` 拉取签名 manifest → `rxx run <service> <cmd>` 现场装配 `defineCli` App,新增服务零客户端改动。
+- 安全:SSRF(`isPrivateHost` 覆盖 IPv4 十进制/十六进制/八进制 + IPv6 + IPv4-mapped)+ DNS rebinding 运行时解析校验(`assertSafeHost`);fetch URL 本身做 SSRF 校验(此前只校验 manifest 内容的 `api.baseUrl`);fetch 超时(AbortController 30s)+ body 大小限制(1MB);Ed25519 签名 + host 绑定 + TOFU pinning + key 变更 fallback。
+- 数据完整性:安装事务化(compensating rollback);`listInstalled` 不再因非服务子目录崩溃;原子写 fsync。
+- 契约修正:非交互安装抛 `ConfirmationRequiredError`(原为 success envelope 漏洞);`signature_failed` → `authentication`;`http_error` 按真实 status 映射;`rxxError` 总返回 `CliError`(不再吐裸 `error:` 文本)。
+- AI 参数健壮性(fuzz 发现):`ManifestArgSpec` 增加 `min`/`max`/`integer`;`fillPath` 对空值/空格/引号/trim 给精确错误(原误报 "path traversal");`number` 参数默认整数校验。
+- `docs/signing-spec.md` 固定签名协议规格(client/server 独立实现,e2e 守往返)。
+
+## [@renxqoo/rxx-server@0.1.0] - 2026-08-11
+
+`apps/rxx/server/` —— rxx 开发/测试用的 mock manifest 托管 + SaaS(独立签名实现,与 client 共享 `docs/signing-spec.md` 规格)。`/__admin/*` 端点支持 `RXX_ADMIN_TOKEN` 鉴权(防开放签名 oracle);分页 limit 范围校验;ID 碰撞修复(递增 counter);seedStore 注册即重置(测试隔离)。
+
 ## [@renxqoo/agent-data-cli@1.2.0] - 2026-08-10
 
 ### Added
