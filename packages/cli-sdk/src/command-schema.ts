@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import { open } from "node:fs/promises";
+import { open, lstat } from "node:fs/promises";
 import type { Readable } from "node:stream";
 import * as z from "zod";
 import type { CommandArgs, CommandPolicy } from "./command-contracts.js";
@@ -554,8 +554,10 @@ function setOption(
 async function readInputFile(path: string): Promise<Buffer> {
   let handle;
   try {
+    // O_NOFOLLOW 在 Windows 上 constants.O_NOFOLLOW 为 undefined(?? 0 后失效),且 libuv
+    // 对它的支持跨版本/平台不一致;改用 lstat(不跟随 symlink,全平台可移植)显式拒非常规文件。
     handle = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
-    const stat = await handle.stat();
+    const stat = await lstat(path);
     if (!stat.isFile()) throw new Error("path is not a regular file");
     if (stat.size > DEFAULT_JSON_LIMITS.maxBytes) throw inputTooLarge("--input-file");
     return bounded(await handle.readFile(), "--input-file");
