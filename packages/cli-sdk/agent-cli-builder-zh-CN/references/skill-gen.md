@@ -86,7 +86,7 @@ description: 查询和管理待办。当用户要查看、新建或完成待办�
 <!-- AUTO-GEN:END -->
 ```
 
-AUTO-GEN 只包含操作说明和命令签名，不包含完整参数表。修改命令定义后重新运行 `gen`；不要手改标记块。
+AUTO-GEN 包含操作说明和命令签名，不包含完整参数表。若 scope 内存在 JSON 参数命令，还会生成输入方式及 `--input-schema`、`--input-example` 发现命令。命令或 args schema 变化后重新运行 `gen`；不要手改标记块。
 
 一个 CLI 拆成多个 Skill 时，用 `skillsScopes` 限制每个 Skill 的命令域：
 
@@ -114,6 +114,8 @@ scope 匹配命令路径第一段。省略映射、Skill 未列出或值为空�
 | 可选 array      | `[--tag <string>...]` |
 
 签名只表达调用形态。枚举、范围、字段和分页协议放入 references。
+
+不要把结构化载荷的完整 JSON Schema 复制进 `SKILL.md`。需要业务语义时链接聚焦的字段/流程 reference；机器契约由 agent 通过 `--input-schema` 实时读取。
 
 ## 4. References 与独立安装
 

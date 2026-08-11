@@ -12,6 +12,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { defineCli, defineCommand, errs, prettyPrint } from "../index.js";
 import { printTable } from "../pretty.js";
+import * as z from "zod";
 
 let stdoutBuf = "";
 let stderrBuf = "";
@@ -404,8 +405,8 @@ describe("--no-json: json 不进命令 args(框架 flag)", () => {
         hello: defineCommand({
           name: "hello",
           description: "x",
-          args: { name: { type: "string", desc: "n" } },
-          async run(args) {
+          args: { schema: z.object({ name: z.string().optional() }) },
+          async run(_ctx, args) {
             receivedArgs = args;
             return { data: { ok: true } };
           },

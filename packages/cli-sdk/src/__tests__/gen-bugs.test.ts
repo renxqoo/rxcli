@@ -12,6 +12,7 @@ import { generateSkillSkeleton, refreshAutogen } from "../skills/gen.js";
 import { defineCommand, defineCommands } from "../define.js";
 import { APIError } from "../errs/index.js";
 import type { DefineCliOptions } from "../types.js";
+import * as z from "zod";
 
 // ---------------------------------------------------------------------------
 // BUG-2: gen --init 已存在文件需 --force
@@ -39,11 +40,11 @@ describe("BUG-2: gen --init 对已有 SKILL.md 应要求 --force", () => {
     writeFileSync(join(skillsDir, "orders", "SKILL.md"), original);
 
     const gen = cmds.gen;
-    await expect(gen.run({ name: "orders", init: true } as never, {} as never)).rejects.toThrow(
+    await expect(gen.run({} as never, { name: "orders", init: true } as never)).rejects.toThrow(
       APIError,
     );
     await expect(
-      gen.run({ name: "orders", init: true } as never, {} as never),
+      gen.run({} as never, { name: "orders", init: true } as never),
     ).rejects.toMatchObject({ subtype: "already_exists" });
     // 文件应保持原样
     expect(readFileSync(join(skillsDir, "orders", "SKILL.md"), "utf8")).toBe(original);
@@ -54,7 +55,14 @@ describe("BUG-2: gen --init 对已有 SKILL.md 应要求 --force", () => {
     mkdirSync(join(skillsDir, "orders"), { recursive: true });
     writeFileSync(join(skillsDir, "orders", "SKILL.md"), "old content");
     const gen = cmds.gen;
-    const result = await gen.run({ name: "orders", init: true, force: true } as never, {} as never);
+    const result = await gen.run(
+      {} as never,
+      {
+        name: "orders",
+        init: true,
+        force: true,
+      } as never,
+    );
     const data = result?.data as { mode: string };
     expect(data.mode).toBe("init");
     const after = readFileSync(join(skillsDir, "orders", "SKILL.md"), "utf8");
@@ -65,7 +73,7 @@ describe("BUG-2: gen --init 对已有 SKILL.md 应要求 --force", () => {
   it("SKILL.md 不存在 + --init → 正常生成骨架(无需 --force)", async () => {
     const cmds = createBuiltinSkillsCommands("testcli", skillsDir, cliOptions);
     const gen = cmds.gen;
-    const result = await gen.run({ name: "fresh", init: true } as never, {} as never);
+    const result = await gen.run({} as never, { name: "fresh", init: true } as never);
     expect(result?.data).toMatchObject({ mode: "init" });
     expect(readFileSync(join(skillsDir, "fresh", "SKILL.md"), "utf8")).toContain("{{FILL");
   });
@@ -78,7 +86,7 @@ describe("BUG-2: gen --init 对已有 SKILL.md 应要求 --force", () => {
 describe("BUG-13: argsTable 转义 | 和换行(避免破坏 markdown 表格)", () => {
   it("default 含 | 应转义为 \\|,不增加表格列数", () => {
     const table = argsTable({
-      tags: { type: "string", default: "a|b", desc: "tags" },
+      schema: z.object({ tags: z.string().describe("tags").default("a|b") }),
     });
     // 表格只有一行数据(表头 + 分隔 + 1 行),该行应含转义的 \|
     const lines = table.split("\n");
@@ -92,7 +100,7 @@ describe("BUG-13: argsTable 转义 | 和换行(避免破坏 markdown 表格)", (
 
   it("desc 含换行应转成空格,不破坏表格行", () => {
     const table = argsTable({
-      note: { type: "string", desc: "line1\nline2" },
+      schema: z.object({ note: z.string().describe("line1\nline2").optional() }),
     });
     const dataRow = table.split("\n")[2];
     expect(dataRow).toBeDefined();
@@ -104,7 +112,7 @@ describe("BUG-13: argsTable 转义 | 和换行(避免破坏 markdown 表格)", (
 
   it("desc 含 | 同样转义", () => {
     const table = argsTable({
-      x: { type: "boolean", desc: "a|b|c" },
+      schema: z.object({ x: z.boolean().describe("a|b|c").default(false) }),
     });
     const dataRow = table.split("\n")[2];
     expect(dataRow).toContain("a\\|b\\|c");

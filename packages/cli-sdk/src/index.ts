@@ -18,7 +18,7 @@
  */
 
 // 核心装配
-export { defineCli, defineCommand, defineCommandFromArgs, defineCommands } from "./define.js";
+export { defineCli, defineCommand, defineCommands } from "./define.js";
 
 // 认证基础能力(defineAuth 覆盖标准场景；特殊协议可用这些公开边界组合 Plugin)
 export {
@@ -120,6 +120,7 @@ export { createFetchAdapter, throwForResponse, type CreateFetchAdapterOptions } 
 export {
   sortPlugins,
   runBeforeCommand,
+  observeInput,
   beforeRequest,
   observeRequest,
   handleUnauthorized,
@@ -173,9 +174,6 @@ export {
   type SkillFileStore,
 } from "./skills/index.js";
 
-// 参数解析
-export { parseArgs, signatureOfArgs, positionalLabel, type ParsedArgs } from "./args.js";
-
 // 执行器
 export { runCommand, type RunCommandOptions } from "./pipeline.js";
 
@@ -191,7 +189,17 @@ export { createTestCtx, type MockRequest, type CreateTestCtxOptions } from "./te
 
 // 类型
 export type { App, DefineCliOptions } from "./application-contracts.js";
-export type { ArgSpec, ArgsSpec, ArgType, CommandGroup, CommandSpec } from "./command-contracts.js";
+export type {
+  ArgvArgs,
+  CommandArgs,
+  CommandGroup,
+  CommandPolicy,
+  CommandSchemaMetadata,
+  CommandSpec,
+  JsonArgs,
+  NoArgs,
+  WritePolicy,
+} from "./command-contracts.js";
 export type {
   CommandResult,
   DataCommandResult,
@@ -201,7 +209,12 @@ export type {
   PipeRecord,
   StructuredData,
 } from "./output-contracts.js";
-export type { ErrorDecision, Plugin, UnauthorizedDecision } from "./plugin-contracts.js";
+export type {
+  ErrorDecision,
+  Plugin,
+  CommandInputEvent,
+  UnauthorizedDecision,
+} from "./plugin-contracts.js";
 export type {
   AttemptOutcome,
   ErrorOnStatus,
@@ -211,3 +224,4 @@ export type {
   TransportResponse,
 } from "./request-contracts.js";
 export type { CommandContext, CredentialsApi, LogApi, PipeApi } from "./runtime-contracts.js";
+export type { JsonInputMeta } from "./command-schema.js";

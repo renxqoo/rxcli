@@ -1,7 +1,8 @@
-import type { ArgsSpec, CommandSpec } from "./types.js";
-import { MISSING_FLAG_VALUE } from "./args.js";
-import { compileCommandSchema, type CompiledCommandSchema } from "./command-schema.js";
+import type { CommandSpec } from "./types.js";
+import type { CompiledCommandSchema } from "./command-schema.js";
 export { RESERVED_FRAMEWORK_ARGS } from "./command-registry.js";
+
+export const MISSING_FLAG_VALUE = Symbol("missing-flag-value");
 
 export interface FrameworkArgs {
   commandArgv: string[];
@@ -96,14 +97,6 @@ export function matchRoute<State>(
     }
   }
   return { matched: null, rest: argv };
-}
-
-/** 解析命令自己的 long flags 与 positional 参数。框架保留参数已在上一层移除。 */
-export function parseCommandFlags(
-  tokens: string[],
-  argsSpec: ArgsSpec | undefined,
-): { options: Record<string, unknown>; positionals: string[] } {
-  return compileCommandSchema("command", argsSpec).tokenize(tokens);
 }
 
 export function hasCommandHelp(argv: string[]): boolean {

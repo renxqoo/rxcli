@@ -89,7 +89,7 @@ describe("auth runtime isolation", () => {
         get: defineCommand({
           name: "get",
           description: "get",
-          async run(_args, ctx) {
+          async run(ctx) {
             await ctx.get("https://api.example/data");
             return { data: { ok: true } };
           },
@@ -140,7 +140,7 @@ describe("auth runtime isolation", () => {
         get: defineCommand({
           name: "get",
           description: "get",
-          async run(_args, ctx) {
+          async run(ctx) {
             arrived++;
             if (arrived === 2) release();
             await gate;

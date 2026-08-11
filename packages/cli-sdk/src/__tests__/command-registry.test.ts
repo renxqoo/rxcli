@@ -76,7 +76,7 @@ describe("CommandRegistry invariants", () => {
         increment: defineCommand<Record<string, never>, null, { count: number }>({
           name: "increment",
           description: "increment",
-          async run(_args, ctx) {
+          async run(ctx) {
             ctx.state.count++;
             seen.push(ctx.state.count);
             return { data: null };

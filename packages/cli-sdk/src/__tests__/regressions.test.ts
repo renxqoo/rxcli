@@ -9,7 +9,9 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseArgs } from "../args.js";
+import { Readable } from "node:stream";
+import * as z from "zod";
+import { compileCommandSchema } from "../command-schema.js";
 import { defineAuth } from "../auth/index.js";
 import { fileStore, memoryStore } from "../credentials/config-store.js";
 import { defaultProviders, resolveWithChain } from "../credentials/providers.js";
@@ -21,34 +23,27 @@ import { createTestCtx } from "../test-utils.js";
 import type { Plugin } from "../types.js";
 
 describe("args: reject ambiguous or unsafe values", () => {
-  it("rejects undeclared flags instead of silently ignoring typos", () => {
-    expect(() => parseArgs(undefined, { limti: "10" }, [])).toThrow(ValidationError);
-  });
-
-  it("rejects non-finite numbers", () => {
-    expect(() => parseArgs({ limit: { type: "number" } }, { limit: "Infinity" }, [])).toThrow(
+  it("rejects undeclared flags instead of silently ignoring typos", async () => {
+    const schema = compileCommandSchema("none", undefined);
+    await expect(schema.resolve(["--limti", "10"], Readable.from([]))).rejects.toBeInstanceOf(
       ValidationError,
     );
   });
 
-  it("validates and coerces defaults through the declared type", () => {
-    expect(parseArgs({ limit: { type: "number", default: "10" } }, {}, [])).toEqual({
-      limit: 10,
+  it("lets Zod reject non-finite numbers", async () => {
+    const schema = compileCommandSchema("list", {
+      schema: z.object({ limit: z.coerce.number() }),
     });
-    expect(() => parseArgs({ enabled: { type: "boolean", default: "sometimes" } }, {}, [])).toThrow(
+    await expect(schema.resolve(["--limit", "Infinity"], Readable.from([]))).rejects.toBeInstanceOf(
       ValidationError,
     );
   });
 
-  it("rejects contradictory required/default schemas during command definition", () => {
-    expect(() =>
-      defineCommand({
-        name: "bad",
-        description: "bad",
-        args: { limit: { type: "number", required: true, default: 10 } },
-        async run() {},
-      }),
-    ).toThrow(/required.*default/);
+  it("applies defaults through Zod", async () => {
+    const schema = compileCommandSchema("list", {
+      schema: z.object({ limit: z.coerce.number().default(10) }),
+    });
+    await expect(schema.resolve([], Readable.from([]))).resolves.toEqual({ limit: 10 });
   });
 
   it("rejects a required positional after an optional positional", () => {
@@ -57,12 +52,12 @@ describe("args: reject ambiguous or unsafe values", () => {
         name: "bad",
         description: "bad",
         args: {
-          prefix: { type: "string", positional: true },
-          id: { type: "string", positional: true, required: true },
+          schema: z.object({ prefix: z.string().optional(), id: z.string() }),
+          pos: ["prefix", "id"],
         },
         async run() {},
       }),
-    ).toThrow(/required positional argument/);
+    ).toThrow(/required positional field/);
   });
 });
 
@@ -279,8 +274,8 @@ describe("defineCli: plugin lifecycle boundaries", () => {
         get: defineCommand({
           name: "get",
           description: "get",
-          args: { id: { type: "string" } },
-          async run(args) {
+          args: { schema: z.object({ id: z.string().optional() }) },
+          async run(_ctx, args) {
             return { data: args };
           },
         }),
@@ -300,8 +295,8 @@ describe("defineCli: plugin lifecycle boundaries", () => {
         list: defineCommand({
           name: "list",
           description: "list",
-          args: { tag: { type: "array" } },
-          async run(args) {
+          args: { schema: z.object({ tag: z.array(z.string()).default([]) }) },
+          async run(_ctx, args) {
             return { data: args };
           },
         }),
@@ -320,8 +315,8 @@ describe("defineCli: plugin lifecycle boundaries", () => {
         echo: defineCommand({
           name: "echo",
           description: "echo",
-          args: { value: { type: "string", positional: true, required: true } },
-          async run(args) {
+          args: { schema: z.object({ value: z.string() }), pos: ["value"] },
+          async run(_ctx, args) {
             return { data: args };
           },
         }),
@@ -443,7 +438,7 @@ describe("filesystem boundaries", () => {
       commands: {},
     });
     await expect(
-      commands.gen.run({ name: "../outside", init: true }, createTestCtx()),
+      commands.gen.run(createTestCtx(), { name: "../outside", init: true }),
     ).rejects.toThrow();
     expect(existsSync(join(root, "outside", "SKILL.md"))).toBe(false);
   });
@@ -461,7 +456,7 @@ describe("filesystem boundaries", () => {
       commands: {},
     });
     await expect(
-      commands.gen.run({ name: "orders", init: true }, createTestCtx()),
+      commands.gen.run(createTestCtx(), { name: "orders", init: true }),
     ).rejects.toThrow();
     expect(existsSync(join(outside, "SKILL.md"))).toBe(false);
   });

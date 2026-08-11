@@ -4,6 +4,7 @@ import { NotFoundError } from "../errs/index.js";
 import { createTestCtx } from "../test-utils.js";
 import { runCommand as executeCommand, type RunCommandOptions } from "../pipeline.js";
 import type { CommandSpec, Plugin } from "../types.js";
+import * as z from "zod";
 
 function runCommand<State>(
   options: Omit<RunCommandOptions<State>, "source" | "route"> & { route?: string[] },
@@ -38,8 +39,8 @@ afterEach(() => {
 const listCommand = defineCommand({
   name: "list",
   description: "查询订单列表",
-  args: { limit: { type: "number", default: 30 } },
-  async run(args, ctx) {
+  args: { schema: z.object({ limit: z.coerce.number().default(30) }) },
+  async run(ctx, args) {
     const res = await ctx.get<{ items: Array<{ id: string; total: number }>; hasMore: boolean }>(
       "/orders",
       { limit: args.limit },
@@ -54,11 +55,11 @@ const listCommand = defineCommand({
   },
 });
 
-const getCommand = defineCommand<{ id: string }>({
+const getCommand = defineCommand({
   name: "get",
   description: "查询订单详情",
-  args: { id: { type: "string", required: true, positional: true } },
-  async run({ id }, ctx) {
+  args: { schema: z.object({ id: z.string() }), pos: ["id"] },
+  async run(ctx, { id }) {
     const res = await ctx.get(`/orders/${id}`);
     if (res.status === 404) throw new errs.NotFoundError(`订单 ${id} 不存在`);
     return { data: res.data };

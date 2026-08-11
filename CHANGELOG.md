@@ -12,6 +12,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- `defineCommand` 直接接受 Zod 4 `input.schema`，同一 Schema 提供结构化载荷类型推导、运行时校验和 JSON Schema 发现，并统一执行严格 JSON、脱敏、dry-run、确认和幂等策略。
+
 ### Fixed
 
 - CRM 订单分页帮助、双语 README 和 Skill 统一使用实际 JSON wire 字段 `meta.pagination.next_token`，并同步 mock 订单金额示例。
@@ -33,12 +37,20 @@
 
 ### Changed
 
+- `@renxqoo/agent-data-cli` 发布产物改为 bundle、tree-shake、minify、声明文件和 source map，并通过真实 tarball 消费测试验证公开入口。
+- 字段多或嵌套的命令统一使用 `defineCommand({ input: { schema } })`；业务包直接依赖 Zod 4，推荐 `zod/mini`。
+
 - `cli-sdk` 模块化重构(行为不变,内部重组):
   - 从 `define.ts` 抽出 `package-detect.ts`(业务包 name/bin/version 探测)与 `help.ts`(help 文本渲染),`define.ts` 从 568 行降到约 360 行。
   - 新增 `meta.ts` 统一 meta 下划线内部标记剥离规则(`stripInternalKeys`),`pipeline` 与 `envelope` 共用单一真相源。
   - `_identity` ctx 隐藏通道从下划线字符串改为 `identityKey` Symbol(与 `credentialArgsKey` 一致),消除 `as unknown as` 类型撒谎。
   - `context.ts` 复用 `pipe.ts` 的 `emptyPipe`,删除重复实现。
   - `helpers.ts` 抽 `persistRefreshedToken`,两条 401 续期路径共用落盘逻辑。
+
+### Removed
+
+- 直接删除 `defineCommandFromArgs`、`defineStructuredCommand` 和 `@renxqoo/agent-data-cli/zod`，不提供兼容别名；所有命令统一使用 `defineCommand`。
+- 删除 `@standard-schema/spec` 边界和 `zodInput` 包装层；结构化输入以 Zod 4 为唯一 Schema 标准。
 
 ## [@renxqoo/rxx-cli@0.2.0] - 2026-08-11
 

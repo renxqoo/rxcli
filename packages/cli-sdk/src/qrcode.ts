@@ -12,6 +12,7 @@
  */
 
 import QRCode from "qrcode";
+import * as z from "zod";
 import type { CommandSpec } from "./types.js";
 import { errs } from "./errs/index.js";
 
@@ -22,16 +23,17 @@ export const qrcodeCommand: CommandSpec<any, unknown> = {
   description: "Generate a QR code from a URL (terminal ASCII or PNG file)",
   internal: true,
   args: {
-    url: {
-      type: "string",
-      required: true,
-      positional: true,
-      desc: "URL to encode (opaque string, do not modify)",
-    },
-    output: { type: "string", desc: "Output PNG to the specified file path" },
-    ascii: { type: "boolean", desc: "Print ASCII QR code to terminal (default behavior)" },
+    schema: z.object({
+      url: z.string().describe("URL to encode (opaque string, do not modify)"),
+      output: z.string().describe("Output PNG to the specified file path").optional(),
+      ascii: z
+        .boolean()
+        .describe("Print ASCII QR code to terminal (default behavior)")
+        .default(false),
+    }),
+    pos: ["url"],
   },
-  async run(args, ctx) {
+  async run(ctx, args) {
     const url = args.url;
     if (args.output) {
       try {

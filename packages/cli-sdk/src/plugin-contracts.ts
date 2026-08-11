@@ -2,6 +2,14 @@ import type { CommandGroup } from "./command-contracts.js";
 import type { CommandResult, StructuredData } from "./output-contracts.js";
 import type { RequestAttemptEvent, RequestOptions } from "./request-contracts.js";
 import type { CommandContext } from "./runtime-contracts.js";
+import type { JsonInputMeta } from "./command-schema.js";
+
+export interface CommandInputEvent {
+  route: readonly string[];
+  meta: Readonly<JsonInputMeta>;
+  /** A defensive clone with schema-metadata sensitive JSON pointers replaced. */
+  redactedArgs: unknown;
+}
 
 export type UnauthorizedDecision =
   | { action: "retry" }
@@ -21,6 +29,7 @@ export interface Plugin<State = Record<string, never>> {
     commands?: CommandGroup<State>;
   };
   beforeCommand?(context: CommandContext<State>): Promise<void>;
+  observeInput?(context: CommandContext<State>, event: Readonly<CommandInputEvent>): Promise<void>;
   beforeRequest?(
     context: CommandContext<State>,
     request: Readonly<RequestOptions>,

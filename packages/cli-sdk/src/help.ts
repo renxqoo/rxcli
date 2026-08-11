@@ -70,5 +70,13 @@ export function renderCommandHelp<State>(
     lines.push("Options:");
     for (const o of sig.options) lines.push(`  ${o}`);
   }
+  if (matched.schema.mode === "json") {
+    lines.push("");
+    lines.push("JSON arguments:");
+    lines.push("  Provide one complete JSON document with --input, --input-file, or native stdin.");
+    lines.push("  JSON cannot be combined with business flags or positional operands.");
+    lines.push("  Discovery: --input-schema or --input-example");
+    lines.push("  Security: prefer --input-file or stdin for sensitive values.");
+  }
   return lines.join("\n");
 }

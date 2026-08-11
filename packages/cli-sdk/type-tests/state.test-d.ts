@@ -16,17 +16,17 @@ const commands = defineCommands<AppState>({
   contextual: {
     name: "contextual",
     description: "Contextually type group commands",
-    async run(_args, ctx) {
+    async run(ctx) {
       const id: string = ctx.state.user.id;
       // @ts-expect-error contextual State must also reject undeclared fields.
       void ctx.state.token;
       return { data: { id } };
     },
   },
-  profile: defineCommand<Record<string, never>, { id: string }, AppState>({
+  profile: defineCommand<{ id: string }, AppState>({
     name: "profile",
     description: "Read the current profile",
-    async run(_args, ctx) {
+    async run(ctx) {
       const id: string = ctx.state.user.id;
 
       // The command state must not silently degrade to `any`.
@@ -46,10 +46,10 @@ defineCli<AppState>({
 });
 
 const wrongStateCommands: CommandGroup<{ token: string }> = {
-  token: defineCommand<Record<string, never>, { token: string }, { token: string }>({
+  token: defineCommand<{ token: string }, { token: string }>({
     name: "token",
     description: "Read token",
-    async run(_args, ctx) {
+    async run(ctx) {
       return { data: { token: ctx.state.token } };
     },
   }),

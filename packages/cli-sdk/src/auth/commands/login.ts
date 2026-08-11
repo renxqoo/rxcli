@@ -5,6 +5,7 @@
  * - device flow --device-code:flow 恢复轮询
  */
 import { defineCommand } from "../../define.js";
+import * as z from "zod";
 import { errs } from "../../errs/index.js";
 import type { CommandResult, CommandSpec } from "../../types.js";
 import type { ConfigStore, StoredOAuthCredentials } from "../../credentials/types.js";
@@ -67,24 +68,26 @@ export async function persistCredentials(
   return { loggedIn: true };
 }
 
-export function createLoginCommand(deps: LoginCommandDeps): CommandSpec {
+export function createLoginCommand(deps: LoginCommandDeps): CommandSpec<any> {
   const { oauth, store, scope, flow } = deps;
   const credNs = deps.credentialNamespace;
   const cmdNs = deps.commandNamespace;
 
-  return defineCommand<any, unknown>({
+  return defineCommand({
     name: "login",
     description: `Log in via the middleware (OAuth ${flow.type.replace("_", " ")} flow)`,
     args: {
-      wait: { type: "boolean", desc: "Block and poll (default; --no-wait returns immediately)" },
-      "device-code": {
-        type: "string",
-        desc: "Complete login with an existing device_code (device flow split-flow step 2)",
-      },
+      schema: z.object({
+        wait: z.boolean().describe("Block and poll; --no-wait returns immediately").default(true),
+        deviceCode: z
+          .string()
+          .describe("Complete login with an existing device_code (split-flow step 2)")
+          .optional(),
+      }),
     },
-    async run(args, ctx): Promise<CommandResult> {
+    async run(ctx, args): Promise<CommandResult> {
       // 校验:--no-wait / --device-code 只对 device flow 有效
-      const deviceCode = args["device-code"] as string | undefined;
+      const deviceCode = args.deviceCode;
       const noWait = args.wait === false;
       if ((deviceCode || noWait) && flow.type !== "device") {
         throw new errs.ValidationError({
@@ -112,7 +115,7 @@ export function createLoginCommand(deps: LoginCommandDeps): CommandSpec {
         callbackPort: deps.redirectPort,
         // device flow split-flow 参数(其它 flow 忽略)
         noWait: args.wait === false,
-        resumeDeviceCode: args["device-code"] as string | undefined,
+        resumeDeviceCode: args.deviceCode,
       };
 
       try {

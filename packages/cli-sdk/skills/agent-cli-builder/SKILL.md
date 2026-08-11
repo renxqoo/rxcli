@@ -31,6 +31,7 @@ Read [`references/core-api.md`](references/core-api.md) before implementation. T
 | OAuth, Bearer, API key, or Basic                  | Prefer `defineAuth`                         | `auth-patterns.md`      |
 | HMAC, mTLS, or composite auth                     | Custom auth/plugin                          | `custom-auth-plugin.md` |
 | Multiple unrelated domains                        | Use `namespaces`; never flatten with spread | `core-api.md`           |
+| Many, nested, or mutation payload fields          | Use `args.type: "json"` with direct Zod      | `structured-input.md`   |
 | Large lists, pipes, or custom text output         | Add only the needed capability              | `patterns.md`           |
 | Headers, redaction, audit, or error transforms    | Use a plugin                                | `plugin-patterns.md`    |
 
@@ -40,7 +41,7 @@ Default to the simplest verifiable design: one domain uses top-level `commands`;
 
 1. Reuse the repository's package manager, TypeScript, lint, formatting, and test setup.
 2. Organize business commands under `src/commands/`; declare them with `defineCommand` and `defineCommands`.
-3. Define accurate argument types, requiredness, position, defaults, and `desc`; validate ranges and combinations in the command.
+3. Use the single `defineCommand` API. Put one direct Zod object in `args.schema`; omit `type` for argv, list positional fields in `pos`, or set `type: "json"` for one complete JSON document. Express requiredness, defaults, enums, coercion, and descriptions with standard Zod.
 4. Call the backend through `ctx.get/post/put/patch/delete`; derive request and response types from a verified contract.
 5. Use `errorOnStatus` for HTTP semantics shared across commands and throw `errs.*` for business-specific failures. See `error-catalog.md`.
 6. Return `{ data, meta? }` or `void`. `data` must be an object, array, or `null`.
@@ -52,7 +53,7 @@ Default to the simplest verifiable design: one domain uses top-level `commands`;
 - Never place passwords, private keys, or long-lived tokens in source, examples, logs, snapshots, or command arguments. Do not ask users to provide production credentials; registration must be completed in their own terminal, with the current unmasked-input limitation disclosed.
 - Never log complete headers, authentication responses, or response bodies that may contain sensitive data. Redact diagnostic output.
 - Disclose installation, global writes, login, network calls, and data mutations before acting; obtain approval when required.
-- Give write commands a preview or explicit confirmation path. Reject unconfirmed high-risk writes with `ConfirmationRequiredError`.
+- For writes, declare preview, confirmation, and idempotency through `policy`; do not hide execution-safety flags inside the business Zod object.
 - Test writes with mocks, sandboxes, or dedicated test records. Never target an unauthorized production system.
 - Do not present aggregates, model judgments, or unverified responses as confirmed facts.
 
@@ -71,7 +72,7 @@ Read [`references/readme-gen.md`](references/readme-gen.md) when human-facing pr
 ### 6. Validate the deliverable
 
 1. Run format, lint, typecheck, and build.
-2. Use `createTestCtx` for request mapping, arguments, empty results, and errors; use `app.run(argv)` for parsing, plugins, output, and exit codes.
+2. Use `createTestCtx` for request mapping, arguments, empty results, and errors; use `app.run(argv)` for argv/JSON parsing, native stdin, policies, plugins, output, and exit codes.
 3. Run `<bin> --help`, one successful `--json` example, and one failure. Access a real service only when authorized and safe.
 4. Run the Skill validator and check frontmatter, links, AUTO-GEN, and references.
 5. Dry-run the package and verify that `dist`, Skills, and all references are present.
@@ -86,8 +87,12 @@ Do not claim production readiness from a successful build alone. Report unverifi
 - Derive OAuth scopes from a verified service contract and least privilege. Never guess scopes or default to every advertised scope.
 - Use top-level `commands` for one domain, such as `<bin> list`; avoid `<domain> <domain> list`. Use `namespaces` only for multiple unrelated domains.
 - Never flatten same-named command groups with spread; preserve routes with `namespaces`.
+- `defineCommand` is the only command-definition API. `args.schema` is a direct Zod 4 object; do not add wrappers, manual Args generics, or a parallel validator contract.
+- Omitted `args` means no business parameters. Omitted `args.type` means argv; `pos` names positional schema fields. One command is either argv or JSON, never both.
+- JSON args use exactly one complete document from `--input`, `--input-file`, or native redirected/piped stdin. There is no `--input-stdin`, and JSON never merges with business flags.
+- Caller-owned idempotency keys must be reused across retries; never derive them from payload content.
 - A status in `errorOnStatus` throws before `ctx.*` returns; do not add an unreachable check for the same status.
-- A boolean without a default is `undefined`; declare `default: false` when stable false semantics are required.
+- A boolean without a Zod default is `undefined`; use `z.boolean().default(false)` when stable false semantics are required.
 - `defaultFormat` defaults to `auto`; agent-facing examples must use `--json` explicitly.
 - Pagination wire fields are `meta.pagination.complete` and `meta.pagination.nextToken`. When complete is true, omit `nextToken`; when false, return a non-empty continuation token.
 - Return `void` for a pure side effect and `{ data: null }` for an empty business result. Never return `{}`, undefined data, or a scalar.
@@ -102,6 +107,7 @@ Do not claim production readiness from a successful build alone. Report unverifi
 | HMAC, mTLS, or a custom provider                                        | [`references/custom-auth-plugin.md`](references/custom-auth-plugin.md) |
 | Error subtypes and status mappings                                      | [`references/error-catalog.md`](references/error-catalog.md)           |
 | Pagination, pipes, or `humanFormat`                                     | [`references/patterns.md`](references/patterns.md)                     |
+| Large/nested payloads, Zod validation, dry-run, confirmation, idempotency | [`references/structured-input.md`](references/structured-input.md)   |
 | Custom plugins and hook ordering                                        | [`references/plugin-patterns.md`](references/plugin-patterns.md)       |
 | Skill generation, scopes, sync, and distribution                        | [`references/skill-gen.md`](references/skill-gen.md)                   |
 | Production Skill optimization and TRACE acceptance                      | [`references/skill-optimization.md`](references/skill-optimization.md) |
@@ -114,5 +120,6 @@ Do not claim production readiness from a successful build alone. Report unverifi
 - [ ] Arguments, fields, errors, pagination, and auth match the implementation.
 - [ ] Sensitive data, high-risk writes, and installation side effects have explicit boundaries.
 - [ ] Happy-path, edge, failure, and output-contract tests pass.
+- [ ] JSON commands validate inline/file/native-stdin input, discovery, redaction, write policy, and stdin ownership.
 - [ ] Skills and README are generated, concise, validated, and present in the package.
 - [ ] The handoff reports validation evidence and remaining production risks.

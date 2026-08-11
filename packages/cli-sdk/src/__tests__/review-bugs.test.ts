@@ -8,6 +8,7 @@ import { prettyPrint } from "../pretty.js";
 import { runCommand as executeCommand, type RunCommandOptions } from "../pipeline.js";
 import { createTestCtx } from "../test-utils.js";
 import { rawText } from "../output.js";
+import * as z from "zod";
 
 function runCommand<State>(
   options: Omit<RunCommandOptions<State>, "source" | "route"> & { route?: string[] },
@@ -104,12 +105,12 @@ describe("BUG-R2: 框架保留参数不能由业务命令重新声明", () => {
       defineCommand({
         name: "get",
         description: "g",
-        args: { [name]: { type: "string" } },
+        args: { schema: z.object({ [name]: z.string() }) },
         async run() {
           return { data: null };
         },
       }),
-    ).toThrow(`argument ${name} is reserved by the CLI framework`);
+    ).toThrow(`argument --${name} is reserved`);
   });
 });
 

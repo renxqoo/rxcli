@@ -28,7 +28,6 @@
     "dist",
     "docs",
     "README.md",
-    "src",
     "skills"
   ],
   "type": "module",
@@ -53,7 +52,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsup",
     "prepack": "pnpm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.type-tests.json",
     "test:package": "node scripts/package-smoke.mjs",
@@ -65,12 +64,14 @@
   "dependencies": {
     "@clack/prompts": "^0.7.0",
     "qrcode": "^1.5.4",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.0",
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
     "@types/qrcode": "^1.5.6",
     "@vitest/coverage-v8": "4.1.10",
+    "tsup": "^8.5.0",
     "typescript": "^5.9.2",
     "vitest": "^4.1.10"
   },

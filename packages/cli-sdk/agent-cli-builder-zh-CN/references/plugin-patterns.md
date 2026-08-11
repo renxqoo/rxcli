@@ -9,11 +9,12 @@
 3. 插件提供命令与独立发布
 4. 安全调试与常见错误
 
-## 1. 7 个钩子 + 何时用
+## 1. 8 个钩子 + 何时用
 
 | 钩子                 | 何时触发                 | 能改什么                                 | 典型用途               |
 | -------------------- | ------------------------ | ---------------------------------------- | ---------------------- |
 | `beforeCommand`      | 命令 run 前              | `ctx.state`、可 throw 中止               | auth、参数预处理       |
+| `observeInput`       | Zod 校验和脱敏之后       | 只读路由、来源元数据和脱敏副本           | 输入审计、metric       |
 | `beforeRequest`      | 每个物理请求 attempt 前  | 返回新的请求对象                         | header、签名、tenant   |
 | `observeRequest`     | 每个物理 attempt 完成后  | 只读事件；runtime 等待副作用             | 审计、metric、请求日志 |
 | `handleUnauthorized` | 收到 401 后              | 显式 `retry` / `decline` / `reject` 决策 | 上下文隔离的凭证续期   |
@@ -36,6 +37,8 @@ post 插件(注册序)   ← 最终包装(HMAC 签名、收尾)
 ```
 
 `enforce` 支持 `"pre"`、`"normal"`、`"post"`。省略时等价于 `"normal"`；通常省略即可。
+
+`observeInput` 只收到命令路由、输入元数据和克隆后的 `redactedArgs`，拿不到原始 JSON。通过 Zod 根 schema metadata 的 `sensitive` JSON Pointer 配置脱敏字段；observer 只做 telemetry，失败只记 warning，不改变命令结果。
 
 > ```ts
 > {

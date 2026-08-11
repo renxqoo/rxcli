@@ -103,15 +103,17 @@ export class CommandRegistry<State> {
     route.forEach((segment, index) =>
       assertRouteIdentifier(segment, index === route.length - 1 ? "command" : "namespace"),
     );
-    validateCommandSpec(route.at(-1)!, spec);
-    const schema = compileCommandSchema(spec.name, spec.args);
+    const schema = validateCommandSpec(route.at(-1)!, spec);
     const key = routeKey(route);
     if (!overwrite && this.#entries.has(key)) return;
     this.#entries.set(key, { route: [...route], spec, schema, ...(owner ? { owner } : {}) });
   }
 }
 
-export function validateCommandSpec(routeName: string, spec: CommandSpec<any, unknown, any>): void {
+export function validateCommandSpec(
+  routeName: string,
+  spec: CommandSpec<any, unknown, any>,
+): CompiledCommandSchema {
   assertRouteIdentifier(routeName, "command");
   assertRouteIdentifier(spec.name, "command");
   if (routeName !== spec.name) {
@@ -120,7 +122,7 @@ export function validateCommandSpec(routeName: string, spec: CommandSpec<any, un
   if (typeof spec.run !== "function") {
     throw new Error(`command ${spec.name}: run is required and must be a function`);
   }
-  compileCommandSchema(spec.name, spec.args);
+  return compileCommandSchema(spec.name, spec.args, spec.policy);
 }
 
 export function assertRouteIdentifier(value: string, kind: "app" | "namespace" | "command"): void {

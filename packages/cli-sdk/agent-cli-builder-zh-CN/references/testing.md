@@ -16,6 +16,7 @@
 | -------------- | --------------------------------- | ------------------------------ |
 | 命令单测       | 请求映射、业务转换、类型化错误    | 正常、空结果、边界、后端失败   |
 | CLI 端到端     | argv、路由、插件、输出、exit code | 成功 JSON、参数错误、HTTP 错误 |
+| JSON 参数      | 来源、Zod、脱敏、写策略、stdin    | 合法来源、限制、发现、策略     |
 | 构建与打包     | ESM 入口、bin、文件清单           | build、`--help`、pack dry-run  |
 | Skill 静态校验 | frontmatter、链接、AUTO-GEN       | 校验器、生成器 `--check`       |
 | 前向评测       | 触发、调用、安全、最终结果        | 典型、口语、相邻边界、失败场景 |
@@ -38,7 +39,7 @@ it("把 limit 传给后端并返回列表", async () => {
     },
   });
 
-  const result = await todoCommands.list.run({ limit: 5 }, ctx);
+  const result = await todoCommands.list.run(ctx, { limit: 5 });
 
   expect(request).toMatchObject({ path: "/todos", query: { limit: 5 } });
   expect(result?.data).toEqual([{ id: "t_1" }]);
@@ -120,6 +121,15 @@ expect(stderr).toBe("");
 
 再覆盖未知命令、缺失参数、一个 `errorOnStatus` 状态、裸标量 data 和插件顺序。不要只直接调用 `command.run`。
 
+每组 JSON 参数命令至少覆盖：
+
+- 覆盖 inline、普通文件成功及两者互斥失败；未给显式来源时覆盖原生 stdin 成功，空 stdin 必须失败。显式来源优先且不消费无关 stdin。
+- 字节/深度/属性/数组限制、重复键、危险键、非法 UTF-8 和代表性 Zod issue，错误不得回显原始载荷。
+- 无载荷执行 `--input-schema` 和 `--input-example`。
+- dry-run 与 `observeInput` 中按敏感 JSON Pointer 脱敏。
+- dry-run 不进入 `run`、必填确认和调用方幂等键 header 注入。
+- 原生重定向/管道 stdin 独占输入流，不再读取 `PipeRecord`。
+
 ## 4. 安全和打包验证
 
 发布前执行：
@@ -128,7 +138,7 @@ expect(stderr).toBe("");
 2. 从 `dist` 运行 `<bin> --help`、成功 JSON 和失败 JSON。
 3. 检查日志和错误是否对 token、cookie、Authorization 和个人数据脱敏。
 4. 对写命令验证预览、确认、权限错误和回滚提示。
-5. dry-run 打包，确认 bin、dist、README、Skill 和 references 均存在。
+5. dry-run 打包，确认 bin、已 bundle/压缩的 dist、README、Skill 和 references 均存在；从临时安装的产物导入公共 API。
 6. 在临时目录安装包产物并读取 Skill，避免只验证源码路径。
 
 真实 API 冒烟只使用明确授权的环境。记录服务、账号范围和是否产生数据；测试后清理专用资源。

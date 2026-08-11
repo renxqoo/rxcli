@@ -16,6 +16,7 @@ Code tests verify the CLI contract. Forward evaluation verifies that an agent ca
 | ------------------ | --------------------------------------------- | -------------------------------------------- |
 | Command unit tests | Request mapping, transformation, typed errors | Happy path, empty, boundary, backend failure |
 | CLI end-to-end     | argv, routes, plugins, output, exit code      | JSON success, validation error, HTTP error   |
+| Structured input   | sources, Zod, redaction, write policy, stdin  | Valid source, limits, discovery, policy      |
 | Build and package  | ESM entry, bin, file list                     | Build, `--help`, package dry-run             |
 | Skill validation   | Frontmatter, links, AUTO-GEN                  | Validator and generator `--check`            |
 | Forward evaluation | Triggering, calls, safety, final result       | Typical, paraphrase, exclusion, failure      |
@@ -38,7 +39,7 @@ it("maps limit and returns items", async () => {
     },
   });
 
-  const result = await todoCommands.list.run({ limit: 5 }, ctx);
+  const result = await todoCommands.list.run(ctx, { limit: 5 });
   expect(captured).toMatchObject({ path: "/todos", query: { limit: 5 } });
   expect(result?.data).toEqual([{ id: "t_1" }]);
 });
@@ -119,6 +120,15 @@ expect(stderr).toBe("");
 
 Also test an unknown command, missing argument, one mapped HTTP status, scalar data rejection, and every plugin ordering dependency. Do not test only `command.run`.
 
+For every JSON-argument command family, cover:
+
+- Cover inline and regular-file success, their mutual-exclusion failure, and native stdin success when neither explicit transport is supplied. Empty stdin must fail; an explicit transport takes precedence and does not consume unrelated stdin.
+- Byte/depth/property/array limits, duplicate keys, unsafe keys, invalid UTF-8, and representative Zod issues without echoing raw payloads.
+- `--input-schema` and `--input-example` without a payload.
+- Sensitive JSON Pointer redaction in dry-run and `observeInput`.
+- Dry-run never reaching `run`, required confirmation, and required caller-owned idempotency header injection.
+- Native redirected/piped stdin owning the stream instead of `PipeRecord` input.
+
 ## 4. Security and package validation
 
 Before release:
@@ -127,7 +137,7 @@ Before release:
 2. Execute `<bin> --help`, one success, and one failure from `dist`.
 3. Verify redaction of token, cookie, Authorization, and personal data in logs and errors.
 4. Verify preview, confirmation, permission failure, and rollback hints for writes.
-5. Dry-run the package and confirm bin, dist, README, Skills, and references.
+5. Dry-run the package and confirm bin, minified/bundled dist, README, Skills, and references; install the artifact and import its public API.
 6. Install the package artifact in a temporary directory and read a Skill from the artifact, not the source tree.
 
 Use a live API only in an explicitly authorized environment. Record the service and account scope, whether data is created, and how test records are cleaned up.

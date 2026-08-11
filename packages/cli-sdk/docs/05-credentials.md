@@ -288,7 +288,7 @@ cli-sdk 的 ConfigStore 统一管凭证文件(`fileStore({ dir })` 返回的实�
 
 ### 业务包运行时读写凭证
 
-业务包在 `run(args, ctx)` 里通过 `ctx.credentials` 读写(auth Plugin 在 beforeCommand 把 store 包装成这个 API):
+业务包在 `run(ctx, args)` 里通过 `ctx.credentials` 读写(auth Plugin 在 beforeCommand 把 store 包装成这个 API):
 
 ```ts
 // 读(优先走 provider chain,命中即返;都没命中返回 null)

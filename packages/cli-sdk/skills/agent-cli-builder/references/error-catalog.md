@@ -94,6 +94,8 @@ throw new errs.ConfirmationRequiredError({
 });
 ```
 
+For structured writes, do not throw this manually. Declare `operation.confirmation: "required"`; the runtime validates input, applies dry-run and idempotency policy, then raises the standard confirmation error before business `run`. Manual confirmation errors remain for non-structured commands.
+
 Prefer standard subtypes. If a genuinely new subtype is required, register it before `defineCli` assembly:
 
 ```ts

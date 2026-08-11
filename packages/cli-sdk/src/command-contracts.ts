@@ -1,25 +1,66 @@
+import type * as z from "zod";
 import type { CommandResult, Meta } from "./output-contracts.js";
 import type { CommandContext } from "./runtime-contracts.js";
 
-export type ArgType = "string" | "number" | "boolean" | "array";
+/** A command with no `args` declaration receives one stable, empty object. */
+export type NoArgs = Record<string, never>;
 
-export interface ArgSpec {
-  type: ArgType;
-  required?: boolean;
-  positional?: boolean;
-  desc?: string;
-  default?: unknown;
+type ObjectSchema = z.ZodObject;
+type StringKeyOf<Schema extends ObjectSchema> = Extract<keyof z.input<Schema>, string>;
+
+/** Native argv mode. `type` is optional because argv is the default. */
+export interface ArgvArgs<Schema extends ObjectSchema = ObjectSchema> {
+  type?: "argv";
+  schema: Schema;
+  /** Schema fields consumed as positional operands, in declaration order. */
+  pos?: readonly StringKeyOf<Schema>[];
 }
 
-export type ArgsSpec = Record<string, ArgSpec>;
+/** Whole-document JSON mode. JSON and business flags are intentionally not mergeable. */
+export interface JsonArgs<Schema extends ObjectSchema = ObjectSchema> {
+  type: "json";
+  schema: Schema;
+  pos?: never;
+}
 
-export interface CommandSpec<Args = any, Result = unknown, State = unknown> {
+export type CommandArgs<Schema extends ObjectSchema = ObjectSchema> =
+  | ArgvArgs<Schema>
+  | JsonArgs<Schema>;
+
+/** Optional root metadata registered on the Zod schema. It does not affect validation. */
+export interface CommandSchemaMetadata {
+  examples?: readonly unknown[];
+  /** JSON Pointer paths redacted from audit and dry-run output. */
+  sensitive?: readonly `/${string}`[];
+}
+
+export interface WritePolicy<Args = unknown, State = unknown> {
+  mode: "write";
+  dryRun?:
+    | true
+    | {
+        preview?: (
+          args: Args,
+          context: CommandContext<State>,
+        ) => Promise<CommandResult> | CommandResult;
+      };
+  confirmation?: "required" | "none";
+  idempotency?: "required" | "optional";
+  idempotencyHeader?: string;
+}
+
+export type CommandPolicy<Args = unknown, State = unknown> =
+  | { mode: "read" }
+  | WritePolicy<Args, State>;
+
+export interface CommandSpec<Args = NoArgs, Result = unknown, State = unknown> {
   name: string;
   description: string;
-  args?: ArgsSpec;
+  args?: CommandArgs;
+  policy?: CommandPolicy<Args, State>;
   internal?: boolean;
   humanFormat?: (data: unknown, meta?: Meta) => string;
-  run: (args: Args, context: CommandContext<State>) => Promise<CommandResult<Result> | void>;
+  run: (context: CommandContext<State>, args: Args) => Promise<CommandResult<Result> | void>;
 }
 
 export type CommandGroup<State = unknown> = Record<string, CommandSpec<any, unknown, State>>;

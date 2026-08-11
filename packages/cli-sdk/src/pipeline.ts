@@ -1,17 +1,36 @@
 /** 命令运行时：生命周期、输出契约和错误决策只有这一处拥有。 */
 
 import type { CommandContext, CommandResult, CommandSpec, Plugin } from "./types.js";
-import { BareError, InternalError, exitCodeOf, toCliError } from "./errs/index.js";
+import * as z from "zod";
+import {
+  BareError,
+  ConfirmationRequiredError,
+  InternalError,
+  PolicyError,
+  ValidationError,
+  exitCodeOf,
+  toCliError,
+} from "./errs/index.js";
 import { serializeError, serializeSuccess } from "./envelope.js";
 import { prettyError, prettyPrint } from "./pretty.js";
-import { handleError, observeError, runBeforeCommand, transformOutput } from "./plugin.js";
-import { credentialArgsKey } from "./context.js";
+import {
+  handleError,
+  observeError,
+  observeInput,
+  runBeforeCommand,
+  transformOutput,
+} from "./plugin.js";
+import { credentialArgsKey, idempotencyKey } from "./context.js";
 import { isRawTextResult, isStructuredData } from "./output.js";
+import { commandExecutionKey, type ResolvedCommandArgs } from "./command-schema.js";
+import type { CommandSchemaMetadata } from "./command-contracts.js";
 
 export interface RunCommandOptions<State> {
   spec: CommandSpec<any, unknown, State>;
   /** 延迟解析让参数错误也经过统一错误边界。 */
-  args: Record<string, unknown> | (() => Record<string, unknown>);
+  args:
+    | Record<string, unknown>
+    | (() => Record<string, unknown> | Promise<Record<string, unknown>>);
   ctx: CommandContext<State>;
   plugins: Plugin<State>[];
   identity?: "user" | "bot" | (() => "user" | "bot" | undefined);
@@ -26,6 +45,7 @@ interface RenderOptions {
   identity?: "user" | "bot";
   humanReadable?: boolean;
   source: string;
+  dryRun?: boolean;
 }
 
 /** 执行一个命令并渲染输出；调用方只负责把返回值设为进程退出码。 */
@@ -35,7 +55,7 @@ export async function runCommand<State>(options: RunCommandOptions<State>): Prom
     typeof options.identity === "function" ? options.identity() : options.identity;
 
   try {
-    const args = typeof options.args === "function" ? options.args() : options.args;
+    const args = await (typeof options.args === "function" ? options.args() : options.args);
     if (options.pluginArgs) {
       (ctx as CommandContext<State> & { [credentialArgsKey]?: Record<string, unknown> })[
         credentialArgsKey
@@ -46,7 +66,58 @@ export async function runCommand<State>(options: RunCommandOptions<State>): Prom
       await runBeforeCommand(plugins, ctx, options.route, options.ownedRoutes);
     }
 
-    const result = await spec.run(args, ctx);
+    const invocation = args as ResolvedCommandArgs;
+    const execution = invocation[commandExecutionKey];
+    const metadata = spec.args
+      ? (z.globalRegistry.get(spec.args.schema) as CommandSchemaMetadata | undefined)
+      : undefined;
+    const redactedArgs = redactArgs(args, metadata?.sensitive);
+    if (execution?.json) {
+      await observeInput(plugins, ctx, {
+        route: options.route,
+        meta: execution.json,
+        redactedArgs,
+      });
+    }
+    const policy = spec.policy;
+    if (policy?.mode === "write") {
+      if (policy.idempotency && execution?.idempotencyKey) {
+        (ctx as CommandContext<State> & { [idempotencyKey]?: { key: string; header: string } })[
+          idempotencyKey
+        ] = {
+          key: execution.idempotencyKey,
+          header: policy.idempotencyHeader ?? "Idempotency-Key",
+        };
+      }
+      if (execution?.dryRun) {
+        const preview =
+          typeof policy.dryRun === "object" && policy.dryRun.preview
+            ? await policy.dryRun.preview(args, readOnlyContext(ctx))
+            : {
+                data: { args: redactedArgs },
+                ...(execution.json
+                  ? { meta: { inputDigest: execution.json.validatedDigest } }
+                  : {}),
+              };
+        return await renderCommandResult(preview, spec, ctx, plugins, {
+          identity: resolveIdentity(),
+          humanReadable: options.humanReadable,
+          source: options.source,
+          dryRun: true,
+        });
+      }
+      if (policy.confirmation === "required" && !execution?.confirmed) {
+        throw new ConfirmationRequiredError({
+          subtype: "high_risk_write",
+          message: `${options.route.join(" ")} is a write operation and requires confirmation`,
+          hint: execution?.json
+            ? `Review input ${execution.json.validatedDigest}, then add --yes.`
+            : "Review the arguments, then add --yes.",
+        });
+      }
+    }
+
+    const result = await spec.run(ctx, args);
     return await renderCommandResult(result, spec, ctx, plugins, {
       identity: resolveIdentity(),
       humanReadable: options.humanReadable,
@@ -59,6 +130,26 @@ export async function runCommand<State>(options: RunCommandOptions<State>): Prom
       source: options.source,
     });
   }
+}
+
+function redactArgs(value: unknown, pointers: readonly string[] = []): unknown {
+  const clone = structuredClone(value);
+  for (const pointer of pointers) {
+    const parts = pointer
+      .split("/")
+      .slice(1)
+      .map((part) => part.replace(/~1/g, "/").replace(/~0/g, "~"));
+    let parent: any = clone;
+    for (let index = 0; index < parts.length - 1; index++) {
+      parent = parent?.[parts[index]!];
+      if (!parent || typeof parent !== "object") break;
+    }
+    const key = parts.at(-1);
+    if (key !== undefined && parent && typeof parent === "object" && key in parent) {
+      parent[key] = "[REDACTED]";
+    }
+  }
+  return clone;
 }
 
 async function renderCommandResult<State>(
@@ -76,6 +167,7 @@ async function renderCommandResult<State>(
         serializeSuccess(null, undefined, {
           identity: options.identity,
           source: options.source,
+          dryRun: options.dryRun,
         }),
       );
     }
@@ -112,10 +204,28 @@ async function renderCommandResult<State>(
       serializeSuccess(transformed, meta, {
         identity: options.identity,
         source: options.source,
+        dryRun: options.dryRun,
       }),
     );
   }
   return 0;
+}
+
+function readOnlyContext<State>(ctx: CommandContext<State>): CommandContext<State> {
+  const blocked = async (): Promise<never> => {
+    throw new PolicyError({
+      subtype: "access_denied",
+      message: "Write requests are forbidden while building a dry-run preview",
+    });
+  };
+  return {
+    ...ctx,
+    request: (request) => (request.method === "GET" ? ctx.request(request) : blocked()),
+    post: blocked,
+    put: blocked,
+    patch: blocked,
+    delete: blocked,
+  };
 }
 
 async function handleCommandError<State>(

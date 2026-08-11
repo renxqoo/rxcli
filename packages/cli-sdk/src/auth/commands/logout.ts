@@ -18,10 +18,10 @@ export function createLogoutCommand(deps: LogoutCommandDeps): CommandSpec {
   const { oauth, store } = deps;
   const credNs = deps.credentialNamespace;
 
-  return defineCommand<any, unknown>({
+  return defineCommand({
     name: "logout",
     description: "Log out (revoke session + clear local credentials)",
-    async run(_args, ctx): Promise<CommandResult> {
+    async run(ctx): Promise<CommandResult> {
       const creds = (await store.loadCredentials(credNs)) as Partial<StoredOAuthCredentials> | null;
       if (creds?.token) {
         try {

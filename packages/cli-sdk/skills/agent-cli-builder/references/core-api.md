@@ -31,28 +31,24 @@ A publishable business package normally includes:
 }
 ```
 
-Keep only scripts that actually run, typically `build`, `typecheck`, `test`, and `prepack`.
+Keep only scripts that actually run, typically `build`, `typecheck`, `test`, and `prepack`. Publish compiled output, not `src`. Bundle and minify distributed JavaScript or standalone binaries, retain source maps where operational debugging requires them, and verify the packed artifact rather than assuming a TypeScript compile is a release build.
 
 ## 2. Command definitions
 
 ```ts
-import { defineCommandFromArgs, defineCommands, errs } from "@renxqoo/agent-data-cli";
+import { defineCommand, defineCommands } from "@renxqoo/agent-data-cli";
+import * as z from "zod";
 
 export const todoCommands = defineCommands({
-  list: defineCommandFromArgs({
+  list: defineCommand({
     name: "list",
     description: "List todos",
     args: {
-      limit: { type: "number", default: 20, desc: "Maximum items, from 1 to 100" },
+      schema: z.object({
+        limit: z.coerce.number().int().min(1).max(100).describe("Maximum items").default(20),
+      }),
     },
-    async run(args, ctx) {
-      if (args.limit < 1 || args.limit > 100) {
-        throw new errs.ValidationError({
-          subtype: "out_of_range",
-          param: "--limit",
-          message: "--limit must be between 1 and 100",
-        });
-      }
+    async run(ctx, args) {
       const res = await ctx.get<{ items: Array<{ id: string; title: string }> }>("/todos", {
         limit: args.limit,
       });
@@ -62,19 +58,41 @@ export const todoCommands = defineCommands({
 });
 ```
 
-Argument rules:
+`args` rules:
 
-| Setting                 | Behavior                                                              |
-| ----------------------- | --------------------------------------------------------------------- |
-| `type`                  | `string`, `number`, `boolean`, or `array`                             |
-| `required: true`        | Required and incompatible with `default`                              |
-| `positional: true`      | Uses `<id>` or `[id]`; otherwise uses a flag                          |
-| `desc`                  | Enters generated command documentation; provide it for every argument |
-| boolean without default | Resolves to `undefined` when omitted                                  |
+| Setting                       | Behavior                                                        |
+| ----------------------------- | --------------------------------------------------------------- |
+| omitted `args`                | No business parameters; `run` receives `{}`                     |
+| omitted `type` / `"argv"`    | Native argv mode                                                |
+| `schema`                      | Direct Zod object; the only validator and type source           |
+| `pos: ["id"]`                | Consume schema field `id` as a positional operand               |
+| `type: "json"`               | One complete JSON document; no business flags or `pos`          |
 
-A required positional cannot follow an optional positional. Assembly validates schema shape; the command still validates ranges, enums, and cross-argument rules.
+A required positional cannot follow an optional positional. Use `z.coerce.number()` for numeric argv fields because the shell supplies strings. Zod defines requiredness, defaults, enums, refinements, transforms, descriptions, and the `args` inference in `run(ctx, args)`.
 
-Use `defineCommandFromArgs` when the schema is the source of truth: required/default fields are inferred as present and all others as optional. Use `defineCommand<ExactArgs, Result, State>` when values need narrower unions or the command reads `ctx.state`. Componentized stateful groups should use `defineCommands<State>({...})`; incompatible groups are rejected by `defineCli<State>`. `json`, `api-key`, `help`, and `version` are framework-reserved names and cannot be redeclared by a business command. Framework flags may appear before or after the command route.
+`defineCommand` is the only command-definition API. Do not add manual `Args` generics or helper wrappers. Componentized stateful groups should use `defineCommands<State>({...})`; incompatible groups are rejected by `defineCli<State>`.
+
+For many or nested payload fields, add Zod 4 to the business package and pass the schema directly:
+
+```ts
+import * as z from "zod";
+
+const UpdateOrder = z.strictObject({ id: z.string(), status: z.string() });
+
+const update = defineCommand({
+  name: "update",
+  description: "Update an order",
+  args: { type: "json", schema: UpdateOrder },
+  policy: { mode: "write", confirmation: "required", idempotency: "required" },
+  async run(ctx, args) {
+    return { data: (await ctx.post("/orders/update", args)).data };
+  },
+});
+```
+
+Do not wrap Zod or introduce a second schema protocol. The same Zod object drives validation, inferred args, help, and `--input-schema`. Read `structured-input.md` for JSON transports, shell composition, and write policy.
+
+Framework-reserved names include `json`, `no-json`, `api-key`, `help`, `version`, `input`, `input-file`, `input-schema`, `input-example`, `dry-run`, `yes`, and `idempotency-key`. There is no `--input-stdin`; pipes and redirection are native stdin.
 
 ## 3. CLI assembly and entry point
 
@@ -140,7 +158,7 @@ if (isMainEntry() && process.argv[2] === "install") {
 
 ## 4. Runtime context
 
-`run(args, ctx)` can use:
+Every command receives `run(ctx, args)`. In argv and JSON mode alike, `args` is exactly the validated Zod output object. Framework policy and input-provenance fields are not mixed into it. Commands can use:
 
 - `ctx.get/post/put/patch/delete`, returning `{ status, data, headers }`.
 - `ctx.request` for custom methods, query, body, headers, or timeout.

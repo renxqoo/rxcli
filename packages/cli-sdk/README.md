@@ -78,7 +78,8 @@ pnpm add @renxqoo/agent-data-cli
 A single command in < 30 lines (no-auth scenario, e.g. public data):
 
 ```ts
-import { defineCli, defineCommandFromArgs } from "@renxqoo/agent-data-cli";
+import { defineCli, defineCommand } from "@renxqoo/agent-data-cli";
+import * as z from "zod";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -86,11 +87,15 @@ const app = defineCli({
   name: "myapp",
   description: "My data CLI",
   commands: {
-    list: defineCommandFromArgs({
+    list: defineCommand({
       name: "list",
       description: "Query list",
-      args: { limit: { type: "number", default: 20, desc: "Maximum number of results" } },
-      async run(args, ctx) {
+      args: {
+        schema: z.object({
+          limit: z.coerce.number().min(1).max(100).default(20),
+        }),
+      },
+      async run(ctx, args) {
         const res = await ctx.get<{ items: Array<{ id: string; title: string }> }>("/items", {
           limit: args.limit,
         });
@@ -157,18 +162,23 @@ defineCli({
 })
 ```
 
-### `defineCommandFromArgs(spec)` / `defineCommand(spec)` — Declare a command
+### `defineCommand(spec)` — Declare a command
 
 ```ts
-defineCommandFromArgs({
+import * as z from "zod";
+
+defineCommand({
   name: "get",
   description: "Query a single order",
   args: {
-    id: { type: "string", required: true, positional: true, desc: "Order ID" },
-    verbose: { type: "boolean", desc: "Verbose output" },
+    schema: z.object({
+      id: z.string().min(1).describe("Order ID"),
+      verbose: z.boolean().describe("Verbose output").default(false),
+    }),
+    pos: ["id"],
   },
   humanFormat: (data, meta) => `Order: ${data.id}`, // optional: custom text for --no-json
-  async run(args, ctx) {
+  async run(ctx, args) {
     // ctx.get/post/put/patch/delete — request methods are attached directly to ctx
     const res = await ctx.get(`/orders/${args.id}`);
     return { data: res.data };
@@ -176,11 +186,18 @@ defineCommandFromArgs({
 });
 ```
 
-Use `defineCommandFromArgs` when the argument schema is the source of truth. Use
-`defineCommand<Args, Result, State>` for domain-specific unions or commands that read
-`ctx.state`. For a componentized command group, `defineCommands<State>({...})` contextually
-types every command against the same application state and rejects incompatible groups at
-`defineCli<State>` assembly time.
+`args` is optional; omitting it means the command accepts no business parameters. When present,
+its Zod object is the only validation and type source. `type` defaults to `"argv"`; `pos` lists
+the schema fields consumed as native positional operands. For a componentized command group,
+`defineCommands<State>({...})` contextually types every command against the same application state.
+
+#### Validated JSON payloads
+
+For create/update operations with many or nested fields, set `args.type` to `"json"`. The command
+then accepts exactly one complete document through `--input`, `--input-file`, or native stdin and
+does not merge JSON with business flags. The same Zod schema drives validation, inference, and
+`--input-schema`; no adapter or second schema protocol exists. See
+[`docs/07-structured-input.md`](docs/07-structured-input.md).
 
 ### `defineAuth(opts)` — OAuth auth factory
 
@@ -293,15 +310,16 @@ const myPlugin: Plugin = {
 
 ### Design docs (shipped with the package, in the `docs/` directory)
 
-| Doc                                           | Content                                               |
-| --------------------------------------------- | ----------------------------------------------------- |
-| [`00-overview.md`](docs/00-overview.md)       | Architecture, layering, decision checklist            |
-| [`01-cli-usage.md`](docs/01-cli-usage.md)     | Command invocation, pipes, pagination, exit codes     |
-| [`02-sdk-guide.md`](docs/02-sdk-guide.md)     | SDK usage, ctx interface, hooks                       |
-| [`03-envelopes.md`](docs/03-envelopes.md)     | Unified output field contract                         |
-| [`04-errors.md`](docs/04-errors.md)           | 9 error classes, when to throw                        |
-| [`05-credentials.md`](docs/05-credentials.md) | Provider chain, custom credentials                    |
-| [`06-skills.md`](docs/06-skills.md)           | Skill system, command doc auto-generation (`--lang en | zh`) |
+| Doc                                                     | Content                                               |
+| ------------------------------------------------------- | ----------------------------------------------------- |
+| [`00-overview.md`](docs/00-overview.md)                 | Architecture, layering, decision checklist            |
+| [`01-cli-usage.md`](docs/01-cli-usage.md)               | Command invocation, pipes, pagination, exit codes     |
+| [`02-sdk-guide.md`](docs/02-sdk-guide.md)               | SDK usage, ctx interface, hooks                       |
+| [`03-envelopes.md`](docs/03-envelopes.md)               | Unified output field contract                         |
+| [`04-errors.md`](docs/04-errors.md)                     | 9 error classes, when to throw                        |
+| [`05-credentials.md`](docs/05-credentials.md)           | Provider chain, custom credentials                    |
+| [`06-skills.md`](docs/06-skills.md)                     | Skill system, command doc auto-generation (`--lang en | zh`) |
+| [`07-structured-input.md`](docs/07-structured-input.md) | Structured payloads, validation, write policies, rxx  |
 
 ### Agent Skill: agent-cli-builder
 
