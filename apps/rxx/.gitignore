@@ -1,0 +1,18 @@
+# rxx 本地产物
+.rxx/
+
+# server 密钥(首次运行生成,绝不入库)
+server/keys/
+
+# server 构建产物
+server/dist/
+
+# rxx 构建产物
+dist/
+*.tsbuildinfo
+
+# 覆盖率产物
+coverage/
+
+# 本地凭证/缓存
+.rxcli/

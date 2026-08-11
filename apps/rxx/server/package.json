@@ -1,0 +1,21 @@
+{
+  "name": "@renxqoo/rxx-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "rxx manifest 托管 + mock SaaS 服务器(本地开发/演示/端到端测试用)",
+  "license": "MIT",
+  "author": "renxqoo <wangrenren611@gmail.com>",
+  "type": "module",
+  "bin": {
+    "rxx-server": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "typescript": "^5.9.2"
+  }
+}

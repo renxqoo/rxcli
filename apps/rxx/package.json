@@ -1,0 +1,77 @@
+{
+  "name": "@renxqoo/rxx-cli",
+  "version": "0.2.0",
+  "description": "rxx — a dynamic agent-native CLI runtime: manifest → executable skill + multi-agent distribution, built on @renxqoo/agent-data-cli",
+  "keywords": [
+    "agent",
+    "agent-data-cli",
+    "agent-skills",
+    "cli",
+    "dynamic",
+    "manifest",
+    "rxx",
+    "skill"
+  ],
+  "homepage": "https://github.com/renxqoo/rxcli/tree/main/apps/rxx#readme",
+  "bugs": {
+    "url": "https://github.com/renxqoo/rxcli/issues"
+  },
+  "license": "MIT",
+  "author": "renxqoo <wangrenren611@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/renxqoo/rxcli.git",
+    "directory": "apps/rxx"
+  },
+  "bin": {
+    "rxx": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "docs"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./manifest": {
+      "types": "./dist/manifest/schema.d.ts",
+      "import": "./dist/manifest/schema.js"
+    },
+    "./validate": {
+      "types": "./dist/manifest/validate.d.ts",
+      "import": "./dist/manifest/validate.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && chmod +x dist/index.js",
+    "build:bin": "bun build ./src/index.ts --compile --outfile dist/rxx",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@renxqoo/agent-data-cli": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "typescript": "^5.9.2",
+    "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "rxcli": {
+    "plugin": true
+  },
+  "private": true
+}
