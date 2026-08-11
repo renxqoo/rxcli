@@ -77,18 +77,18 @@ function isOwnedRoute(owned: string[][] | undefined, route: string[]): boolean {
 }
 
 /** 每次 attempt 都从不可变逻辑请求重新构建待发送请求。 */
-export async function prepareRequest<State>(
+export async function beforeRequest<State>(
   plugins: Plugin<State>[],
   ctx: CommandContext<State>,
   logicalRequest: Readonly<RequestOptions>,
 ): Promise<RequestOptions> {
   let current = cloneRequest(logicalRequest);
-  for (const plugin of withHook(plugins, "prepareRequest")) {
-    const next = await plugin.prepareRequest!(ctx, Object.freeze(cloneRequest(current)));
+  for (const plugin of withHook(plugins, "beforeRequest")) {
+    const next = await plugin.beforeRequest!(ctx, Object.freeze(cloneRequest(current)));
     if (!next || typeof next !== "object") {
       throw new InternalError({
         subtype: "contract_violation",
-        message: `Plugin ${plugin.name} prepareRequest must return a request`,
+        message: `Plugin ${plugin.name} beforeRequest must return a request`,
       });
     }
     current = cloneRequest(next);

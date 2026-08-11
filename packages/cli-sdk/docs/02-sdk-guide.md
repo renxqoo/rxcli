@@ -330,7 +330,7 @@ res.data; // unknown
 
 业务包**不接触**鉴权细节(token/refresh/header 注入)。这些由两部分自动完成:
 
-1. **auth 插件**(业务包自己写,用 cli-sdk 基础块组装):beforeCommand 填 `ctx.state.user`、缓存 token,prepareRequest 注入 token header
+1. **auth 插件**(业务包自己写,用 cli-sdk 基础块组装):beforeCommand 填 `ctx.state.user`、缓存 token,beforeRequest 注入 token header
 2. **cli-sdk 请求层**:401 自动 refresh(singleflight)——前提是 auth 插件实现公开的 `handleUnauthorized` hook
 
 业务包只管 `ctx.get(...)` 发请求,token/header 自动带上。详见 `05-credentials.md`。
@@ -526,7 +526,7 @@ interface Plugin<State = {}> {
   name: string; // 必填:插件名(日志/溯源)
   enforce?: "pre" | "normal" | "post";
   beforeCommand?(ctx: CommandContext<State>): Promise<void>;
-  prepareRequest?(
+  beforeRequest?(
     ctx: CommandContext<State>,
     req: Readonly<RequestOptions>,
   ): Promise<RequestOptions>;
@@ -549,7 +549,7 @@ interface Plugin<State = {}> {
 | 钩子                 | 何时触发             | 能改什么                               | 典型用途                                |
 | -------------------- | -------------------- | -------------------------------------- | --------------------------------------- |
 | `beforeCommand`      | 命令 run 前          | `ctx.state`(填数据)                    | auth 填 user、参数预处理                |
-| `prepareRequest`     | 每次 attempt 前      | 返回新的请求对象                       | 加固定 header、HMAC 签名、注入 tenantId |
+| `beforeRequest`      | 每次 attempt 前      | 返回新的请求对象                       | 加固定 header、HMAC 签名、注入 tenantId |
 | `observeRequest`     | 每次 attempt 后      | 只读事件(`response` / `network-error`) | 审计、metric、请求日志                  |
 | `handleUnauthorized` | 首次 401 后          | 显式 `retry` / `decline` / `reject`    | 上下文隔离的凭证续期                    |
 | `transformOutput`    | run 返回后、序列化前 | 返回新 `data`(StructuredData)          | 转换、脱敏、删内部字段、自定义格式      |
@@ -572,16 +572,16 @@ post 插件(注册序)   ← 最终包装(签名、收尾)
 
 观察 hook (`observeRequest` / `observeError`) 的失败只记录 warning；控制流只能由显式 handle 决策改变。
 
-### prepareRequest:统一处理请求参数
+### beforeRequest:统一处理请求参数
 
-prepareRequest 收到不可变的完整请求描述，必须返回新的请求对象:
+beforeRequest 收到不可变的完整请求描述，必须返回新的请求对象:
 
 ```ts
 // 插件:给所有接口的 query 加固定参数
 const tenantPlugin = {
   name: "tenant",
   enforce: "pre",
-  async prepareRequest(ctx, req) {
+  async beforeRequest(ctx, req) {
     return { ...req, query: { ...req.query, tenantId: "acme" } };
   },
 };
@@ -590,7 +590,7 @@ const tenantPlugin = {
 const headerPlugin = {
   name: "fixed-headers",
   enforce: "pre",
-  async prepareRequest(ctx, req) {
+  async beforeRequest(ctx, req) {
     return {
       ...req,
       headers: { ...req.headers, "X-Client": "rxcli", "X-Trace-Id": ctx.state.traceId },
@@ -602,13 +602,13 @@ const headerPlugin = {
 const hmacPlugin = {
   name: "hmac",
   enforce: "post",
-  async prepareRequest(ctx, req) {
+  async beforeRequest(ctx, req) {
     return { ...req, headers: { ...req.headers, "X-Sig": sign(req.headers, req.body) } };
   },
 };
 ```
 
-prepareRequest 还能返回新的 path(重写请求)或 throw 中断。改 path 是高风险操作。
+beforeRequest 还能返回新的 path(重写请求)或 throw 中断。改 path 是高风险操作。
 
 ### 用法:在 defineCli 注册插件
 
@@ -629,14 +629,14 @@ defineCli<{
 });
 ```
 
-**所有扩展统一成插件——defineCli 没有 `prepareRequest` 等内联钩子字段,只有 `plugins` 数组。** 业务包想内联一个简单逻辑,写匿名插件:
+**所有扩展统一成插件——defineCli 没有 `beforeRequest` 等内联钩子字段,只有 `plugins` 数组。** 业务包想内联一个简单逻辑,写匿名插件:
 
 ```ts
 plugins: [
   {
     name: "inline",
     enforce: "pre",
-    async prepareRequest(ctx, req) {
+    async beforeRequest(ctx, req) {
       return { ...req, headers: { ...req.headers, "X-Foo": "bar" } };
     },
   },
@@ -652,7 +652,7 @@ plugins: [
 export const tenantPlugin = (tenantId: string): Plugin => ({
   name: 'tenant',
   enforce: 'pre',
-  async prepareRequest(ctx, req) { return { ...req, query: { ...req.query, tenantId } } },
+  async beforeRequest(ctx, req) { return { ...req, query: { ...req.query, tenantId } } },
 })
 
 // 任意业务包用它
@@ -662,7 +662,7 @@ defineCli({ plugins: [tenantPlugin('acme')], ... })
 
 ### 认证插件:标准场景用 defineAuth,特殊协议再组合基础块
 
-`defineAuth` 是标准认证工厂，返回的仍是普通 `Plugin`。OAuth、Bearer、API key 和 Basic 场景直接使用它；HMAC、mTLS 或复合认证才用下列基础块手写 `beforeCommand`、`prepareRequest` 与 `handleUnauthorized`。
+`defineAuth` 是标准认证工厂，返回的仍是普通 `Plugin`。OAuth、Bearer、API key 和 Basic 场景直接使用它；HMAC、mTLS 或复合认证才用下列基础块手写 `beforeCommand`、`beforeRequest` 与 `handleUnauthorized`。
 
 cli-sdk 出的基础块(从主包 `@renxqoo/agent-data-cli` import):
 
@@ -742,7 +742,7 @@ export function createCrmAuth<State extends { user?: unknown }>(opts: {
       });
     },
 
-    async prepareRequest(ctx, req) {
+    async beforeRequest(ctx, req) {
       const prepared = { ...req, headers: { ...req.headers } };
       const session = sessions.get(ctx);
       if (session) injectAuthHeader(prepared, session.token, authStyle);
@@ -770,12 +770,12 @@ export function createCrmAuth<State extends { user?: unknown }>(opts: {
 | 出口                 | 在 auth Plugin 里做什么                                                                                                                    |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `beforeCommand`      | 跑 provider chain 取 token;包装 `store` 成 `ctx.credentials`;从命中的 provider 取 identity;建立 context-keyed session                      |
-| `prepareRequest`     | 用 `injectAuthHeader(req, token, authStyle)` 按 authStyle 注入 `Authorization: Bearer xxx` / `X-Api-Key: xxx` / `Authorization: Basic xxx` |
+| `beforeRequest`      | 用 `injectAuthHeader(req, token, authStyle)` 按 authStyle 注入 `Authorization: Bearer xxx` / `X-Api-Key: xxx` / `Authorization: Basic xxx` |
 | `handleUnauthorized` | 调 `createOn401Hook(...)`;更新 context-keyed session 后显式返回 `retry`                                                                    |
 
 **关键纪律:**
 
-- 认证用 `beforeCommand` + `prepareRequest` 两个标准钩子,不发明新机制。
+- 认证用 `beforeCommand` + `beforeRequest` 两个标准钩子,不发明新机制。
 - token 必须按 `CommandContext` 隔离(例如 `WeakMap<CommandContext, Session>`)，禁止用单个闭包变量共享。
 - 401 refresh 是请求层(框架)的能力,但**执行能力**(怎么 refresh、怎么落盘)由 auth Plugin 通过公开 `handleUnauthorized` 提供。
 - 业务包可以完全不参考 `createCrmAuth` 骨架,自己写——只要遵守 `Plugin` 接口和上面的契约。
@@ -807,7 +807,7 @@ run() 返回结构化数据
   ↓
 命令 run(args, ctx)                     业务逻辑,ctx.get 发请求,return {data,meta}
   ├ 每次 ctx.get/post:
-  │    插件 prepareRequest(pre→normal→post)  改 req(加 header/签名/改 path)
+  │    插件 beforeRequest(pre→normal→post)  改 req(加 header/签名/改 path)
   │    → 真正发请求(cli-sdk 内部,带鉴权)
   │    插件 observeRequest(pre→normal→post)   审计/日志(只读 res)
   ↓

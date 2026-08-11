@@ -128,7 +128,7 @@ describe("RequestExecutor boundary", () => {
       plugins: [
         {
           name: "auth",
-          async prepareRequest(_ctx, request) {
+          async beforeRequest(_ctx, request) {
             return {
               ...request,
               headers: { ...request.headers, authorization: `Bearer ${token}` },

@@ -96,7 +96,7 @@ function noAuthPlugin<State = unknown>(): Plugin<State> {
     async beforeCommand() {
       /* no-op:不校验凭证 */
     },
-    async prepareRequest(_ctx, request) {
+    async beforeRequest(_ctx, request) {
       return { ...request };
     },
   };

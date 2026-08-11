@@ -208,7 +208,7 @@ const myPlugin: Plugin = {
   async beforeCommand(ctx) {
     /* 填 state */
   },
-  async prepareRequest(ctx, req) {
+  async beforeRequest(ctx, req) {
     return { ...req, headers: { ...req.headers, "x-client": "my-cli" } };
   },
   async observeRequest(ctx, event) {

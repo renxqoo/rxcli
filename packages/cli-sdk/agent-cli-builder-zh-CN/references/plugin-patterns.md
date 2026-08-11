@@ -14,7 +14,7 @@
 | 钩子                 | 何时触发                 | 能改什么                                 | 典型用途               |
 | -------------------- | ------------------------ | ---------------------------------------- | ---------------------- |
 | `beforeCommand`      | 命令 run 前              | `ctx.state`、可 throw 中止               | auth、参数预处理       |
-| `prepareRequest`     | 每个物理请求 attempt 前  | 返回新的请求对象                         | header、签名、tenant   |
+| `beforeRequest`      | 每个物理请求 attempt 前  | 返回新的请求对象                         | header、签名、tenant   |
 | `observeRequest`     | 每个物理 attempt 完成后  | 只读事件；runtime 等待副作用             | 审计、metric、请求日志 |
 | `handleUnauthorized` | 收到 401 后              | 显式 `retry` / `decline` / `reject` 决策 | 上下文隔离的凭证续期   |
 | `transformOutput`    | run 返回后、序列化前     | 返回新的 StructuredData                  | 脱敏、删字段、改字段名 |
@@ -56,14 +56,14 @@ defineCli({
     {
       name: "tenant",
       enforce: "pre",
-      async prepareRequest(ctx, req) {
+      async beforeRequest(ctx, req) {
         return { ...req, query: { ...req.query, tenantId: "acme" } };
       },
     },
     {
       name: "hmac-sign",
       enforce: "post",
-      async prepareRequest(ctx, req) {
+      async beforeRequest(ctx, req) {
         return {
           ...req,
           headers: { ...req.headers, "X-Sig": sign(req.body, ctx.state.secretKey) },
@@ -84,7 +84,7 @@ defineCli({
 const headerPlugin = {
   name: "fixed-headers",
   enforce: "pre" as const,
-  async prepareRequest(ctx, req) {
+  async beforeRequest(ctx, req) {
     return {
       ...req,
       headers: { ...req.headers, "X-Client": "my-cli", "X-Version": "1.0.0" },
@@ -196,7 +196,7 @@ const myPlugin = {
 export const tenantPlugin = (tenantId: string): Plugin => ({
   name: "tenant",
   enforce: "pre",
-  async prepareRequest(ctx, req) {
+  async beforeRequest(ctx, req) {
     return { ...req, query: { ...req.query, tenantId } };
   },
 });
@@ -218,7 +218,7 @@ defineCli({ plugins: [tenantPlugin('acme')], ... })
 const debugPlugin = {
   name: "debug",
   enforce: "pre" as const,
-  async prepareRequest(ctx, req) {
+  async beforeRequest(ctx, req) {
     if (process.env.MYCLI_DEBUG) {
       ctx.log.info(`→ ${req.method} ${req.path}`);
     }

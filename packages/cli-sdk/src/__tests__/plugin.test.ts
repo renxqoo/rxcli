@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   handleError,
   observeError,
-  prepareRequest,
+  beforeRequest,
   runBeforeCommand,
   sortPlugins,
   transformOutput,
@@ -46,12 +46,12 @@ describe("plugin data boundaries", () => {
     const logical: RequestOptions = { method: "GET", path: "/orders", headers: {} };
     const addHeader: Plugin = {
       name: "add-header",
-      async prepareRequest(_ctx, request) {
+      async beforeRequest(_ctx, request) {
         return { ...request, headers: { ...request.headers, "x-client": "rxcli" } };
       },
     };
 
-    const prepared = await prepareRequest([addHeader], createTestCtx(), logical);
+    const prepared = await beforeRequest([addHeader], createTestCtx(), logical);
 
     expect(prepared.headers).toEqual({ "x-client": "rxcli" });
     expect(logical.headers).toEqual({});

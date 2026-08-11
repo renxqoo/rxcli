@@ -21,7 +21,7 @@ export interface Plugin<State = Record<string, never>> {
     commands?: CommandGroup<State>;
   };
   beforeCommand?(context: CommandContext<State>): Promise<void>;
-  prepareRequest?(
+  beforeRequest?(
     context: CommandContext<State>,
     request: Readonly<RequestOptions>,
   ): Promise<RequestOptions>;

@@ -12,7 +12,7 @@ Use this only when `defineAuth` cannot express the protocol, such as HMAC, mTLS,
 
 ## 1. Auth plugin skeleton
 
-An auth plugin resolves a token in `beforeCommand`, stores it in a context-keyed `WeakMap`, injects it in `prepareRequest`, and may implement `handleUnauthorized` for one refresh and retry. Never keep one mutable token directly in a plugin closure: one plugin instance serves concurrent `App.run()` calls.
+An auth plugin resolves a token in `beforeCommand`, stores it in a context-keyed `WeakMap`, injects it in `beforeRequest`, and may implement `handleUnauthorized` for one refresh and retry. Never keep one mutable token directly in a plugin closure: one plugin instance serves concurrent `App.run()` calls.
 
 ```ts
 import { homedir } from "node:os";
@@ -74,7 +74,7 @@ export function createCustomAuth<State extends { user?: unknown }>(options: {
       });
     },
 
-    async prepareRequest(ctx, request) {
+    async beforeRequest(ctx, request) {
       const prepared = { ...request, headers: { ...request.headers } };
       const session = sessions.get(ctx);
       if (session) injectAuthHeader(prepared, session.token, authStyle);
@@ -191,7 +191,7 @@ function hmacSigningPlugin(namespace: string): Plugin {
   return {
     name: "hmac-signing",
     enforce: "post",
-    async prepareRequest(ctx, request) {
+    async beforeRequest(ctx, request) {
       const credentials = await ctx.credentials.get(namespace);
       if (!credentials?.secretKey) return { ...request, headers: { ...request.headers } };
       const body =
@@ -214,7 +214,7 @@ With `handleUnauthorized` configured, the request runtime:
 1. Receives 401 and runs the refresh hook.
 2. Reuses one in-flight refresh for concurrent requests when the underlying hook supports singleflight.
 3. Persists the refreshed token.
-4. Applies the token, reruns all `prepareRequest` hooks, and retries once.
+4. Applies the token, reruns all `beforeRequest` hooks, and retries once.
 5. Throws `AuthenticationError(token_expired)` if refresh fails or the retry is still 401.
 
 The plugin must update its context-bound session before retry hooks run. Re-signing plugins must recompute timestamps, nonces, and signatures on retry. Business commands should not implement a second 401 retry loop.

@@ -14,7 +14,7 @@ Use plugins for cross-cutting behavior such as authentication, fixed headers, si
 | Hook                 | Runs                              | Typical use                                          |
 | -------------------- | --------------------------------- | ---------------------------------------------------- |
 | `beforeCommand`      | Before command `run`              | Resolve identity, initialize state, reject execution |
-| `prepareRequest`     | Before each `ctx.*` attempt       | Headers, tenant, signatures                          |
+| `beforeRequest`      | Before each `ctx.*` attempt       | Headers, tenant, signatures                          |
 | `observeRequest`     | After each physical attempt       | Metrics and awaited audit side effects               |
 | `handleUnauthorized` | After a 401 response              | Refresh a context-bound credential once              |
 | `transformOutput`    | After `run`, before serialization | Redact or reshape structured data                    |
@@ -39,7 +39,7 @@ Write lifecycle tests when two plugins depend on registration order.
 const clientHeaders = {
   name: "client-headers",
   enforce: "pre" as const,
-  async prepareRequest(_ctx, request) {
+  async beforeRequest(_ctx, request) {
     return { ...request, headers: { ...request.headers, "X-Client": "my-cli" } };
   },
 };

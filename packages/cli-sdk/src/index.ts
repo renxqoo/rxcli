@@ -120,7 +120,7 @@ export { createFetchAdapter, throwForResponse, type CreateFetchAdapterOptions } 
 export {
   sortPlugins,
   runBeforeCommand,
-  prepareRequest,
+  beforeRequest,
   observeRequest,
   handleUnauthorized,
   transformOutput,

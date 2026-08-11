@@ -18,7 +18,7 @@ function makeMemoryStore(creds: Record<string, unknown> | null = null) {
   };
 }
 
-/** 构造带 auth plugin 的 ctx(模拟 createContext 的 beforeCommand/prepareRequest 调用)。 */
+/** 构造带 auth plugin 的 ctx(模拟 createContext 的 beforeCommand/beforeRequest 调用)。 */
 function makeCtxWithAuth(storeCreds: Record<string, unknown> | null) {
   const store = makeMemoryStore(storeCreds);
   const auth = createCordysAuthWithStore(store);
@@ -35,7 +35,7 @@ function makeCtxWithAuth(storeCreds: Record<string, unknown> | null) {
   return { auth, ctx, store };
 }
 
-describe("auth prepareRequest:双 header 注入", () => {
+describe("auth beforeRequest:双 header 注入", () => {
   beforeEach(() => {
     delete process.env.CORDYS_ACCESS_KEY;
     delete process.env.CORDYS_SECRET_KEY;
@@ -49,7 +49,7 @@ describe("auth prepareRequest:双 header 注入", () => {
     const { auth, ctx } = makeCtxWithAuth({ accessKey: "ak_123", secretKey: "sk_456" });
     await auth.beforeCommand!(ctx);
     const req: RequestOptions = { method: "GET", path: "/lead/page", headers: {} };
-    const prepared = await auth.prepareRequest!(ctx, req);
+    const prepared = await auth.beforeRequest!(ctx, req);
     expect(prepared.headers?.["X-Access-Key"]).toBe("ak_123");
     expect(prepared.headers?.["X-Secret-Key"]).toBe("sk_456");
     expect(prepared.headers?.["X-Request-Source"]).toBe("SKILL");
@@ -72,11 +72,11 @@ describe("auth prepareRequest:双 header 注入", () => {
     });
   });
 
-  it("无凭证时 prepareRequest 不注入 header(不崩)", async () => {
+  it("无凭证时 beforeRequest 不注入 header(不崩)", async () => {
     const { auth, ctx } = makeCtxWithAuth(null);
     // state.credentials 仍为 null(beforeCommand 虽抛错,但模拟内部命令场景)
     const req: RequestOptions = { method: "GET", path: "/x", headers: {} };
-    const prepared = await auth.prepareRequest!(ctx, req);
+    const prepared = await auth.beforeRequest!(ctx, req);
     expect(prepared.headers?.["X-Access-Key"]).toBeUndefined();
   });
 

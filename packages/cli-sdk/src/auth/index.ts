@@ -190,7 +190,7 @@ export async function defineAuth<State = Record<string, never>>(
       await sessions.authenticate(ctx, credentialArgs);
     },
 
-    async prepareRequest(ctx: CommandContext<State>, request) {
+    async beforeRequest(ctx: CommandContext<State>, request) {
       return sessions.prepare(ctx, request);
     },
 

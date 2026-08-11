@@ -12,7 +12,7 @@ Cordys 开放接口用静态双 header 鉴权,不走 OAuth / token 交换:
 | `X-Secret-Key`     | `<SecretKey>`  | 创建时一次性明文返回,之后掩码,不可再次查看 |
 | `X-Request-Source` | 字面量 `SKILL` | 固定标记,标识来自技能接口                  |
 
-> 密钥以明文放 header(非 HMAC 签名)。rxcordys 的 auth plugin 在 `prepareRequest` 钩子里注入这三个 header,业务命令无感。
+> 密钥以明文放 header(非 HMAC 签名)。rxcordys 的 auth plugin 在 `beforeRequest` 钩子里注入这三个 header,业务命令无感。
 
 ## 凭证优先级
 

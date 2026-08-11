@@ -17,7 +17,7 @@ Prefer `defineAuth` for standard OAuth, Bearer, API key, and Basic authenticatio
 - `auth login`, `status`, `logout`, and `register` commands.
 - Device, authorization-code with PKCE, and client-credentials flows.
 - Credential-provider resolution in `beforeCommand`.
-- Bearer, X-API-Key, or Basic header injection in `prepareRequest`.
+- Bearer, X-API-Key, or Basic header injection in `beforeRequest`.
 - One singleflight refresh and retry after a 401.
 - Route-specific exemption so auth commands do not require an existing login.
 

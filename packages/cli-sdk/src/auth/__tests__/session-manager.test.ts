@@ -24,7 +24,7 @@ describe("AuthSessionManager boundary", () => {
     const ctx = createTestCtx();
 
     await plugin.beforeCommand!(ctx);
-    const request = await plugin.prepareRequest!(ctx, { method: "GET", path: "/orders" });
+    const request = await plugin.beforeRequest!(ctx, { method: "GET", path: "/orders" });
 
     expect(request.headers?.authorization).toBe("Bearer injected");
   });

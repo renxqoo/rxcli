@@ -10,7 +10,7 @@
  * 改用手写 Plugin(auth-patterns.md §3 骨架):
  *   - provides.namespaces.auth 注入 login/status/logout(框架自动豁免自身 beforeCommand)
  *   - beforeCommand:读凭证(env 优先 > 文件),缺失抛 AuthenticationError(no_credentials)
- *   - prepareRequest:注入三个 header
+ *   - beforeRequest:注入三个 header
  */
 
 import {
@@ -203,10 +203,10 @@ export function createCordysAuth(): Plugin<RxCordysState> {
     },
 
     /**
-     * prepareRequest:注入三个 Cordys header。
+     * beforeRequest:注入三个 Cordys header。
      * 双 header 是 Cordys 的契约,框架 injectAuthHeader 只支持单 header,故手写。
      */
-    async prepareRequest(ctx: CommandContext<RxCordysState>, req) {
+    async beforeRequest(ctx: CommandContext<RxCordysState>, req) {
       const creds = ctx.state.credentials;
       if (!creds) return { ...req }; // 内部命令(skills)可能无凭证,不阻断
       return {
@@ -273,7 +273,7 @@ export function createCordysAuthWithStore(testStore: {
         hint: "Run `rxcordys auth login`",
       });
     },
-    async prepareRequest(ctx, req) {
+    async beforeRequest(ctx, req) {
       const creds = ctx.state.credentials;
       if (!creds) return { ...req };
       return {

@@ -110,6 +110,6 @@ Skill 文档:`skills/rxcordys-cli/SKILL.md`(手写维护,决策信息前置)。
 ## 技术决策
 
 - **命名**:npm 包 `@renxqoo/rxcordys-cli` / bin 命令 `rxcordys` / skill `rxcordys-cli` / 凭证 namespace `cordys`。
-- **手写 auth plugin**(非 `defineAuth`):Cordys 用静态双 header,框架 `injectAuthHeader` 只支持单 header,故手写 `prepareRequest` 注入。
+- **手写 auth plugin**(非 `defineAuth`):Cordys 用静态双 header,框架 `injectAuthHeader` 只支持单 header,故手写 `beforeRequest` 注入。
 - **业务码解包**:Cordys 业务错误可能 HTTP 200 + `code≠100200`,所有命令经 `unwrap()` 解包校验。
 - **credentialNamespace = `cordys`**:避免与 `apps/crm` 的 `crm` namespace 撞名共用凭证。

@@ -110,6 +110,6 @@ Skill documentation: `skills/rxcordys-cli/SKILL.md` (hand-written and maintained
 ## Technical decisions
 
 - **Naming**: npm package `@renxqoo/rxcordys-cli` / bin command `rxcordys` / skill `rxcordys-cli` / credential namespace `cordys`.
-- **Hand-written auth plugin** (not `defineAuth`): Cordys uses static dual headers, and the framework's `injectAuthHeader` only supports a single header, so a hand-written `prepareRequest` injection is used.
+- **Hand-written auth plugin** (not `defineAuth`): Cordys uses static dual headers, and the framework's `injectAuthHeader` only supports a single header, so a hand-written `beforeRequest` injection is used.
 - **Business code unwrapping**: Cordys business errors may return HTTP 200 + `code≠100200`, so all commands go through `unwrap()` for unwrapping and validation.
 - **credentialNamespace = `cordys`**: Avoids colliding and sharing credentials with the `crm` namespace of `apps/crm`.

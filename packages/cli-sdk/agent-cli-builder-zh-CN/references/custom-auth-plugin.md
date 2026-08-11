@@ -21,7 +21,7 @@ auth Plugin 就是一个普通的 `Plugin` 对象,用 cli-sdk 导出的基础块
 | 出口                 | 做什么                                                                            |
 | -------------------- | --------------------------------------------------------------------------------- |
 | `beforeCommand`      | 跑 provider chain 取 token → 包装 store 成 `ctx.credentials` → 建立上下文隔离会话 |
-| `prepareRequest`     | 用 `injectAuthHeader(req, token, authStyle)` 按 style 注入 header                 |
+| `beforeRequest`      | 用 `injectAuthHeader(req, token, authStyle)` 按 style 注入 header                  |
 | `handleUnauthorized` | 公开 hook；401 时 singleflight refresh、更新上下文会话并重试一次                  |
 
 ---
@@ -89,7 +89,7 @@ export function createMyAuth<State extends { user?: unknown }>(opts: {
       });
     },
 
-    async prepareRequest(ctx, req) {
+    async beforeRequest(ctx, req) {
       const prepared = { ...req, headers: { ...req.headers } };
       const session = sessions.get(ctx);
       if (session) injectAuthHeader(prepared, session.token, authStyle);
@@ -173,7 +173,7 @@ return {
   async beforeCommand(ctx) {
     /* ... 见上面骨架 ... */
   },
-  async prepareRequest(ctx, req) {
+  async beforeRequest(ctx, req) {
     return { ...req, headers: { ...req.headers } };
   },
 };
@@ -276,7 +276,7 @@ export function hmacSignPlugin(namespace: string): Plugin {
   return {
     name: "hmac-sign",
     enforce: "post",
-    async prepareRequest(ctx, req) {
+    async beforeRequest(ctx, req) {
       const creds = await ctx.credentials.get(namespace);
       if (!creds?.secretKey) return { ...req, headers: { ...req.headers } };
       const body = typeof req.body === "string" ? req.body : JSON.stringify(req.body ?? "");
@@ -316,6 +316,6 @@ defineCli({
 
 **前提**:auth Plugin 必须实现 `handleUnauthorized`。没实现的 auth Plugin 不支持 401 自动续期。token 必须放在 `CommandContext` 绑定的 auth session，禁止用插件闭包保存；同一个插件实例会服务并发的 `App.run()`。
 
-重试会先替换现有认证 header(大小写不敏感),并重新执行全部 `prepareRequest` hook,因此 Bearer / X-Api-Key / Basic 以及 HMAC nonce、时间戳、签名都会按新 token 重算。任何最终 401 都是认证错误,不会因为遗漏 `errorOnStatus` 而被当成成功响应。
+重试会先替换现有认证 header(大小写不敏感),并重新执行全部 `beforeRequest` hook,因此 Bearer / X-Api-Key / Basic 以及 HMAC nonce、时间戳、签名都会按新 token 重算。任何最终 401 都是认证错误,不会因为遗漏 `errorOnStatus` 而被当成成功响应。
 
 `--api-key <key>` 是框架级一次性凭证,只定向提供给 auth provider chain,不会混入业务命令 args 或暴露给其他 telemetry/plugin hook;裸 `--api-key` 会在命令运行前得到 validation 错误。

@@ -9,9 +9,9 @@
 | 层                 | 干什么                                   | 谁负责                                                |
 | ------------------ | ---------------------------------------- | ----------------------------------------------------- |
 | **拿 token**(凭证) | 从哪取 key/token(flag/env/file/keychain) | provider chain(由 auth Plugin 调 `resolveWithChain`)  |
-| **用 token**(注入) | 把 token 塞进请求 header(bearer/api-key) | auth Plugin 的 `prepareRequest` 调 `injectAuthHeader` |
+| **用 token**(注入) | 把 token 塞进请求 header(bearer/api-key) | auth Plugin 的 `beforeRequest` 调 `injectAuthHeader` |
 
-**这两层都由 auth Plugin 编排**。标准场景由 `defineAuth` 创建完整插件；特殊协议可使用下列基础块自行组合。插件通过 beforeCommand 解析凭证、通过 prepareRequest 返回新请求，并用 context-keyed session 隔离并发请求。
+**这两层都由 auth Plugin 编排**。标准场景由 `defineAuth` 创建完整插件；特殊协议可使用下列基础块自行组合。插件通过 beforeCommand 解析凭证、通过 beforeRequest 返回新请求，并用 context-keyed session 隔离并发请求。
 
 ---
 
@@ -82,14 +82,14 @@ export function createCrmAuth<State extends { user?: unknown }>(opts: {
           hint: "设置 XXX_API_KEY 环境变量",
         });
       // ② 包装 store 成 ctx.credentials;③ 注入 scopes;④ 取 identity 填 state.user
-      // ⑤ 缓存 token 供 prepareRequest 用
+      // ⑤ 缓存 token 供 beforeRequest 用
       sessions.set(ctx, {
         token: resolved.token.token,
         refreshable: resolved.token.refreshable === true,
       });
     },
 
-    async prepareRequest(ctx, req) {
+    async beforeRequest(ctx, req) {
       const prepared = { ...req, headers: { ...req.headers } };
       const session = sessions.get(ctx);
       if (session) injectAuthHeader(prepared, session.token, authStyle);
@@ -117,12 +117,12 @@ export function createCrmAuth<State extends { user?: unknown }>(opts: {
 | 出口                 | 在 auth Plugin 里做什么                                                                 |
 | -------------------- | --------------------------------------------------------------------------------------- |
 | `beforeCommand`      | 跑 provider chain 取 token;包装 `store` 成 `ctx.credentials`;建立 context-keyed session |
-| `prepareRequest`     | 用 `injectAuthHeader(req, token, authStyle)` 按 authStyle 注入 header                   |
+| `beforeRequest`      | 用 `injectAuthHeader(req, token, authStyle)` 按 authStyle 注入 header                   |
 | `handleUnauthorized` | 调 `createOn401Hook(...)`;成功后更新 session 并返回 `{ action: "retry" }`               |
 
 **关键纪律:**
 
-- 认证用 `beforeCommand` + `prepareRequest` 两个标准钩子,不发明新机制。
+- 认证用 `beforeCommand` + `beforeRequest` 两个标准钩子,不发明新机制。
 - token 使用 `WeakMap<CommandContext, Session>` 等 context-keyed 结构隔离，避免并发命令间串。
 - 401 refresh 是请求层(框架)的能力,但**执行能力**(怎么 refresh、怎么落盘)由 auth Plugin 通过 `on401` 提供。没挂 `on401` 的 auth Plugin 不支持 401 自动续期。
 - 业务包可完全不参考 `createCrmAuth` 骨架自己写——只要遵守 `Plugin` 接口和上面的契约。
@@ -221,13 +221,13 @@ const providers = [...defaultProviders(), new HmacProvider({ namespace: opts.nam
 const resolved = await resolveWithChain(providers, pctx);
 ```
 
-如果 HMAC 还要算签名塞 header,在 auth Plugin 的 `prepareRequest` 里加,或单独写一个签名插件(enforce:'post',在所有 header 加完后签名):
+如果 HMAC 还要算签名塞 header,在 auth Plugin 的 `beforeRequest` 里加,或单独写一个签名插件(enforce:'post',在所有 header 加完后签名):
 
 ```ts
 const signPlugin = {
   name: "hmac-sign",
   enforce: "post",
-  async prepareRequest(ctx, req) {
+  async beforeRequest(ctx, req) {
     const creds = await ctx.credentials.get("orders");
     return {
       ...req,
@@ -399,7 +399,7 @@ $ rxcli-orders list --verbose 2>&1 | grep -i auth
 | API key(`X-Api-Key` header) | authStyle `'x-api-key'`                                                     | 同上,默认 provider 覆盖      |
 | Basic Auth                  | authStyle `'basic'`                                                         | provider 存 user/pass        |
 | HMAC 签名                   | auth Plugin 用自定义 `HmacProvider` 取 token;签名单独写 enforce:'post' 插件 | 实现 HmacProvider + 签名逻辑 |
-| mTLS                        | 自定义 provider(读证书路径) + prepareRequest 注入证书                       | 实现证书加载                 |
+| mTLS                        | 自定义 provider(读证书路径) + beforeRequest 注入证书                        | 实现证书加载                 |
 
 ### authStyle 配置
 

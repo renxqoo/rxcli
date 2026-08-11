@@ -9,7 +9,7 @@ import type {
   TransportResponse,
 } from "./types.js";
 import { CliError, NetworkError } from "./errs/index.js";
-import { handleUnauthorized, observeRequest, prepareRequest } from "./plugin.js";
+import { beforeRequest, handleUnauthorized, observeRequest } from "./plugin.js";
 import { throwForResponse } from "./request.js";
 
 export interface RequestExecutor<State> {
@@ -34,7 +34,7 @@ export function createRequestExecutor<State>(options: {
       const logicalRequest = cloneRequest(request);
 
       for (let attempt = 1; attempt <= 2; attempt++) {
-        const prepared = await prepareRequest(plugins, ctx, logicalRequest);
+        const prepared = await beforeRequest(plugins, ctx, logicalRequest);
         const outcome = await sendAttempt<T>(options.adapter, prepared);
         const event: RequestAttemptEvent<T> = {
           attempt,
