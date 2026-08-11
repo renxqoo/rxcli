@@ -5,20 +5,43 @@
  * vitest globalSetup 起一次 server,所有测试文件通过环境变量拿到端口。
  */
 
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const RXX_ROOT = resolve(__dirname, "..", "..");
-const SERVER_BIN = join(RXX_ROOT, "server", "dist", "index.js");
+const SERVER_ROOT = join(RXX_ROOT, "server");
+const SERVER_BIN = join(SERVER_ROOT, "dist", "index.js");
 
 let serverProc: ChildProcess | null = null;
 let tmpHome: string;
 
+/**
+ * 确保 server 已编译:server/dist/ 被 gitignore(不入库),
+ * CI 干净环境需要先 build。本地已 build 则跳过(零开销)。
+ */
+function ensureServerBuilt(): void {
+  if (existsSync(SERVER_BIN)) return;
+  const result = spawnSync("pnpm", ["run", "build"], {
+    cwd: SERVER_ROOT,
+    stdio: ["ignore", "pipe", "pipe"],
+    encoding: "utf8",
+  });
+  if (result.status !== 0 || !existsSync(SERVER_BIN)) {
+    throw new Error(
+      `Failed to build rxx-server (tsc exited ${result.status}).\n` +
+        `stdout: ${result.stdout}\nstderr: ${result.stderr}`,
+    );
+  }
+}
+
 export async function setup(): Promise<void> {
+  // CI 干净环境:server dist 不存在,先 build(本地已 build 则跳过)
+  ensureServerBuilt();
+
   // 唯一的 RXX_HOME(测试隔离)
   tmpHome = mkdtempSync(join(tmpdir(), "rxx-global-"));
   process.env.RXX_HOME = tmpHome;

@@ -53,10 +53,11 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json && chmod +x dist/index.js",
+    "build:server": "pnpm --dir server run build",
     "build:bin": "bun build ./src/index.ts --compile --outfile dist/rxx",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "pnpm run build:server && vitest run",
+    "test:watch": "pnpm run build:server && vitest"
   },
   "dependencies": {
     "@renxqoo/agent-data-cli": "workspace:*"
