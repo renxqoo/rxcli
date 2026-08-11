@@ -111,8 +111,6 @@
 > `approvals todo count` 返回对象(非纯数字):`{total, quotation, contract, order, invoice}`,按资源类型拆分。判断总数用 `total`。`pending` 命令的分页载荷用 `--payload` flag(不是位置参数)。
 >
 > 审批资源端点:`resource simple-detail <resourceId>`(GET 列表详情)/ `resource detail <resourceId>`(GET 完整审批流进度)。审批状态字段(resourceName/resourceType/status/currentApproverName)见后端返回。
->
-> 📋 **待验证**:驳回次数依赖 `approvals flow get` 的历史字段,demo 环境无审批数据;`simple-detail` 返回的审批节点字段名部署后实测确认。
 
 ---
 

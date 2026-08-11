@@ -45,7 +45,7 @@ rxcordys util whoami   # GET /personal/center/info
 
 **匹配优先级**:高管控(总经理/VP)优先于管理岗(经理/总监),避免误匹配。
 
-**position 为空时的 fallback**(实测 demo 账号 position 经常为空):
+**position 为空时的 fallback**:
 1. 看 `roles[].name`:含"管理员"/"admin" → `sales-manager`(经理视角);含"财务" → `finance`;含"商务" → `contract-admin`
 2. roles 也无法判断 → 默认 `sales`(销售视角,最保守,防权限扩散)
 

@@ -165,7 +165,7 @@ rxcordys leads page --json
 | exit | 错误 | 处理 |
 |:----:|------|------|
 | 3 | `authentication/no_credentials` | 未配置凭证 → `rxcordys auth login` |
-| 3 | `authentication/token_expired` | 凭证失效(401) → 检查密钥对,可能 demo 环境已回滚 |
+| 3 | `authentication/token_expired` | 凭证失效(401) → 检查密钥对 |
 | 3 | `authorization/forbidden` | 无权限(403) → 联系管理员开通数据权限 |
 | 1 | `api/not_found` | 记录不存在 → 用 `page` 查有效 ID |
 | 1 | `api/server_error` | 服务端错误(含业务码≠100200) → 看 message/messageDetail |
