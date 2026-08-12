@@ -1,49 +1,22 @@
-/** Node/terminal adapter for the installation workflow. */
+/**
+ * Node/terminal adapter for the installation workflow.
+ *
+ * Internal module consumed by `defineInstaller` (src/installer.ts). Not part of the
+ * public API: the install wizard is a plugin-provided command, not a standalone function.
+ * All wizard UI is written to stderr — stdout stays reserved for the data contract.
+ */
 import { execFile, execFileSync, type ExecFileSyncOptions } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { fileStore } from "./credentials/config-store.js";
 import {
-  InstallWorkflow,
-  formatInstallMessage,
-  isOlderVersion,
   type InstallLanguage,
   type InstallPresenter,
   type InstallSystem,
 } from "./install-workflow.js";
-import { detectBizPackage } from "./package-detect.js";
+import type { FileLocalState } from "./local-state.js";
 
 type Clack = typeof import("@clack/prompts");
 const isWindows = process.platform === "win32";
-
-export interface InstallWizardOptions {
-  skillsSource?: string;
-  binName?: string;
-  pkgName?: string;
-  /**
-   * Optional app config directory. When provided, the wizard can detect an already
-   * registered client and skip `auth register`. cli-sdk imposes no default; the app
-   * decides where its config lives.
-   */
-  configDir?: string;
-}
-
-export const fmt = formatInstallMessage;
-export const semverLessThan = isOlderVersion;
-
-export function parseLangArg(
-  argv: readonly string[] = process.argv.slice(2),
-): InstallLanguage | null {
-  for (let index = 0; index < argv.length; index++) {
-    const argument = argv[index]!;
-    const value = argument === "--lang" ? argv[index + 1] : argument.split("--lang=")[1];
-    if ((argument === "--lang" || argument.startsWith("--lang=")) && value) {
-      const normalized = value.toLowerCase();
-      if (normalized === "zh" || normalized === "en") return normalized;
-    }
-  }
-  return null;
-}
 
 function execCommand(command: string, args: string[], options?: ExecFileSyncOptions): Buffer {
   return execFileSync(
@@ -92,8 +65,8 @@ function findGlobalBinary(binName: string): string | null {
   }
 }
 
-class NodeInstallSystem implements InstallSystem {
-  constructor(private readonly configDir?: string) {}
+export class NodeInstallSystem implements InstallSystem {
+  constructor(private readonly localState: FileLocalState) {}
 
   async globallyInstalledVersion(packageName: string): Promise<string | null> {
     try {
@@ -137,14 +110,23 @@ class NodeInstallSystem implements InstallSystem {
     await runAsync(binary, ["skills", "sync"], { timeout: 60_000 });
   }
 
+  /**
+   * "Registered" means any namespace under config/ holds a clientId — config is
+   * namespace-partitioned, and the installer cannot know the app's auth namespace.
+   */
   async isRegistered(): Promise<boolean> {
-    // cli-sdk does not pick a config directory; only check when the app provided one.
-    if (!this.configDir) return false;
     try {
-      const config = (await fileStore({ dir: this.configDir }).loadConfig()) as {
-        clientId?: string;
-      };
-      return Boolean(config.clientId);
+      const dir = this.localState.paths.configDir;
+      if (!existsSync(dir)) return false;
+      for (const entry of readdirSync(dir)) {
+        if (!entry.endsWith(".json")) continue;
+        const namespace = entry.slice(0, -".json".length);
+        const config = (await this.localState.store.loadConfig(namespace)) as {
+          clientId?: string;
+        };
+        if (config.clientId) return true;
+      }
+      return false;
     } catch {
       return false;
     }
@@ -160,7 +142,7 @@ class NodeInstallSystem implements InstallSystem {
   }
 }
 
-class ClackInstallPresenter implements InstallPresenter {
+export class ClackInstallPresenter implements InstallPresenter {
   private spinner?: ReturnType<Clack["spinner"]>;
 
   constructor(
@@ -185,8 +167,9 @@ class ClackInstallPresenter implements InstallPresenter {
   }
 
   intro(message: string): void {
+    // Wizard UI never touches stdout: the install command keeps the data channel clean.
     if (this.interactive) this.clack.intro(message);
-    else console.log(message);
+    else console.error(message);
   }
 
   outro(message: string): void {
@@ -213,7 +196,7 @@ class ClackInstallPresenter implements InstallPresenter {
 
   info(message: string): void {
     if (this.interactive) this.clack.log.info(message);
-    else console.log(message);
+    else console.error(message);
   }
 
   warn(message: string): void {
@@ -223,23 +206,4 @@ class ClackInstallPresenter implements InstallPresenter {
   cancel(message: string): void {
     this.clack.cancel(message);
   }
-}
-
-export async function runInstallWizard(options: InstallWizardOptions = {}): Promise<number> {
-  const detected = detectBizPackage();
-  const interactive = Boolean(process.stdin.isTTY);
-  const clack = await import("@clack/prompts");
-  const workflow = new InstallWorkflow(
-    new NodeInstallSystem(options.configDir),
-    new ClackInstallPresenter(clack, interactive),
-  );
-  return workflow.run({
-    package: {
-      name: options.pkgName ?? detected?.name ?? "",
-      bin: options.binName ?? detected?.bin ?? "rxcli",
-    },
-    skillsSource: options.skillsSource,
-    interactive,
-    language: parseLangArg() ?? undefined,
-  });
 }

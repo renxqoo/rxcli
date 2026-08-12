@@ -155,14 +155,14 @@ defineCli({
 });
 ```
 
-`runInstallWizard({ skillsSource })` 的行为：
+`defineInstaller({ skillsSource })`(放入 `defineCliApp` 的 plugins,提供顶层 `install` 命令)的行为:
 
 | `skillsSource` | Skill 安装路径                                   |
 | -------------- | ------------------------------------------------ |
 | 空             | 调用包内 `<bin> skills sync`                     |
 | URL            | 尝试 `npx skills add <url>`，失败后回退本地 sync |
 
-`defineCli({ skillsSource })` 当前不会自动把该值交给安装向导；入口必须显式传入。安装会产生全局包、Skill 文件和凭证等副作用，面向 agent 的安装说明必须先披露影响。
+`defineCliApp`/`defineCli({ skillsSource })` 不会自动把该值交给安装向导；必须显式传给 `defineInstaller`。安装会产生全局包、Skill 文件和凭证等副作用，面向 agent 的安装说明必须先披露影响。
 
 ## 6. 安全与验证
 

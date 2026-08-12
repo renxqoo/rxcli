@@ -6,16 +6,22 @@
  *   - 静态双 header 鉴权(X-Access-Key / X-Secret-Key / X-Request-Source: SKILL)
  *   - 凭证:rxcordys auth login 持久化 或 CORDYS_ACCESS_KEY/CORDYS_SECRET_KEY 环境变量
  *   - 模块按 namespace 聚合:records/leads/accounts/opportunities/contacts/contracts/
- *     invoices/orders/follows/approvals/stats/util + auth(skills 自动注入)
- *   - 顶层快捷:whoami / search / raw
+ *     invoices/orders/follows/approvals/stats/util + auth(自动注入)
+ *   - 顶层快捷:whoami
+ *   - installer 插件提供顶层 install 命令;update awareness 经 createUpdateNotifier
  *
  * 设计参考 apps/crm(多 namespace)+ apps/a-stock(顶层快捷命令)。
  */
 
-import { defineCli } from "@renxqoo/agent-data-cli";
+import {
+  createUpdateNotifier,
+  defineCliApp,
+  defineInstaller,
+  detectBizPackage,
+} from "@renxqoo/agent-data-cli";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { API_BASE_URL, SKILLS_DIR } from "./config.js";
+import { API_BASE_URL, RXCLI_DIR, SKILLS_DIR } from "./config.js";
 import { createCordysAuth, type RxCordysState } from "./auth.js";
 import { recordsCommands } from "./commands/records.js";
 import { leadsCommands } from "./commands/leads.js";
@@ -30,16 +36,27 @@ import { approvalsCommands } from "./commands/approvals.js";
 import { statsCommands } from "./commands/stats.js";
 import { utilCommands, whoamiCommand } from "./commands/util.js";
 
-// auth plugin:静态双 header 鉴权(非 OAuth,手写 plugin)。
-// provides.namespaces.auth 自动注入 login/status/logout(框架豁免自身 beforeCommand)。
-const auth = createCordysAuth();
+// update awareness:仅当入口可探测到业务包名/合法版本时启用(库引用场景跳过)
+const biz = detectBizPackage();
+const updateNotifier =
+  biz && /^\d+\.\d+\.\d+/.test(biz.version)
+    ? [createUpdateNotifier<RxCordysState>({ packageName: biz.name, currentVersion: biz.version })]
+    : [];
 
-const app = defineCli<RxCordysState>({
+// defineCliApp:唯一目录决策(dir);auth/installer/notifier 经 apply(services) 拿本地状态。
+// auth plugin:静态双 header 鉴权(非 OAuth,手写 plugin),
+// apply 里从 services.localState.store 装配,provides.namespaces.auth 自动注入 login/status/logout。
+const app = await defineCliApp<RxCordysState>({
   name: "rxcordys",
+  dir: RXCLI_DIR,
   createState: () => ({ credentials: null, credentialSource: null }),
   binName: "rxcordys",
   description: "Cordys CRM L2C 全链路 agent CLI(线索/客户/商机/合同/回款/发票/订单/审批/统计)",
-  plugins: [auth],
+  plugins: [
+    createCordysAuth(),
+    defineInstaller<RxCordysState>({ skillsSource: process.env.RXCORDYS_SKILLS_SOURCE }),
+    ...updateNotifier,
+  ],
   // 顶层快捷命令(高频操作直达,免去 namespace 前缀)
   commands: {
     whoami: whoamiCommand, // rxcordys whoami(等价 rxcordys util whoami)
@@ -83,18 +100,9 @@ function isMainEntry(): boolean {
   }
 }
 
-const argv = process.argv.slice(2);
-
-// install 向导拦截(优先级最高):argv[0]==='install' 转给 cli-sdk 的向导,不走命令路由。
-// skillsSource 空=本地 skills/;设了(如 RXCORDYS_SKILLS_SOURCE=https://skills.sh/p/xxx)=npx skills add。
-if (isMainEntry() && argv[0] === "install") {
-  void (async () => {
-    const { runInstallWizard } = await import("@renxqoo/agent-data-cli");
-    const code = await runInstallWizard({ skillsSource: process.env.RXCORDYS_SKILLS_SOURCE });
-    process.exit(code);
-  })();
-} else if (isMainEntry()) {
-  app.run(argv).catch(() => {
+// bin 入口:install 是 installer 插件提供的普通命令,无需拦截。
+if (isMainEntry()) {
+  app.run(process.argv.slice(2)).catch(() => {
     /* exit code 已由 pipeline 设 */
   });
 }

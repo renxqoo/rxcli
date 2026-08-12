@@ -41,8 +41,7 @@
     "count": 30,
     "pagination": { "complete": false, "pages": 1, "items": 30, "next_token": "abc" }
   },
-  "dry_run": false,
-  "_notice": { "update": { "current": "1.2.0", "latest": "1.3.0" } }
+  "dry_run": false
 }
 ```
 
@@ -56,7 +55,6 @@
 | `data`     | ✅ 必有  | informational   | 业务数据。命令无数据输出时为 `null`                                    |
 | `meta`     | ❌ 可选  | mixed           | 元信息,见下文                                                          |
 | `dry_run`  | ❌ 可选  | wire-stable     | `true` 表示 dry-run 模式(只构造请求未发送)。出现时为 true,正常请求省略 |
-| `_notice`  | ❌ 可选  | informational   | 系统级提示(版本更新、skill 漂移)。下划线前缀表示非业务字段             |
 
 ### meta 字段
 
@@ -174,8 +172,45 @@ observeError/handleError 链(pre→normal→post 插件,每个都跑;不处理�
 | 日志(info/warn/error)      | **stderr** | `ctx.log.*()`             |
 | 进度条 / spinner           | **stderr** | cli-sdk 进度层            |
 | 提示(空结果、引导)         | **stderr** | cli-sdk 提示层            |
+| 系统通知(例如版本更新)     | **stderr** | `createUpdateNotifier`    |
 
 **业务命令永远不能直接往 stdout 写非统一输出格式内容。** 一切非数据输出走 `ctx.log`(stderr)。否则 `rxcli-orders list | jq` 混进一行"加载中..."整个管道就废了。
+
+### 版本更新通知
+
+版本提醒是运行环境信息，不是业务数据。业务包可显式注册 `createUpdateNotifier`：
+
+```ts
+import { createUpdateNotifier, defineCliApp } from "@renxqoo/agent-data-cli";
+
+const app = await defineCliApp({
+  dir: appStateDir,
+  plugins: [
+    createUpdateNotifier({
+      packageName: "@scope/my-cli",
+      currentVersion: "1.2.0",
+      updateCommand: "npm install -g @scope/my-cli",
+    }),
+  ],
+  // ...
+});
+```
+
+检查采用缓存优先的双阶段模型：每次 app 运行(仅成功运行)读本地缓存；缓存过期时，由分离的后台 helper 查询 npm `latest`，供后续运行使用。默认 24 小时检查一次、同一更新最多 24 小时提醒一次；网络或缓存失败静默，不改变业务结果、exit code 或错误输出。可用 `NO_UPDATE_NOTIFIER=1` 关闭。
+
+仅当业务命令成功后，提醒才写入 stderr：
+
+```xml
+<system-message type="update-available">
+  <package>my-cli</package>
+  <current-version>1.2.0</current-version>
+  <latest-version>1.3.0</latest-version>
+  <action>npm install -g my-cli</action>
+  <scope>Operational notice only; it is not business output.</scope>
+</system-message>
+```
+
+失败命令不会追加系统通知，因此 stderr 仍可作为单个错误 JSON 解析。更新命令只是建议：Agent 应先完成当前业务任务，再向用户报告；除非用户已明确授权，否则不得自动安装或升级。旧版 `_notice` 序列化入口仅为底层兼容能力，运行时版本通知不得写入 stdout。
 
 > **明示例外:`skills read`。** 它直接吐 SKILL.md 原文到 stdout(非统一输出格式),供 agent 直读/管道拼接。这是输出契约**唯一**的成功侧例外(错误侧对应 `BareError`)。普通业务命令不得效仿,仍必须 return 统一输出格式。详见 `01-cli-usage.md` / `06-skills.md`。
 

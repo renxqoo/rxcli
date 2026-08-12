@@ -13,13 +13,20 @@
  * 设计依据:DESIGN.md 第 2 章架构 + 第 4.5 节调度入口。
  */
 
-import { defineCli, serializeError, exitCodeOf } from "@renxqoo/agent-data-cli";
+import {
+  createUpdateNotifier,
+  defineCliApp,
+  detectBizPackage,
+  serializeError,
+  exitCodeOf,
+} from "@renxqoo/agent-data-cli";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { initCommand } from "./commands/init.js";
 import { listCommand, updateCommand, removeCommand } from "./commands/manage.js";
 import { runService } from "./commands/run.js";
 import { rxxError } from "./errors.js";
+import { getRxDir } from "./config.js";
 
 // rxx 自身的静态命令(都 internal,不走 auth)
 const rxxCommands = {
@@ -29,12 +36,22 @@ const rxxCommands = {
   remove: removeCommand,
 };
 
-const rxxApp = defineCli({
+// update awareness:仅当入口可探测到业务包名/合法版本时启用(库引用场景跳过)。
+// dir 在装配期解析:notifier 缓存落 <RXX_HOME>/cache/updates/。
+const biz = detectBizPackage();
+const updateNotifier =
+  biz && /^\d+\.\d+\.\d+/.test(biz.version)
+    ? [createUpdateNotifier({ packageName: biz.name, currentVersion: biz.version })]
+    : [];
+
+const rxxApp = await defineCliApp({
   name: "rxx",
+  dir: getRxDir(),
   createState: () => ({}),
   description:
     "Dynamic agent-native CLI runtime: manifest → executable Agent Skill + multi-agent distribution",
   commands: rxxCommands,
+  plugins: [...updateNotifier],
   // 不设 baseUrl / errorOnStatus:rxx 自身命令不发业务请求
 });
 

@@ -2,9 +2,9 @@
 /**
  * rxstock —— A 股股票数据命令行工具
  *
- * 业务包入口 —— 用 cli-sdk 的 defineCli 装配:
+ * 业务包入口 —— 用 cli-sdk 的 defineCliApp 装配:
  *   - 多业务域用 namespaces 聚合(quote/kline/stock/index/sector/financial)
- *   - 不需要鉴权(数据源公开)
+ *   - 不需要鉴权(数据源公开):installer 以 auth:false 装配
  *   - skill 直接放在 skills/(随包发布)
  *
  * 数据源:
@@ -18,8 +18,14 @@
  *   - HTTP 重试 2 次(指数退避)+ 真实超时(AbortSignal.timeout)
  */
 
-import { defineCli } from "@renxqoo/agent-data-cli";
+import {
+  createUpdateNotifier,
+  defineCliApp,
+  defineInstaller,
+  detectBizPackage,
+} from "@renxqoo/agent-data-cli";
 import { join, dirname } from "node:path";
+import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { realpathSync } from "node:fs";
 import { quoteCommands } from "./commands/quote.js";
@@ -33,13 +39,27 @@ import { financialCommands } from "./commands/financial.js";
 type RxStockState = Record<string, never>;
 
 const SKILLS_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "skills");
+// 本地状态根(update-notifier 缓存),开放数据 CLI 无凭证/config
+const STATE_DIR = join(homedir(), ".rxstock");
 
-const app = defineCli<RxStockState>({
+// update awareness:仅当入口可探测到业务包名/合法版本时启用(库引用场景跳过)
+const biz = detectBizPackage();
+const updateNotifier =
+  biz && /^\d+\.\d+\.\d+/.test(biz.version)
+    ? [createUpdateNotifier<RxStockState>({ packageName: biz.name, currentVersion: biz.version })]
+    : [];
+
+const app = await defineCliApp<RxStockState>({
   name: "rxstock",
+  dir: STATE_DIR,
   binName: "rxstock",
   description:
     "A 股股票数据命令行工具(行情/K线/财务/板块/资金流/公告,数据源:腾讯+东方财富,完全免费)",
-  plugins: [],
+  plugins: [
+    // 无鉴权场景:install 只做装包 + skills 同步,跳过 register/login
+    defineInstaller<RxStockState>({ skillsSource: process.env.RXSTOCK_SKILLS_SOURCE, auth: false }),
+    ...updateNotifier,
+  ],
   // 顶层命令
   commands: {
     quote: { ...quoteCommands.get!, name: "quote" }, // rxstock quote <code>(快速访问,等同 quote get)
@@ -70,20 +90,11 @@ function isMainEntry(): boolean {
   }
 }
 
+// bin 入口:install 是 installer 插件提供的普通命令,无需拦截。
 if (isMainEntry()) {
-  const argv = process.argv.slice(2);
-  // install 向导
-  if (argv[0] === "install") {
-    void (async () => {
-      const { runInstallWizard } = await import("@renxqoo/agent-data-cli");
-      const code = await runInstallWizard({ skillsSource: process.env.RXSTOCK_SKILLS_SOURCE });
-      process.exit(code);
-    })();
-  } else {
-    app.run(argv).catch(() => {
-      /* exit code 已设 */
-    });
-  }
+  app.run(process.argv.slice(2)).catch(() => {
+    /* exit code 已设 */
+  });
 }
 
 export default app;

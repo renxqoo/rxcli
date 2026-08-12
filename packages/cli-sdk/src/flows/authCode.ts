@@ -75,5 +75,5 @@ export const authCodeFlow: AuthFlow = {
       redirectUri: handle.redirectUri,
     });
   },
-  // 不实现 refresh → 框架用默认 refreshAccessToken
+  // 不实现 refresh → 框架用默认 OAuthClient.refresh
 };

@@ -9,13 +9,7 @@ import * as z from "zod";
 import { errs } from "../../errs/index.js";
 import type { CommandResult, CommandSpec } from "../../types.js";
 import type { ConfigStore, StoredOAuthCredentials } from "../../credentials/types.js";
-import {
-  fetchScopesFromMetadata,
-  getUserInfo,
-  type OAuthClientConfig,
-  type PollResult,
-  type TokenInfo,
-} from "../../oauth.js";
+import { getUserInfo, type OAuthClientConfig, type TokenInfo } from "../../oauth.js";
 import type { AuthFlow, FlowType, FlowDeps } from "../../flows/types.js";
 import { SplitFlowSignal } from "../../flows/device.js";
 
@@ -27,8 +21,6 @@ export interface LoginCommandDeps {
   scope?: string;
   flow: AuthFlow;
   redirectPort?: number;
-  poller?: (oauth: OAuthClientConfig, deviceCode: string) => Promise<PollResult>;
-  scopeFromMetadata?: boolean;
 }
 
 /** 统一落盘(被 login 命令调)。 */
@@ -100,24 +92,14 @@ export function createLoginCommand(deps: LoginCommandDeps): CommandSpec<any> {
         });
       }
 
-      // 动态 scope:从 metadata 读 scopes_supported(运行时,不写死)
-      let effectiveScope = scope;
-      if (deps.scopeFromMetadata) {
-        const remoteScopes = await fetchScopesFromMetadata(oauth);
-        if (remoteScopes.length > 0) {
-          effectiveScope = remoteScopes.join(" ");
-        }
-      }
-
       // 构造 deps:C2 按 flow.type 构造判别联合的对应变体。
       const flowDeps: FlowDeps =
         flow.type === "device"
           ? {
               type: "device",
               cfg: oauth,
-              scope: effectiveScope,
+              scope,
               log: ctx.log,
-              poller: deps.poller,
               noWait: args.wait === false,
               resumeDeviceCode: args.deviceCode,
             }
@@ -125,11 +107,11 @@ export function createLoginCommand(deps: LoginCommandDeps): CommandSpec<any> {
             ? {
                 type: "authorization_code",
                 cfg: oauth,
-                scope: effectiveScope,
+                scope,
                 log: ctx.log,
                 callbackPort: deps.redirectPort,
               }
-            : { type: "client_credentials", cfg: oauth, scope: effectiveScope, log: ctx.log };
+            : { type: "client_credentials", cfg: oauth, scope, log: ctx.log };
 
       try {
         // 委托 flow.login() → 统一落盘

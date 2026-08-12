@@ -21,53 +21,69 @@ Prefer `defineAuth` for standard OAuth, Bearer, API key, and Basic authenticatio
 - One singleflight refresh and retry after a 401.
 - Route-specific exemption so auth commands do not require an existing login.
 
-The factory is asynchronous. Always await it:
+The factory is synchronous. Async assembly (reading config, fetching metadata) happens in the plugin's `apply(services)`, which `defineCliApp` runs automatically before routing compiles:
 
 ```ts
-import { defineAuth, defineCli, fileStore } from "@renxqoo/agent-data-cli";
+import { defineCliApp, defineAuth } from "@renxqoo/agent-data-cli";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const auth = await defineAuth({
-  credentialNamespace: "weather",
-  baseUrl: process.env.AUTH_BASE_URL!,
-  store: fileStore({ dir: join(homedir(), ".weather") }), // the app owns the dir; the SDK has no default
-  scope: "weather:read offline_access", // Use only after the service contract confirms it.
-  clientMetadata: { client_name: "weather-cli" },
-  bearerToken: process.env.WEATHER_BEARER_TOKEN,
-});
-
-const app = defineCli({
+const app = await defineCliApp({
   name: "weather",
+  dir: join(homedir(), ".weather"), // the app's one directory decision
   commands: weatherCommands,
-  plugins: [auth],
+  plugins: [
+    defineAuth({
+      credentialNamespace: "weather",
+      baseUrl: process.env.AUTH_BASE_URL!,
+      scope: "weather:read offline_access", // Use only after the service contract confirms it.
+      clientMetadata: { client_name: "weather-cli" },
+      bearerToken: process.env.WEATHER_BEARER_TOKEN,
+    }),
+  ],
 });
 ```
 
-Passing `defineAuth(...)` directly in `plugins` passes a Promise, so hooks do not run even though the failure may be silent.
+`defineAuth` is a sync factory returning a Plugin; it never returns a Promise and must not be awaited. The plugin resolves its store from `services.localState.store` inside `apply`. Low-level `defineCli` users must call `await auth.apply?.({ localState, appName })` themselves.
 
 Important options:
 
 | Option                      | Meaning                                                              |
 | --------------------------- | -------------------------------------------------------------------- |
-| `credentialNamespace`       | Required credential-file namespace                                   |
+| `credentialNamespace`       | Required namespace for both `config/<ns>.json` and `credentials/<ns>.json` |
 | `baseUrl`                   | Required auth service base URL                                       |
-| `scope`                     | Explicit, verified minimum OAuth scope                               |
-| `scopeFromMetadata`         | Uses every returned `scopes_supported`, overriding `scope`           |
-| `flow`                      | `device` by default, `authorization_code`, or `client_credentials`   |
-| `clientMetadata`            | RFC 7591 dynamic registration metadata                               |
+| `scope`                     | One verified minimum scope for both login and registration metadata  |
+| `flow`                      | `device` (default) / `authorization_code` / `client_credentials`     |
+| `clientMetadata`            | RFC 7591 registration metadata; missing fields are derived (see below) |
 | `bearerToken`               | Pre-issued token injection for controlled CI or sandbox use          |
 | `providers`                 | Custom credential provider chain                                     |
 | `clientId` / `clientSecret` | Explicit client credentials                                          |
-| `authStyle`                 | `bearer`, `x-api-key`, or `basic`                                    |
 | `redirectPort`              | Local callback port for authorization-code flow                      |
-| `store`                     | **Required.** Credential store; the app owns the dir (the SDK has no default). Use `fileStore` in prod, `memoryStore` in tests. |
 | `commandNamespace`          | Defaults to `auth`                                                   |
+
+**OAuth 2.1 flows** — pick the one the service needs:
+
+| `flow`                 | Grant                            | User | Notes                                             |
+| ---------------------- | -------------------------------- | ---- | ------------------------------------------------- |
+| `device` (default)     | RFC 8628 device authorization    | yes  | CLI default; supports `--no-wait` / `--device-code` split-flow |
+| `authorization_code`   | Authorization code + PKCE (S256) | yes  | The only flow that opens a browser; local loopback callback |
+| `client_credentials`   | Client credentials               | no   | Server-to-server; refresh re-issues the persisted granted scopes |
+
+**Registration metadata derivation** — `clientMetadata` fields default per-field and explicit values win (`hasOwnProperty`):
+
+- `client_name` ← `credentialNamespace`
+- `grant_types` ← the flow's grants (`device` → `urn:ietf:params:oauth:grant-type:device_code refresh_token`, `authorization_code` → `authorization_code refresh_token`, `client_credentials` → `client_credentials`)
+- `scope` ← `scope`
+- `token_endpoint_auth_method` ← `client_secret_basic`
+
+So the common case writes `scope` exactly once; pass explicit `clientMetadata.scope` only when registration declares a different set than authorization. Access tokens are always Bearer (RFC 6750); `x-api-key`/`basic` styles belong to custom plugins via `injectAuthHeader`.
+
+The factory takes no directory or store parameter — the local state arrives via `apply(services)` from `defineCliApp({ dir })`. Use `createMemoryLocalState` with `defineCliApp({ localState })` in tests.
 
 For client ID and secret, resolution order is:
 
 1. Explicit options, then `RXCLI_CLIENT_ID` / `RXCLI_CLIENT_SECRET`.
-2. Values written to `~/.rxcli/config.json` by registration.
+2. Values written to `<dir>/config/<ns>.json` by registration (namespace-isolated; other apps' registrations never overwrite them).
 3. Empty values, which make login fail with a registration hint.
 
 Typical first-use order is register, login, then business commands. Skip registration only when the auth service already provides a client ID and secret.
@@ -93,60 +109,53 @@ Business Skills for authenticated CLIs must describe this split flow. Human-faci
 
 ## 3. Install wizard
 
-Intercept `install` in the executable entry point and propagate the wizard's return code:
+The wizard is an internal plugin (`defineInstaller`) that provides the top-level `install` command — no entry-point intercept exists. Add it to `defineCliApp`'s plugins:
 
 ```ts
-const argv = process.argv.slice(2);
-
-if (isMainEntry() && argv[0] === "install") {
-  const { runInstallWizard } = await import("@renxqoo/agent-data-cli");
-  process.exitCode = await runInstallWizard({
-    skillsSource: process.env.MY_CLI_SKILLS_SOURCE,
-  });
-} else if (isMainEntry()) {
-  await app.run(argv);
-}
+const app = await defineCliApp({
+  name: "weather",
+  dir: join(homedir(), ".weather"),
+  plugins: [
+    defineAuth({ credentialNamespace: "weather", baseUrl: process.env.AUTH_BASE_URL! }),
+    defineInstaller({
+      skillsSource: process.env.MY_CLI_SKILLS_SOURCE,
+      // auth: false,   // for open-data CLIs without an auth flow
+    }),
+  ],
+  commands: weatherCommands,
+});
+// rxcli install [--lang zh|en] is now an ordinary routed command; the entry point stays app.run(argv).
 ```
 
 The interactive wizard may:
 
 1. Install the business package globally.
 2. Install Skills through `npx skills add` or local `<bin> skills sync`.
-3. Run registration when no client is configured.
+3. Run registration when no client is configured (skipped when `auth: false`).
 4. Offer interactive login.
 
-Disclose these writes before asking an agent to run the wizard. `skillsSource` must be passed to `runInstallWizard`; setting it only in `defineCli` has no installation effect.
+Disclose these writes before asking an agent to run the wizard. `skillsSource` must be passed to `defineInstaller`; setting it only in `defineCliApp`/`defineCli` has no installation effect.
 
 ## 4. Credential isolation and security
 
-The store directory is chosen by the app (the SDK has no default); within that store, credentials are isolated only by `credentialNamespace`:
+The local-state root is chosen once by the app via `defineCliApp({ dir })` (the SDK has no default); within that root, **both config and credentials** are isolated by `credentialNamespace`:
 
-```ts
-import { fileStore } from "@renxqoo/agent-data-cli";
-import { homedir } from "node:os";
-import { join } from "node:path";
-
-const auth = await defineAuth({
-  credentialNamespace: "orders-prod",
-  baseUrl: process.env.AUTH_BASE_URL!,
-  store: fileStore({ dir: join(homedir(), ".rxcli") }), // app-chosen dir
-});
+```
+<dir>/
+├── config/<ns>.json        ← registration clientId/clientSecret (namespace-isolated)
+├── credentials/<ns>.json   ← tokens
+└── cache/updates/          ← version-check cache
 ```
 
-Two CLIs with the same namespace silently share credentials. Check for collisions and separate development, test, and production namespaces when their credentials must differ.
+Two CLIs with the same namespace silently share credentials. Check for collisions and separate development, test, and production namespaces when their credentials must differ. Two CLIs sharing one root but using different namespaces no longer overwrite each other's registration config.
 
-For a fully independent product directory:
+For a fully independent product directory, give each CLI its own root:
 
 ```ts
-import { fileStore } from "@renxqoo/agent-data-cli";
-import { homedir } from "node:os";
-import { join } from "node:path";
-
-const store = fileStore({ dir: join(homedir(), ".my-cli") });
-const auth = await defineAuth({
-  credentialNamespace: "my-cli",
-  baseUrl: process.env.AUTH_BASE_URL!,
-  store,
+const app = await defineCliApp({
+  dir: join(homedir(), ".my-cli"),
+  plugins: [defineAuth({ credentialNamespace: "my-cli", baseUrl: process.env.AUTH_BASE_URL! })],
+  // ...
 });
 ```
 
@@ -156,17 +165,18 @@ Security rules:
 - Do not ask an agent or user to paste production credentials into chat.
 - `auth register` without `--token` uses ordinary terminal input and does **not** mask characters. Passing `--token` may expose it through history and process listings. In high-sensitivity environments, treat secure registration input as an unresolved framework limitation.
 - Use a private terminal for registration and disclose the visible-input limitation.
-- `scopeFromMetadata: true` adopts every scope returned by metadata. Use it in production only when that set has been reviewed; otherwise configure an explicit verified minimum scope.
+- Registration metadata is derived from `scope`/`flow`/`credentialNamespace`; pass explicit `clientMetadata` fields only when the server requires a different registration declaration than the authorization request.
 - Report provider source, expiry, and missing scopes during debugging, never credential values or auth responses.
 
-Use `memoryStore` in tests to avoid touching disk.
+Use `createMemoryLocalState` with `defineCliApp({ localState })` in tests to avoid touching disk. The high-level APIs (`defineAuth`, `defineInstaller`, `createUpdateNotifier`) take no directory parameters — there is no `store`, `configDir`, or `cacheDir` compatibility option.
 
 ## 5. When to use a custom plugin
 
 | Requirement                                                           | Choice                                                    |
 | --------------------------------------------------------------------- | --------------------------------------------------------- |
 | Standard OAuth device, authorization-code, or client-credentials flow | `defineAuth`                                              |
-| Single Bearer, API key, or Basic credential                           | `defineAuth` with matching `authStyle`                    |
+| Single Bearer credential (non-OAuth)                               | Custom plugin with `injectAuthHeader(req, token, "bearer")` |
+| API key or Basic credential                                        | Custom plugin with `injectAuthHeader` (x-api-key / basic)    |
 | HMAC signing                                                          | Custom auth/provider plus post-signing plugin             |
 | mTLS                                                                  | Custom plugin and transport-specific certificate handling |
 | Multiple signatures or composite headers                              | Custom plugins with explicit hook ordering                |

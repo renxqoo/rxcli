@@ -133,8 +133,8 @@ describe("memoryStore: 隔离文件 IO", () => {
 
   it("_snapshot 看内部状态", async () => {
     const store = memoryStore();
-    await store.saveConfig({ baseUrl: "http://x" });
-    expect(store._snapshot().config).toEqual({ baseUrl: "http://x" });
+    await store.saveConfig("orders", { baseUrl: "http://x" });
+    expect(store._snapshot().config).toEqual({ orders: { baseUrl: "http://x" } });
   });
 
   // memoryStore.saveConfig 必须与 fileStore.saveConfig 语义一致(全量替换,而非 merge):
@@ -142,16 +142,16 @@ describe("memoryStore: 隔离文件 IO", () => {
   // 测试切实现时会出现"删字段在 fileStore 生效、memoryStore 不生效"的诡异差异。
   it("saveConfig 全量替换:覆盖写空对象后旧字段消失(对齐 fileStore)", async () => {
     const store = memoryStore();
-    await store.saveConfig({ baseUrl: "http://x", clientId: "c1" });
-    await store.saveConfig({});
-    expect(await store.loadConfig()).toEqual({});
+    await store.saveConfig("orders", { baseUrl: "http://x", clientId: "c1" });
+    await store.saveConfig("orders", {});
+    expect(await store.loadConfig("orders")).toEqual({});
   });
 
   it("saveConfig 全量替换:旧字段不存在于新对象时被删除", async () => {
     const store = memoryStore();
-    await store.saveConfig({ clientId: "c1", clientSecret: "s1" });
-    await store.saveConfig({ clientId: "c2" });
-    expect(await store.loadConfig()).toEqual({ clientId: "c2" });
+    await store.saveConfig("orders", { clientId: "c1", clientSecret: "s1" });
+    await store.saveConfig("orders", { clientId: "c2" });
+    expect(await store.loadConfig("orders")).toEqual({ clientId: "c2" });
   });
 });
 

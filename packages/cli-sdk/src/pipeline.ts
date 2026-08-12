@@ -7,7 +7,6 @@ import {
   ConfirmationRequiredError,
   InternalError,
   PolicyError,
-  ValidationError,
   exitCodeOf,
   toCliError,
 } from "./errs/index.js";

@@ -122,5 +122,5 @@ export const deviceFlow: AuthFlow = {
     );
     return pollForToken(deps.cfg, info.device_code, info.expires_in, info.interval * 1000, poller);
   },
-  // 不实现 refresh → 框架用默认 refreshAccessToken
+  // 不实现 refresh → 框架用默认 OAuthClient.refresh
 };

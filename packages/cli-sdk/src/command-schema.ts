@@ -1,11 +1,8 @@
-import { createHash } from "node:crypto";
-import { constants } from "node:fs";
-import { open, lstat } from "node:fs/promises";
 import type { Readable } from "node:stream";
 import * as z from "zod";
 import type { CommandArgs, CommandPolicy } from "./command-contracts.js";
 import { ValidationError } from "./errs/index.js";
-import { parseStrictJson, type JsonInputLimits } from "./strict-json.js";
+import { resolveJson, validateZod, type JsonInputMeta } from "./json-input.js";
 
 export const RESERVED_ARGUMENT_NAMES = new Set([
   "json",
@@ -23,13 +20,6 @@ export const RESERVED_ARGUMENT_NAMES = new Set([
 ]);
 
 const ARGUMENT_IDENTIFIER = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
-const DEFAULT_JSON_LIMITS: JsonInputLimits = {
-  maxBytes: 1024 * 1024,
-  maxDepth: 64,
-  maxProperties: 10_000,
-  maxArrayItems: 10_000,
-  maxIssues: 100,
-};
 
 type CommandArgsMode = "argv" | "json";
 type ArgumentType = "string" | "number" | "boolean" | "array";
@@ -56,13 +46,6 @@ interface CommandSignature {
 interface ParsedCommandTokens {
   options: Record<string, unknown>;
   positionals: string[];
-}
-
-export interface JsonInputMeta {
-  source: "inline" | "file" | "stdin";
-  bytes: number;
-  rawDigest: string;
-  validatedDigest: string;
 }
 
 interface CommandExecutionState {
@@ -155,13 +138,11 @@ class DefaultCommandSchema implements CompiledCommandSchema {
     let output: Record<string, unknown>;
 
     if (!this.#schema) {
-      if (Object.keys(tokens.options).length > frameworkPolicyOptionCount(tokens.options)) {
-        throw unknownArgument(Object.keys(tokens.options)[0]!);
-      }
+      // 无 args 声明的命令:tokenizer 已拒绝一切未知旗标,这里只剩位置参数要拒。
       if (tokens.positionals.length > 0) throw unexpectedPositionals(tokens.positionals);
       output = {};
     } else if (this.mode === "json") {
-      const resolved = await resolveJson(tokens, stdin, this.#schema);
+      const resolved = await resolveJson(tokens.options, stdin, this.#schema);
       output = resolved.data;
       execution.json = resolved.meta;
     } else {
@@ -393,6 +374,7 @@ function tokenizeJson(
       if (value === undefined || (inline === undefined && value.startsWith("--")))
         throw missingValue(name);
       if (inline === undefined) index++;
+      rejectDuplicateFlag(options, name);
       options[name] = value;
       continue;
     }
@@ -405,75 +387,10 @@ function tokenizeJson(
     if (value === undefined || (inline === undefined && value.startsWith("--")))
       throw missingValue(name);
     if (inline === undefined) index++;
+    rejectDuplicateFlag(options, name);
     options[name] = value;
   }
   return { options, positionals: [] };
-}
-
-async function resolveJson(
-  tokens: ParsedCommandTokens,
-  stdin: Readable,
-  schema: z.ZodObject,
-): Promise<{ data: Record<string, unknown>; meta: JsonInputMeta }> {
-  if (tokens.options["input-schema"] || tokens.options["input-example"]) {
-    throw new ValidationError({
-      subtype: "invalid_argument",
-      param: tokens.options["input-schema"] ? "--input-schema" : "--input-example",
-      message: "Input discovery is handled before command execution",
-    });
-  }
-  const hasInline = typeof tokens.options.input === "string";
-  const hasFile = typeof tokens.options["input-file"] === "string";
-  if (hasInline && hasFile) {
-    throw new ValidationError({
-      subtype: "invalid_argument",
-      param: "--input",
-      message: "JSON input sources are mutually exclusive",
-      hint: "Use exactly one of --input, --input-file, or native stdin.",
-    });
-  }
-  const source: JsonInputMeta["source"] = hasInline ? "inline" : hasFile ? "file" : "stdin";
-  if (source === "stdin" && (stdin as Readable & { isTTY?: boolean }).isTTY) {
-    throw new ValidationError({
-      subtype: "missing_required",
-      param: "input",
-      message: "JSON input is required",
-      hint: "Use --input, --input-file, a pipe, or stdin redirection.",
-    });
-  }
-  const bytes =
-    source === "inline"
-      ? bounded(Buffer.from(tokens.options.input as string, "utf8"), "--input")
-      : source === "file"
-        ? await readInputFile(tokens.options["input-file"] as string)
-        : await readBoundedStream(stdin);
-  const decoded = decodeUtf8(bytes);
-  const input = parseStrictJson(decoded, DEFAULT_JSON_LIMITS);
-  const data = await validateZod(schema, input);
-  return {
-    data,
-    meta: {
-      source,
-      bytes: bytes.byteLength,
-      rawDigest: digest(bytes),
-      validatedDigest: digest(Buffer.from(canonicalize(data), "utf8")),
-    },
-  };
-}
-
-async function validateZod(schema: z.ZodObject, value: unknown): Promise<Record<string, unknown>> {
-  const result = await z.safeParseAsync(schema, value);
-  if (result.success) return result.data as Record<string, unknown>;
-  const issues = result.error.issues.slice(0, DEFAULT_JSON_LIMITS.maxIssues).map((issue) => ({
-    param: issue.path.length === 0 ? "args" : issue.path.map(String).join("."),
-    message: issue.message,
-  }));
-  throw new ValidationError({
-    subtype: "invalid_argument",
-    param: issues[0]?.param ?? "args",
-    params: issues,
-    message: issues[0]?.message ?? "Arguments do not match the Zod schema",
-  });
 }
 
 function resolveExecution(options: Record<string, unknown>): CommandExecutionState {
@@ -533,10 +450,6 @@ function policySignatures(policy: CommandPolicy<any, any> | undefined): string[]
   ];
 }
 
-function frameworkPolicyOptionCount(options: Record<string, unknown>): number {
-  return ["dry-run", "yes", "idempotency-key"].filter((name) => name in options).length;
-}
-
 function setOption(
   options: Record<string, unknown>,
   name: string,
@@ -544,13 +457,7 @@ function setOption(
   type: ArgumentType,
 ): void {
   if (type !== "array") {
-    if (Object.prototype.hasOwnProperty.call(options, name)) {
-      throw new ValidationError({
-        subtype: "invalid_argument",
-        param: `--${toKebabCase(name)}`,
-        message: `Argument --${toKebabCase(name)} cannot be repeated`,
-      });
-    }
+    rejectDuplicateFlag(options, name);
     options[name] = value;
     return;
   }
@@ -558,103 +465,15 @@ function setOption(
   options[name] = current === undefined ? [value] : [...(current as unknown[]), value];
 }
 
-async function readInputFile(path: string): Promise<Buffer> {
-  let handle;
-  try {
-    // O_NOFOLLOW 在 Windows 上 constants.O_NOFOLLOW 为 undefined(?? 0 后失效),且 libuv
-    // 对它的支持跨版本/平台不一致;改用 lstat(不跟随 symlink,全平台可移植)显式拒非常规文件。
-    handle = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
-    const stat = await lstat(path);
-    if (!stat.isFile()) throw new Error("path is not a regular file");
-    if (stat.size > DEFAULT_JSON_LIMITS.maxBytes) throw inputTooLarge("--input-file");
-    return bounded(await handle.readFile(), "--input-file");
-  } catch (cause) {
-    if (cause instanceof ValidationError) throw cause;
+/** 非 array 旗标重复出现必须报错(与 argv 模式一致),幂等键尤其不能静默覆盖。 */
+function rejectDuplicateFlag(options: Record<string, unknown>, name: string): void {
+  if (Object.prototype.hasOwnProperty.call(options, name)) {
     throw new ValidationError({
       subtype: "invalid_argument",
-      param: "--input-file",
-      message: "Unable to read JSON input file",
-      hint: "Use a readable regular file; symlinks and device files are not accepted.",
-      cause,
-    });
-  } finally {
-    await handle?.close();
-  }
-}
-
-async function readBoundedStream(stream: Readable): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  let total = 0;
-  for await (const chunk of stream) {
-    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    total += bytes.byteLength;
-    if (total > DEFAULT_JSON_LIMITS.maxBytes) throw inputTooLarge("stdin");
-    chunks.push(bytes);
-  }
-  return Buffer.concat(chunks, total);
-}
-
-function bounded(bytes: Buffer, param: string): Buffer {
-  if (bytes.byteLength > DEFAULT_JSON_LIMITS.maxBytes) throw inputTooLarge(param);
-  return bytes;
-}
-
-function inputTooLarge(param: string): ValidationError {
-  return new ValidationError({
-    subtype: "out_of_range",
-    param,
-    message: `JSON input exceeds ${DEFAULT_JSON_LIMITS.maxBytes} bytes`,
-  });
-}
-
-function decodeUtf8(bytes: Buffer): string {
-  try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-  } catch (cause) {
-    throw new ValidationError({
-      subtype: "invalid_argument",
-      param: "input",
-      message: "JSON input must be valid UTF-8",
-      cause,
+      param: `--${toKebabCase(name)}`,
+      message: `Argument --${toKebabCase(name)} cannot be repeated`,
     });
   }
-}
-
-function digest(value: Buffer): string {
-  return `sha256:${createHash("sha256").update(value).digest("hex")}`;
-}
-
-function canonicalize(value: unknown): string {
-  if (value === null || typeof value === "string" || typeof value === "boolean") {
-    return JSON.stringify(value);
-  }
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) throw nonJsonZodOutput();
-    return JSON.stringify(value);
-  }
-  if (typeof value !== "object") throw nonJsonZodOutput();
-  if (Array.isArray(value)) {
-    const keys = Object.keys(value);
-    if (keys.length !== value.length || keys.some((key) => !/^(?:0|[1-9]\d*)$/.test(key))) {
-      throw nonJsonZodOutput();
-    }
-    return `[${value.map(canonicalize).join(",")}]`;
-  }
-  const prototype = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) throw nonJsonZodOutput();
-  return `{${Object.keys(value as Record<string, unknown>)
-    .sort()
-    .map((key) => `${JSON.stringify(key)}:${canonicalize((value as Record<string, unknown>)[key])}`)
-    .join(",")}}`;
-}
-
-function nonJsonZodOutput(): ValidationError {
-  return new ValidationError({
-    subtype: "invalid_argument",
-    param: "args",
-    message: "JSON argument schema output must remain JSON-compatible",
-    hint: "Do not transform JSON arguments into Date, Map, BigInt, undefined, or class instances.",
-  });
 }
 
 function assertZodObject(commandName: string, schema: unknown): asserts schema is z.ZodObject {

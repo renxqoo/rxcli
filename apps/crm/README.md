@@ -202,15 +202,16 @@ Override explicitly: `--json` (force JSON) / `--no-json` (force text).
 | --------------------- | ----------------------- | -------------------------------------------------- |
 | `RXCLI_AUTH_BASE_URL` | `http://localhost:3000` | Auth middleware layer address                      |
 | `RXCLI_API_BASE_URL`  | `http://localhost:3000` | Business API gateway address                       |
-| `RXCLI_CLIENT_ID`     | (config.json)           | OAuth client id                                    |
-| `RXCLI_CLIENT_SECRET` | (config.json)           | OAuth client secret                                |
+| `RXCLI_CLIENT_ID`     | (config/crm.json)       | OAuth client id                                    |
+| `RXCLI_CLIENT_SECRET` | (config/crm.json)       | OAuth client secret                                |
 | `RXCLI_SKILLS_SOURCE` | (empty = local)         | skills source URL (empty uses bundled local skills)|
 
 ### Local files
 
 ```
 ~/.rxcli/
-├── config.json              clientId / clientSecret (written by register)
+├── config/
+│   └── crm.json             clientId / clientSecret (written by register)
 └── credentials/
     └── crm.json             OAuth token (written by login, 0600 permissions)
 ```
@@ -274,23 +275,21 @@ pnpm build
 ### Business package entry (reference implementation)
 
 ```ts
-import { defineCli, defineAuth } from "@renxqoo/agent-data-cli";
+import { defineAuth, defineCliApp } from "@renxqoo/agent-data-cli";
 
-const auth = await defineAuth({
-  credentialNamespace: "crm",
-  baseUrl: AUTH_BASE_URL,
-  scope: "company.api orders:read products:read invoices:read admin offline_access",
-  clientMetadata: {
-    client_name: "crm",
-    grant_types: ["urn:ietf:params:oauth:grant-type:device_code", "refresh_token"],
-    scope: "company.api orders:read products:read invoices:read admin offline_access",
-    token_endpoint_auth_method: "client_secret_basic",
-  },
-});
-
-export default defineCli({
+export default await defineCliApp({
   name: "crm",
-  plugins: [auth], // hooks + auth commands are fully automatic
+  dir: RXCLI_DIR, // one app-owned directory decision
+  plugins: [
+    defineAuth({
+      credentialNamespace: "crm", // → config/crm.json + credentials/crm.json
+      baseUrl: AUTH_BASE_URL,
+      // One scope: shared by the login request and the registration metadata.
+      // The rest of the metadata is derived (client_name ← crm, grant_types ← flow,
+      // token_endpoint_auth_method ← client_secret_basic); override via clientMetadata if needed.
+      scope: "company.api orders:read products:read invoices:read admin offline_access",
+    }),
+  ], // hooks + auth commands are fully automatic
   commands: {},
   namespaces: { orders, products, invoices, account }, // pure business
   baseUrl: API_BASE_URL,

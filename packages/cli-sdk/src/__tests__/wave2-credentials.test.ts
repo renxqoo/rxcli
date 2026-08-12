@@ -68,19 +68,21 @@ describe("B3: fileStore loadCredentials rejects a malformed credential file", ()
 // ---------------------------------------------------------------------------
 
 describe("B4: fileStore sweeps stale .tmp files on construction", () => {
-  it("removes leftover .tmp files in credentials and root", () => {
+  it("removes leftover .tmp files in credentials and config", () => {
     const dir = tempDir();
     // pre-create the dir layout + stale temps before constructing the store
     const credsDir = join(dir, "credentials");
+    const configDir = join(dir, "config");
     mkdirSync(credsDir, { recursive: true });
+    mkdirSync(configDir, { recursive: true });
     writeFileSync(join(credsDir, "orders.json.123.abc.tmp"), "secret-leak");
-    writeFileSync(join(dir, "config.json.456.def.tmp"), "leak");
+    writeFileSync(join(configDir, "crm.json.456.def.tmp"), "leak");
     // sanity
     expect(existsSync(join(credsDir, "orders.json.123.abc.tmp"))).toBe(true);
 
     fileStore({ dir }); // construction sweeps
 
-    const remaining = readdirSync(credsDir).concat(readdirSync(dir));
+    const remaining = readdirSync(credsDir).concat(readdirSync(configDir));
     expect(remaining.some((f) => f.endsWith(".tmp"))).toBe(false);
   });
 });
@@ -151,7 +153,7 @@ describe("C11: read paths have no filesystem side effects", () => {
     rmSync(dir, { recursive: true, force: true });
     dirs.push(dir);
     const store = fileStore({ dir });
-    await expect(store.loadConfig()).resolves.toEqual({});
+    await expect(store.loadConfig("orders")).resolves.toEqual({});
     expect(existsSync(dir)).toBe(false);
   });
 

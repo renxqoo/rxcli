@@ -21,13 +21,13 @@
 
 | 基础块                                                                                                                                                        | 作用                                                                 |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `fileStore({ dir })` / `memoryStore()`                                                                                                                        | 凭证存储(`ConfigStore` 实现,落盘 `~/.rxcli/credentials/<ns>.json`)   |
+| `createLocalState({ dir })` / `createMemoryLocalState()`                                                                                                      | app 统一的本地状态(含 `ConfigStore`)                                 |
 | `defaultProviders()` / `flagProvider` / `envProvider` / `envBearerProvider` / `fileProvider` / `oauthProvider`                                                | provider chain 的默认 provider(默认 5 个)                            |
 | `resolveWithChain(providers, pctx)`                                                                                                                           | 跑 chain 取 `TokenResult`(命中即停)                                  |
 | `resolveIdentityWithChain(providers, pctx)`                                                                                                                   | 跑 chain 取 `IdentityHint`(统一输出格式顶层 user/bot)                |
 | `injectAuthHeader(req, token, style)`                                                                                                                         | 按 authStyle(`bearer`/`x-api-key`/`basic`)注入 header                |
 | `createOn401Hook({cfg, store, namespace})`                                                                                                                    | 401 singleflight refresh 原语(由公开 `handleUnauthorized` hook 调用) |
-| `deviceAuthorization` / `pollDeviceToken` / `refreshAccessToken` / `getUserInfo` / `revokeToken` / `registerClient`                                           | OAuth device flow 端点                                               |
+| `deviceAuthorization` / `pollDeviceToken` / `getUserInfo` / `revokeToken` / `registerClient`                                                                    | OAuth 2.1 端点原语(device 设备授权 + 用户信息/吊销/注册)             |
 | 类型:`Plugin` / `CredentialsApi` / `CommandContext` / `ProviderContext` / `TokenResult` / `IdentityHint` / `ConfigStore` / `CredentialProvider` / `AuthStyle` | —                                                                    |
 
 **优先使用 `defineAuth`。** 下列基础块用于 HMAC、mTLS、复合认证或自定义 provider，不应在普通 OAuth 场景重复造轮子。
@@ -43,7 +43,7 @@ import {
   type Plugin,
   type CommandContext,
   type ProviderContext,
-  fileStore,
+  type ConfigStore,
   defaultProviders,
   resolveWithChain,
   injectAuthHeader,
@@ -56,18 +56,33 @@ export function createCrmAuth<State extends { user?: unknown }>(opts: {
   authStyle?: "bearer" | "x-api-key" | "basic";
   oauth?: { baseUrl: string; clientId: string; clientSecret: string };
 }): Plugin<State> {
-  const store = fileStore({ dir }); // dir 必填,业务包声明(如 ~/.rxcli)
-  const providers = defaultProviders();
   const authStyle = opts.authStyle ?? "bearer";
   const sessions = new WeakMap<CommandContext<State>, { token: string; refreshable: boolean }>();
-  const on401 = opts.oauth
-    ? createOn401Hook({ cfg: opts.oauth, store, namespace: opts.namespace })
-    : undefined;
+
+  // 装配期状态:apply 里从 services.localState.store 解析后填入(工厂不收目录/store 参数)。
+  let ready!: {
+    store: ConfigStore;
+    providers: ReturnType<typeof defaultProviders>;
+    on401?: () => Promise<Record<string, unknown> | null>;
+  };
 
   return {
     name: `auth:${opts.namespace}`,
     enforce: "pre",
+
+    async apply(services) {
+      const store = services.localState.store;
+      ready = {
+        store,
+        providers: defaultProviders(),
+        on401: opts.oauth
+          ? createOn401Hook({ cfg: opts.oauth, store, namespace: opts.namespace })
+          : undefined,
+      };
+    },
+
     async beforeCommand(ctx: CommandContext<State>) {
+      const { store, providers } = ready;
       const pctx: ProviderContext = {
         namespace: opts.namespace,
         configStore: store,
@@ -98,8 +113,8 @@ export function createCrmAuth<State extends { user?: unknown }>(opts: {
 
     async handleUnauthorized(ctx) {
       const session = sessions.get(ctx);
-      if (!on401 || !session?.refreshable) return { action: "decline" };
-      const token = await on401();
+      if (!ready.on401 || !session?.refreshable) return { action: "decline" };
+      const token = await ready.on401();
       if (!token)
         return {
           action: "reject",
@@ -256,23 +271,26 @@ defineCli({ plugins: [auth, signPlugin], ... })
 
 ## 凭证存储
 
-cli-sdk 的 ConfigStore 统一管凭证文件(`fileStore({ dir })` 返回的实现):
+app 通过 `defineCliApp({ dir })` 只决定一次根目录。装配器创建唯一的 localState 并注入每个插件;其内的 ConfigStore 统一管理配置与凭证,更新通知使用同一根目录下的可删除缓存:
 
 ```
-~/.rxcli/
-├── config.json                          全局配置(baseUrl 等)
-└── credentials/
-    ├── orders.json                      ← orders 业务包的凭证(namespace 决定)
-    ├── invoices.json
-    └── hr-system.json
+<dir>/
+├── config/
+│   ├── orders.json                     ← orders 的应用配置(注册 clientId 等)
+│   └── invoices.json                   ← 按 namespace 隔离,互不覆盖
+├── credentials/
+│   ├── orders.json                     ← orders 的凭证(namespace 决定)
+│   └── invoices.json
+└── cache/
+    └── updates/                        版本检查缓存
 ```
 
-每个文件按**业务包命名空间隔离**(auth Plugin 的 `namespace` 参数),权限 `0600`。
+**配置与凭证都按业务包命名空间隔离**(auth Plugin 的 `credentialNamespace`),权限 `0600`。多个 CLI app 共用一个根目录时,注册配置互不覆盖。
 
 > **安全契约**:
-> - 凭证以**明文 at-rest** 存储,仅依赖文件系统权限保护(不做混淆/加密)。如需 at-rest 加密,请在 OS keychain 等外部保管。
+> - 凭证与配置以**明文 at-rest** 存储,仅依赖文件系统权限保护(不做混淆/加密)。如需 at-rest 加密,请在 OS keychain 等外部保管。
 > - `0600`(文件)/ `0700`(目录)仅在 **POSIX** 生效;Windows 不支持 chmod,文件 ACL 继承父目录。
-> - 存储目录由业务 app 通过 `fileStore({ dir })` 显式传入(`defineAuth` 的 `store` 为**必填项**);cli-sdk 作为底层 SDK **不内置任何目录默认值**,不替 app 决定落盘位置。POSIX 下建议尊重 `XDG_CONFIG_HOME`(如 `~/.config/<app>`),Windows 下建议用 `%APPDATA%\<app>`。
+> - 存储目录由业务 app 通过 `defineCliApp({ dir })` 显式决定一次;`defineAuth`、`createUpdateNotifier`、`defineInstaller` 经 `apply(services)` 收到同一个 localState。cli-sdk **不内置默认目录**,高层 API 一律不接收目录参数。
 > - 凭证/配置文件读取走与命令输入相同的**严格有界解析器**(拒绝重复键、unsafe 键,限制深度/大小)。
 > - OAuth refresh 的「读 → 换 token → 写」事务由**跨进程文件锁**保护(`ConfigStore.withLock`),避免并发 CLI 互相覆盖丢失更新。
 
@@ -323,8 +341,9 @@ export interface ConfigStore {
   loadCredentials(namespace: string): Promise<Record<string, unknown> | null>; // null = 文件不存在
   saveCredentials(namespace: string, data: Record<string, unknown>): Promise<void>; // 权限 0600
   clearCredentials(namespace: string): Promise<void>;
-  loadConfig(): Promise<Record<string, unknown>>; // ~/.rxcli/config.json 全局配置
-  saveConfig(data: Record<string, unknown>): Promise<void>;
+  loadConfig(namespace: string): Promise<Record<string, unknown>>; // <dir>/config/<ns>.json,不存在 = {}
+  saveConfig(namespace: string, data: Record<string, unknown>): Promise<void>; // 整体替换,权限 0600
+  withLock<T>(namespace: string, fn: () => Promise<T>): Promise<T>; // 凭证读-改-写事务锁
 }
 ```
 

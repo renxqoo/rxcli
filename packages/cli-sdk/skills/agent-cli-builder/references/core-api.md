@@ -60,13 +60,13 @@ export const todoCommands = defineCommands({
 
 `args` rules:
 
-| Setting                       | Behavior                                                        |
-| ----------------------------- | --------------------------------------------------------------- |
-| omitted `args`                | No business parameters; `run` receives `{}`                     |
-| omitted `type` / `"argv"`    | Native argv mode                                                |
-| `schema`                      | Direct Zod object; the only validator and type source           |
-| `pos: ["id"]`                | Consume schema field `id` as a positional operand               |
-| `type: "json"`               | One complete JSON document; no business flags or `pos`          |
+| Setting                   | Behavior                                               |
+| ------------------------- | ------------------------------------------------------ |
+| omitted `args`            | No business parameters; `run` receives `{}`            |
+| omitted `type` / `"argv"` | Native argv mode                                       |
+| `schema`                  | Direct Zod object; the only validator and type source  |
+| `pos: ["id"]`             | Consume schema field `id` as a positional operand      |
+| `type: "json"`            | One complete JSON document; no business flags or `pos` |
 
 A required positional cannot follow an optional positional. Use `z.coerce.number()` for numeric argv fields because the shell supplies strings. Zod defines requiredness, defaults, enums, refinements, transforms, descriptions, and the `args` inference in `run(ctx, args)`.
 
@@ -143,18 +143,7 @@ Key `defineCli` options:
 | `skillsTargets` | Overrides default synchronization targets       |
 | `skillsScopes`  | Filters generated command indexes per Skill     |
 
-When exposing the install wizard, propagate its return code:
-
-```ts
-if (isMainEntry() && process.argv[2] === "install") {
-  const { runInstallWizard } = await import("@renxqoo/agent-data-cli");
-  process.exitCode = await runInstallWizard({
-    skillsSource: process.env.MY_CLI_SKILLS_SOURCE,
-  });
-} else if (isMainEntry()) {
-  await app.run(process.argv.slice(2));
-}
-```
+The install wizard is a plugin-provided command, not an entry-point intercept. Add `defineInstaller({ skillsSource })` to the app's plugins and `rxcli install [--lang zh|en]` routes through the normal pipeline; the entry point stays a plain `app.run(argv)`.
 
 ## 4. Runtime context
 
@@ -186,7 +175,22 @@ return {
 - `{}`, `{ data: undefined }`, and scalar data cause `internal/contract_violation`.
 - Pagination metadata is never automatic. Map it explicitly to `complete` and `nextToken`; omit `nextToken` when complete.
 - Successful JSON goes to stdout. Errors and logs go to stderr.
+- Optional update awareness uses `createUpdateNotifier` and stderr-only `<system-message>` output. It runs once per app run (`afterAppRun`, successful runs only), reads a local cache, and refreshes npm metadata in a detached helper for a later run; it never adds update fields to stdout.
 - `auto` renders text on a TTY and JSON in pipes or CI; agents should still pass `--json` explicitly.
 - Business commands must not write to stdout. Raw `skills read` output is an internal exception.
+
+```ts
+const updateNotifier = createUpdateNotifier({
+  packageName: "@scope/my-cli",
+  currentVersion: "1.2.0",
+  updateCommand: "npm install -g @scope/my-cli",
+});
+
+const app = await defineCliApp({ /* dir, plugins: [updateNotifier], ... */ });
+```
+
+`defineCliApp({ dir })` is the app's one directory decision. The assembler creates a single local state and injects it into every plugin through `apply(services)`. Layout: `<dir>/config/<ns>.json` (per-namespace app config), `<dir>/credentials/<ns>.json`, and `<dir>/cache/updates/`; the high-level APIs have no independent directory parameters.
+
+This capability is opt-in because it adds cache writes and a throttled registry request. `NO_UPDATE_NOTIFIER=1` disables it. A Skill may recognize the system message and report it after the business task, but it must not parse it as business data or execute the suggested installation without user authorization.
 
 Throw `errs.*` for business failures. A bare `Error` becomes `internal/unknown` and is appropriate only for a genuinely unexpected internal failure. Put shared HTTP semantics in `errorOnStatus`; throw command-specific errors in `run`, never both for the same status.

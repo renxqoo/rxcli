@@ -202,15 +202,16 @@ agent: (读 rx-orders skill) → rxcli orders list → 解析统一输出格式 
 | --------------------- | ----------------------- | ---------------------------------- |
 | `RXCLI_AUTH_BASE_URL` | `http://localhost:3000` | 鉴权中间层地址                     |
 | `RXCLI_API_BASE_URL`  | `http://localhost:3000` | 业务 API 网关地址                  |
-| `RXCLI_CLIENT_ID`     | (config.json)           | OAuth client id                    |
-| `RXCLI_CLIENT_SECRET` | (config.json)           | OAuth client secret                |
+| `RXCLI_CLIENT_ID`     | (config/crm.json)       | OAuth client id                    |
+| `RXCLI_CLIENT_SECRET` | (config/crm.json)       | OAuth client secret                |
 | `RXCLI_SKILLS_SOURCE` | (空=本地)               | skills 源 URL(空用包内本地 skills) |
 
 ### 本地文件
 
 ```
 ~/.rxcli/
-├── config.json              clientId / clientSecret(register 写入)
+├── config/
+│   └── crm.json             clientId / clientSecret(register 写入)
 └── credentials/
     └── crm.json             OAuth token(login 写入,0600 权限)
 ```
@@ -274,17 +275,18 @@ pnpm build
 ### 业务包入口(参考实现)
 
 ```ts
-import { defineCli, defineAuth } from "@renxqoo/agent-data-cli";
+import { defineAuth, defineCliApp } from "@renxqoo/agent-data-cli";
 
-const auth = await defineAuth({
-  credentialNamespace: "crm",
-  baseUrl: AUTH_BASE_URL,
-  scope: "company.api orders:read products:read invoices:read admin offline_access",
-});
-
-export default defineCli({
+export default await defineCliApp({
   name: "crm",
-  plugins: [auth], // 钩子 + auth 命令全自动
+  dir: RXCLI_DIR, // app 唯一一次目录决策
+  plugins: [
+    defineAuth({
+      credentialNamespace: "crm", // → config/crm.json + credentials/crm.json
+      baseUrl: AUTH_BASE_URL,
+      scope: "company.api orders:read products:read invoices:read admin offline_access",
+    }),
+  ], // 钩子 + auth 命令全自动
   commands: {},
   namespaces: { orders, products, invoices, account }, // 纯业务
   baseUrl: API_BASE_URL,

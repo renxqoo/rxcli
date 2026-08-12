@@ -18,7 +18,8 @@ metadata:
 
 ```
 ~/.rxcli/
-├── config.json              # 客户端凭据(clientId / clientSecret),register 写入
+├── config/
+│   └── crm.json             # 客户端凭据(clientId / clientSecret),register 写入
 └── credentials/
     └── crm.json             # OAuth token(refreshToken / scopes / user),login 写入
 ```
@@ -66,7 +67,7 @@ rxcli auth register
 rxcli auth register --token <注册令牌>
 ```
 
-注册成功 → 凭据写入 `~/.rxcli/config.json`,stdout 返回 `{"ok":true,"data":{"registered":true,"clientId":"cli_..."}}`。
+注册成功 → 凭据写入 `~/.rxcli/config/crm.json`,stdout 返回 `{"ok":true,"data":{"registered":true,"clientId":"cli_..."}}`。
 
 > **顺序很重要**:register(拿 clientId) → login(拿 token) → 业务命令。跳过 register 直接 login 会得到 `device_authorization failed`(401 invalid_client)。
 
@@ -139,8 +140,8 @@ v2 是框架,业务包各自声明 baseUrl,**无 dev/test/prod 多环境概念**
 | --------------------- | ---------------------------------------------------------------------- | ---------------------- |
 | `RXCLI_AUTH_BASE_URL` | OAuth/auth 中间层(device flow / token / user_info / revoke / register) | `http://120.26.219.32` |
 | `RXCLI_API_BASE_URL`  | 业务 API 网关(命令经中间层 `/proxy/api/*` 访问业务接口)                | `http://120.26.219.32` |
-| `RXCLI_CLIENT_ID`     | 覆盖 clientId(默认读 `~/.rxcli/config.json`)                           | —                      |
-| `RXCLI_CLIENT_SECRET` | 覆盖 clientSecret(默认读 config.json)                                  | —                      |
+| `RXCLI_CLIENT_ID`     | 覆盖 clientId(默认读 `~/.rxcli/config/crm.json`)                       | —                      |
+| `RXCLI_CLIENT_SECRET` | 覆盖 clientSecret(默认读 config/crm.json)                              | —                      |
 | `RXCLI_SKILLS_SOURCE` | skills 源 URL(空 → 用包内本地 skills)                                  | —                      |
 
 ```bash

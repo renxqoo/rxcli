@@ -35,6 +35,7 @@ import { renderCommandHelp, renderHelp } from "./help.js";
 import { detectBinName, detectVersion } from "./package-detect.js";
 import { createPipeReader, emptyPipe } from "./pipe.js";
 import { runCommand } from "./pipeline.js";
+import { runAfterAppRun, runOnAppRun } from "./plugin.js";
 import { qrcodeCommand } from "./qrcode.js";
 import { createFetchAdapter } from "./request.js";
 import { createBuiltinSkillsCommands } from "./skills/builtin.js";
@@ -77,9 +78,17 @@ class CliApplicationRuntime<State> implements App {
 
   async run(argv: string[]): Promise<void> {
     try {
+      // App-level lifecycle: onAppRun before any routing, afterAppRun after the run settles —
+      // covering help/--version/unknown routes/errors alike. Both are best-effort and silent.
+      await runOnAppRun(this.#compiled.plugins, { argv });
       await this.#dispatch(argv);
     } catch (error) {
       this.#renderFailure(error);
+    } finally {
+      await runAfterAppRun(this.#compiled.plugins, {
+        argv,
+        exitCode: Number(process.exitCode ?? 0) || 0,
+      });
     }
   }
 

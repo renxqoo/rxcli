@@ -24,10 +24,10 @@ export interface ConfigStore {
   saveCredentials(namespace: string, data: Record<string, unknown>): Promise<void>;
   /** 清命名空间的凭证。 */
   clearCredentials(namespace: string): Promise<void>;
-  /** 读全局 config.json。 */
-  loadConfig(): Promise<Record<string, unknown>>;
-  /** 写全局 config.json。 */
-  saveConfig(data: Record<string, unknown>): Promise<void>;
+  /** 读命名空间的配置文件;不存在 = 空对象。配置与凭证同 namespace 隔离。 */
+  loadConfig(namespace: string): Promise<Record<string, unknown>>;
+  /** 写命名空间的配置文件(整体替换,权限 0600)。 */
+  saveConfig(namespace: string, data: Record<string, unknown>): Promise<void>;
   /**
    * 在持有命名空间独占锁的情况下执行 `fn`。保护凭证的读-改-写事务
    * (如 OAuth refresh),避免跨进程并发互相覆盖丢失更新。

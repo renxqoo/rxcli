@@ -102,7 +102,7 @@ describe("auth/from-manifest —— buildAuthFromManifest", () => {
 
   it("无 auth 段 → no-op plugin", async () => {
     const { buildAuthFromManifest } = await import("../auth/from-manifest.js");
-    const plugin = await buildAuthFromManifest({
+    const plugin = buildAuthFromManifest({
       name: "noauth-svc",
       description: "d",
       version: "1.0.0",
@@ -118,7 +118,7 @@ describe("auth/from-manifest —— buildAuthFromManifest", () => {
 
   it("client_name 非 string → 抛错", async () => {
     const { buildAuthFromManifest } = await import("../auth/from-manifest.js");
-    await expect(
+    expect(() =>
       buildAuthFromManifest({
         name: "badcm",
         description: "d",
@@ -134,12 +134,12 @@ describe("auth/from-manifest —— buildAuthFromManifest", () => {
           x: { description: "x", http: { method: "GET", path: "/x" }, response: { data: "." } },
         },
       } as any),
-    ).rejects.toThrow(/client_name must be a string/i);
+    ).toThrow(/client_name must be a string/i);
   });
 
   it("client_name 合法 string → 正常构造(不抛)", async () => {
     const { buildAuthFromManifest } = await import("../auth/from-manifest.js");
-    const plugin = await buildAuthFromManifest({
+    const plugin = buildAuthFromManifest({
       name: "goodcm",
       description: "d",
       version: "1.0.0",
@@ -160,7 +160,7 @@ describe("auth/from-manifest —— buildAuthFromManifest", () => {
   it("env BEARER_TOKEN 注入(命名空间转大写下划线)", async () => {
     const { buildAuthFromManifest } = await import("../auth/from-manifest.js");
     process.env.MY_DASH_SVC_BEARER_TOKEN = "env-token-xyz";
-    const plugin = await buildAuthFromManifest({
+    const plugin = buildAuthFromManifest({
       name: "my-dash-svc",
       description: "d",
       version: "1.0.0",

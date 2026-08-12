@@ -15,6 +15,11 @@ export interface InstallWorkflowOptions {
   skillsSource?: string;
   interactive: boolean;
   language?: InstallLanguage;
+  /**
+   * Whether the CLI has an auth flow (register + login steps). Defaults to true.
+   * Set false for open-data CLIs without auth — the wizard then stops after skills.
+   */
+  auth?: boolean;
 }
 
 export interface InstallSystem {
@@ -154,18 +159,21 @@ export class InstallWorkflow {
     const language = await this.resolveLanguage(options);
     if (!language) return 0;
     const text = messages[language];
+    const auth = options.auth !== false;
 
     this.presenter.intro(text.setup);
     if (options.package.name && (await this.installCli(options.package.name, text)) !== 0) return 1;
     if ((await this.installSkills(options, text)) !== 0) return 1;
 
     if (!options.interactive) {
-      this.presenter.info(text.nonTtyHint);
+      if (auth) this.presenter.info(text.nonTtyHint);
       return 0;
     }
 
-    if ((await this.register(options.package.bin, text)) !== 0) return 1;
-    await this.authorize(options.package.bin, text);
+    if (auth) {
+      if ((await this.register(options.package.bin, text)) !== 0) return 1;
+      await this.authorize(options.package.bin, text);
+    }
     this.presenter.outro(text.done);
     return 0;
   }

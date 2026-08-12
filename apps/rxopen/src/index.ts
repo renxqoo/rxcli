@@ -2,9 +2,9 @@
 /**
  * rxopen —— 开放数据查询命令行工具
  *
- * 业务包入口 —— 用 @renxqoo/agent-data-cli 的 defineCli 装配:
+ * 业务包入口 —— 用 @renxqoo/agent-data-cli 的 defineCliApp 装配:
  *   - 多业务域用 namespaces 聚合(news/hot/tech/fun/music/movie/life/tool/kb/health/beta)
- *   - 不需要鉴权(全公开接口)
+ *   - 不需要鉴权(全公开接口):installer 以 auth:false 装配
  *   - 顶层快捷命令:daily / bing / weibo / zhihu / toutiao / hitokoto / moyu
  *
  * 数据源:vikiboss/60s 开源项目(默认 https://60s.viki.moe),全部接口在 /v2 前缀下,
@@ -16,8 +16,15 @@
  *   - 二进制/重定向输出(qrcode/bing image)只暴露 URL/base64 字段
  */
 
-import { defineCli, defineCommand } from "@renxqoo/agent-data-cli";
+import {
+  createUpdateNotifier,
+  defineCliApp,
+  defineCommand,
+  defineInstaller,
+  detectBizPackage,
+} from "@renxqoo/agent-data-cli";
 import { join, dirname } from "node:path";
+import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { realpathSync } from "node:fs";
 
@@ -41,6 +48,15 @@ const SKILLS_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "skills")
 // 上游数据接口在 /v2 前缀下(router.ts 用 prefix:'/v2')。baseUrl 含 /v2,
 // 命令内路径用相对路径(如 /hitokoto)即拼成 https://60s.viki.moe/v2/hitokoto。
 const DEFAULT_BASE_URL = "https://60s.viki.moe/v2";
+// 本地状态根(update-notifier 缓存),开放数据 CLI 无凭证/config
+const STATE_DIR = join(homedir(), ".rxopen");
+
+// update awareness:仅当入口可探测到业务包名/合法版本时启用(库引用场景跳过)
+const biz = detectBizPackage();
+const updateNotifier =
+  biz && /^\d+\.\d+\.\d+/.test(biz.version)
+    ? [createUpdateNotifier<RxopenState>({ packageName: biz.name, currentVersion: biz.version })]
+    : [];
 
 // ── 必应每日壁纸(独立接口,顶层快捷) ──────────────────────────────
 const bingCommand = defineCommand({
@@ -54,12 +70,17 @@ const bingCommand = defineCommand({
   },
 });
 
-const app = defineCli<RxopenState>({
+const app = await defineCliApp<RxopenState>({
   name: "rxopen",
+  dir: STATE_DIR,
   binName: "rxopen",
   description:
     "开放数据查询命令行工具(新闻/热搜/天气/油价/金价/汇率/老黄历/翻译/二维码/密码/健康评估等 60+ 接口,数据源 vikiboss/60s,全免费)",
-  plugins: [],
+  plugins: [
+    // 无鉴权场景:install 只做装包 + skills 同步,跳过 register/login
+    defineInstaller<RxopenState>({ skillsSource: process.env.RXOPEN_SKILLS_SOURCE, auth: false }),
+    ...updateNotifier,
+  ],
   // 顶层快捷命令(高频接口直达,免去 namespace 前缀)
   commands: {
     daily: { ...newsCommands.today!, name: "daily" }, // rxopen daily → 每日新闻速览(顶层快捷,等同 news today)
@@ -116,20 +137,11 @@ function isMainEntry(): boolean {
   }
 }
 
+// bin 入口:install 是 installer 插件提供的普通命令(无鉴权场景),无需拦截。
 if (isMainEntry()) {
-  const argv = process.argv.slice(2);
-  // install 向导(无鉴权场景主要用于 skills 同步到各 AI 工具发现目录)
-  if (argv[0] === "install") {
-    void (async () => {
-      const { runInstallWizard } = await import("@renxqoo/agent-data-cli");
-      const code = await runInstallWizard({ skillsSource: process.env.RXOPEN_SKILLS_SOURCE });
-      process.exit(code);
-    })();
-  } else {
-    app.run(argv).catch(() => {
-      /* exit code 已由框架按错误 category 设置 */
-    });
-  }
+  app.run(process.argv.slice(2)).catch(() => {
+    /* exit code 已由框架按错误 category 设置 */
+  });
 }
 
 export default app;

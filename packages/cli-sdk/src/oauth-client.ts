@@ -9,7 +9,7 @@ import type {
   UserInfo,
 } from "./oauth-contracts.js";
 
-export type OAuthFetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
+type OAuthFetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
 /** Deep OAuth protocol boundary: transport, wire encoding, decoding and error taxonomy. */
 export class OAuthClient {
@@ -17,20 +17,6 @@ export class OAuthClient {
     readonly config: OAuthClientConfig,
     private readonly fetcher: OAuthFetch = globalThis.fetch,
   ) {}
-
-  async scopes(): Promise<string[]> {
-    try {
-      const response = await this.request("/.well-known/oauth-authorization-server");
-      const body = await decodeJson(response);
-      if (!response.ok) return [];
-      const scopes = objectBody(body, "metadata").scopes_supported;
-      return Array.isArray(scopes)
-        ? scopes.filter((scope: unknown): scope is string => typeof scope === "string")
-        : [];
-    } catch {
-      return [];
-    }
-  }
 
   async authorizeDevice(scope?: string): Promise<DeviceAuthInfo> {
     const form = new URLSearchParams();

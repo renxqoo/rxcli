@@ -7,7 +7,8 @@
  *   X-Request-Source: SKILL
  *
  * 故不用框架的 defineAuth 工厂(它面向 OAuth device flow + 单 header),
- * 改用手写 Plugin(auth-patterns.md §3 骨架):
+ * 改用手写 Plugin(auth-patterns.md 骨架):
+ *   - apply(services):从装配器取 services.localState.store,建 auth 命令组
  *   - provides.namespaces.auth 注入 login/status/logout(框架自动豁免自身 beforeCommand)
  *   - beforeCommand:读凭证(env 优先 > 文件),缺失抛 AuthenticationError(no_credentials)
  *   - beforeRequest:注入三个 header
@@ -19,6 +20,7 @@ import {
   errs,
   fileStore,
   type CommandContext,
+  type ConfigStore,
   type Plugin,
   type TransportResponse,
 } from "@renxqoo/agent-data-cli";
@@ -41,12 +43,7 @@ export interface RxCordysState {
 const ENV_ACCESS_KEY = "CORDYS_ACCESS_KEY";
 const ENV_SECRET_KEY = "CORDYS_SECRET_KEY";
 
-/** 凭证 store(磁盘,~/.rxcli/credentials/cordys.json,0600)。 */
-const store = fileStore({ dir: RXCLI_DIR });
-type AuthStore = Pick<
-  ReturnType<typeof fileStore>,
-  "loadCredentials" | "saveCredentials" | "clearCredentials"
->;
+type AuthStore = Pick<ConfigStore, "loadCredentials" | "saveCredentials" | "clearCredentials">;
 
 /** 从环境变量读凭证(env 优先)。 */
 function readFromEnv(): CordysCredentials | null {
@@ -54,11 +51,6 @@ function readFromEnv(): CordysCredentials | null {
   const secretKey = process.env[ENV_SECRET_KEY];
   if (accessKey && secretKey) return { accessKey, secretKey };
   return null;
-}
-
-/** 从凭证文件读。 */
-async function readFromFile(): Promise<CordysCredentials | null> {
-  return readFromStore(store);
 }
 
 async function readFromStore(authStore: AuthStore): Promise<CordysCredentials | null> {
@@ -153,23 +145,42 @@ function createAuthCommands(authStore: AuthStore) {
   });
 }
 
-const authCommands = createAuthCommands(store);
-
 // ============================================================================
 // auth Plugin
 // ============================================================================
 
 export function createCordysAuth(): Plugin<RxCordysState> {
+  // 装配期状态:apply 里从 services.localState.store 解析后填入。
+  let ready: { store: AuthStore; commands: ReturnType<typeof createAuthCommands> } | null = null;
+  const requireReady = (): { store: AuthStore } => {
+    if (!ready) {
+      throw new errs.InternalError({
+        subtype: "contract_violation",
+        message: "cordys auth plugin used before apply(services) completed",
+      });
+    }
+    return ready;
+  };
+
   return {
     name: "cordys-auth",
     enforce: "pre", // 鉴权必须 pre,先填凭证再发请求
-    provides: { namespaces: { auth: authCommands } },
+
+    async apply(services) {
+      const store = services.localState.store;
+      ready = { store, commands: createAuthCommands(store) };
+    },
+
+    get provides() {
+      return ready ? { namespaces: { auth: ready.commands } } : undefined;
+    },
 
     /**
      * beforeCommand:读凭证(env 优先 > 文件),填 ctx.state。
      * 缺凭证抛 AuthenticationError(no_credentials)——login/status/logout 自身被豁免。
      */
     async beforeCommand(ctx: CommandContext<RxCordysState>) {
+      const { store } = requireReady();
       // 0. 后端地址必须配置(Cordys 是私有部署,无内置默认域名)
       if (!isBaseUrlConfigured) {
         throw new errs.AuthenticationError({
@@ -183,15 +194,15 @@ export function createCordysAuth(): Plugin<RxCordysState> {
       if (envCreds) {
         ctx.state.credentials = envCreds;
         ctx.state.credentialSource = "env";
-        wrapCredentials(ctx);
+        wrapCredentials(ctx, store);
         return;
       }
       // 2. 凭证文件(rxcordys auth login 写入)
-      const fileCreds = await readFromFile();
+      const fileCreds = await readFromStore(store);
       if (fileCreds) {
         ctx.state.credentials = fileCreds;
         ctx.state.credentialSource = "file";
-        wrapCredentials(ctx);
+        wrapCredentials(ctx, store);
         return;
       }
       // 3. 都没有:抛错(业务命令需要凭证)
@@ -223,10 +234,10 @@ export function createCordysAuth(): Plugin<RxCordysState> {
 }
 
 /**
- * 把 store 包装成 ctx.credentials(运行时 API),让 auth login/logout 命令能写盘。
+ * 把 store 包装成 ctx.credentials(运行时 API),让命令能读写凭证。
  * 框架默认 ctx.credentials 是 no-op;有 auth plugin 时需自行注入。
  */
-function wrapCredentials(ctx: CommandContext<RxCordysState>): void {
+function wrapCredentials(ctx: CommandContext<RxCordysState>, store: AuthStore): void {
   (ctx as { credentials: CommandContext<RxCordysState>["credentials"] }).credentials = {
     get: async (ns) => (await store.loadCredentials(ns)) as Record<string, string> | null,
     save: (ns, d) => store.saveCredentials(ns, d),
@@ -239,15 +250,11 @@ function wrapCredentials(ctx: CommandContext<RxCordysState>): void {
  * 业务命令运行期不需要调 —— beforeCommand 已在 run 前填好 state。
  */
 export async function loadCredentialsForTest(): Promise<CordysCredentials | null> {
-  return readFromEnv() ?? (await readFromFile());
+  return readFromEnv() ?? (await readFromStore(fileStore({ dir: RXCLI_DIR })));
 }
 
 /** 测试辅助:直接用指定 store 构造 auth(隔离 ~/.rxcli)。 */
-export function createCordysAuthWithStore(testStore: {
-  loadCredentials(ns: string): Promise<Record<string, unknown> | null>;
-  saveCredentials(ns: string, d: Record<string, unknown>): Promise<void>;
-  clearCredentials(ns: string): Promise<void>;
-}): Plugin<RxCordysState> {
+export function createCordysAuthWithStore(testStore: AuthStore): Plugin<RxCordysState> {
   return {
     name: "cordys-auth",
     enforce: "pre",

@@ -154,6 +154,30 @@ describe("JSON command arguments", () => {
     );
   });
 
+  it("rejects repeated JSON input and idempotency flags instead of silently overriding", async () => {
+    const compiled = compileCommandSchema(
+      "create",
+      { type: "json", schema: orderSchema },
+      { mode: "write", dryRun: true, confirmation: "required", idempotency: "optional" },
+    );
+    await expect(
+      compiled.resolve(["--input", "{}", "--input", "{}"], Readable.from([])),
+    ).rejects.toMatchObject({
+      subtype: "invalid_argument",
+      param: "--input",
+      message: "Argument --input cannot be repeated",
+    });
+    await expect(
+      compiled.resolve(["--input-file", "a.json", "--input-file", "b.json"], Readable.from([])),
+    ).rejects.toMatchObject({ subtype: "invalid_argument", param: "--input-file" });
+    await expect(
+      compiled.resolve(
+        ["--idempotency-key", "first", "--idempotency-key", "second"],
+        Readable.from([]),
+      ),
+    ).rejects.toMatchObject({ subtype: "invalid_argument", param: "--idempotency-key" });
+  });
+
   it("injects the caller-owned idempotency key into write requests", async () => {
     const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
       expect(new Headers(init.headers).get("idempotency-key")).toBe("stable-retry-key");

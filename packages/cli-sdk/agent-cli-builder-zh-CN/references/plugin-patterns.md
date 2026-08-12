@@ -9,10 +9,13 @@
 3. 插件提供命令与独立发布
 4. 安全调试与常见错误
 
-## 1. 8 个钩子 + 何时用
+## 1. 钩子 + 何时用
 
 | 钩子                 | 何时触发                 | 能改什么                                 | 典型用途               |
 | -------------------- | ------------------------ | ---------------------------------------- | ---------------------- |
+| `apply`              | 装配期(路由编译前)一次   | 解析 services、填 provides、建运行时状态 | 从 `services.localState.store` 装配 auth |
+| `onAppRun`           | 每次 app.run 开始        | 只观察；失败被静默隔离                   | 启动打点               |
+| `afterAppRun`        | 每次 app.run 结束        | 只观察；失败被静默隔离                   | 版本感知通知           |
 | `beforeCommand`      | 命令 run 前              | `ctx.state`、可 throw 中止               | auth、参数预处理       |
 | `observeInput`       | Zod 校验和脱敏之后       | 只读路由、来源元数据和脱敏副本           | 输入审计、metric       |
 | `beforeRequest`      | 每个物理请求 attempt 前  | 返回新的请求对象                         | header、签名、tenant   |
@@ -39,6 +42,8 @@ post 插件(注册序)   ← 最终包装(HMAC 签名、收尾)
 `enforce` 支持 `"pre"`、`"normal"`、`"post"`。省略时等价于 `"normal"`；通常省略即可。
 
 `observeInput` 只收到命令路由、输入元数据和克隆后的 `redactedArgs`，拿不到原始 JSON。通过 Zod 根 schema metadata 的 `sensitive` JSON Pointer 配置脱敏字段；observer 只做 telemetry，失败只记 warning，不改变命令结果。
+
+app 级钩子(`onAppRun` / `afterAppRun`)每次进程运行恰一次，覆盖 help、--version、未知命令与错误路径；异常会被静默吞掉，避免改变退出码或在机器可读结果之后追加含糊 warning。它只适合可丢失的运维感知；审计事件或任何要求可靠送达的副作用不得放在这里。每次运行一次的通知(如版本感知)应放 `afterAppRun`,不要借用每条命令的观察钩子。`apply` 不属于钩子:`defineCliApp` 在路由编译前按注册序执行每个插件的 apply,任一失败 = 启动失败。
 
 > ```ts
 > {
