@@ -1,10 +1,15 @@
 /**
  * defineAuth 重构后的纯函数测试。
- * 测试提取出来的 resolveAuthConfig / buildProviderChain / buildOn401Handler。
+ * 测试提取出来的 resolveAuthConfig / resolveClientMetadata / buildProviderChain / buildOn401Handler。
  */
 import { describe, it, expect, vi } from "vitest";
 import { memoryStore } from "../../credentials/config-store.js";
-import { resolveAuthConfig, buildProviderChain, buildOn401Handler } from "../helpers.js";
+import {
+  buildOn401Handler,
+  buildProviderChain,
+  resolveAuthConfig,
+  resolveClientMetadata,
+} from "../helpers.js";
 
 describe("resolveAuthConfig", () => {
   it("显式传 clientId/clientSecret → 直接用", async () => {
@@ -15,6 +20,7 @@ describe("resolveAuthConfig", () => {
         clientSecret: "csec",
       },
       memoryStore(),
+      "test",
     );
     expect(cfg.oauth.clientId).toBe("cid");
     expect(cfg.oauth.clientSecret).toBe("csec");
@@ -29,6 +35,7 @@ describe("resolveAuthConfig", () => {
         baseUrl: "http://test",
       },
       memoryStore(),
+      "test",
     );
     expect(cfg.oauth.clientId).toBe("env-cid");
     delete process.env.RXCLI_CLIENT_ID;
@@ -37,12 +44,13 @@ describe("resolveAuthConfig", () => {
 
   it("config.json 有 clientId → 回退读", async () => {
     const store = memoryStore();
-    await store.saveConfig({ clientId: "cfg-cid", clientSecret: "cfg-csec" });
+    await store.saveConfig("test", { clientId: "cfg-cid", clientSecret: "cfg-csec" });
     const cfg = await resolveAuthConfig(
       {
         baseUrl: "http://test",
       },
       store,
+      "test",
     );
     expect(cfg.oauth.clientId).toBe("cfg-cid");
   });
@@ -53,25 +61,56 @@ describe("resolveAuthConfig", () => {
         baseUrl: "http://test",
       },
       memoryStore(),
+      "test",
     );
     expect(cfg.oauth.clientId).toBe("");
     expect(cfg.oauth.clientSecret).toBe("");
   });
+});
 
-  it("authStyle 默认 bearer", async () => {
-    const cfg = await resolveAuthConfig({ baseUrl: "http://test" }, memoryStore());
-    expect(cfg.authStyle).toBe("bearer");
+describe("resolveClientMetadata", () => {
+  it("全缺省:按 flow/scope/namespace 派生(OAuth 2.1 注册声明)", () => {
+    const md = resolveClientMetadata({
+      credentialNamespace: "crm",
+      flow: "device",
+      scope: "a b",
+    });
+    expect(md).toEqual({
+      client_name: "crm",
+      grant_types: ["urn:ietf:params:oauth:grant-type:device_code", "refresh_token"],
+      scope: "a b",
+      token_endpoint_auth_method: "client_secret_basic",
+    });
   });
 
-  it("authStyle 显式 x-api-key", async () => {
-    const cfg = await resolveAuthConfig(
-      {
-        baseUrl: "http://test",
-        authStyle: "x-api-key",
-      },
-      memoryStore(),
-    );
-    expect(cfg.authStyle).toBe("x-api-key");
+  it("显式字段优先(hasOwnProperty 判断,不覆盖)", () => {
+    const md = resolveClientMetadata({
+      credentialNamespace: "crm",
+      flow: "device",
+      scope: "a b",
+      clientMetadata: { client_name: "custom-name", scope: "explicit-scope" },
+    });
+    expect(md.client_name).toBe("custom-name");
+    expect(md.scope).toBe("explicit-scope");
+    expect(md.grant_types).toEqual([
+      "urn:ietf:params:oauth:grant-type:device_code",
+      "refresh_token",
+    ]);
+    expect(md.token_endpoint_auth_method).toBe("client_secret_basic");
+  });
+
+  it("不同 flow 派生不同 grant_types", () => {
+    expect(
+      resolveClientMetadata({ credentialNamespace: "x", flow: "authorization_code" }).grant_types,
+    ).toEqual(["authorization_code", "refresh_token"]);
+    expect(
+      resolveClientMetadata({ credentialNamespace: "x", flow: "client_credentials" }).grant_types,
+    ).toEqual(["client_credentials"]);
+  });
+
+  it("未传 scope 时不派生 scope 字段", () => {
+    const md = resolveClientMetadata({ credentialNamespace: "x", flow: "device" });
+    expect(Object.prototype.hasOwnProperty.call(md, "scope")).toBe(false);
   });
 });
 
@@ -125,7 +164,6 @@ describe("buildOn401Handler", () => {
       oauth,
       store,
       namespace: "test",
-      flowDeps: { type: "device", cfg: oauth },
     });
     expect(typeof handler).toBe("function");
   });
@@ -142,7 +180,6 @@ describe("buildOn401Handler", () => {
       oauth,
       store,
       namespace: "test",
-      flowDeps: { type: "client_credentials", cfg: oauth },
     });
     expect(typeof handler).toBe("function");
   });
@@ -156,7 +193,6 @@ describe("buildOn401Handler", () => {
       oauth,
       store,
       namespace: "test",
-      flowDeps: { type: "client_credentials", cfg: oauth },
     });
     const result = await handler();
     expect(result).toBeNull();
@@ -185,7 +221,6 @@ describe("buildOn401Handler", () => {
       oauth,
       store,
       namespace: "test",
-      flowDeps: { type: "client_credentials", cfg: oauth },
     });
     // 并发 3 次
     const results = await Promise.all([handler(), handler(), handler()]);

@@ -41,6 +41,14 @@ describe.each(factories)("ConfigStore conformance: %s", (_name, createStore) => 
         category: "config",
         subtype: "invalid_config",
       });
+      await expect(store.loadConfig(namespace)).rejects.toMatchObject({
+        category: "config",
+        subtype: "invalid_config",
+      });
+      await expect(store.saveConfig(namespace, {})).rejects.toMatchObject({
+        category: "config",
+        subtype: "invalid_config",
+      });
     },
   );
 
@@ -75,10 +83,19 @@ describe.each(factories)("ConfigStore conformance: %s", (_name, createStore) => 
     });
   });
 
-  it("replaces the full config document", async () => {
+  it("replaces the full config document per namespace", async () => {
     const store = createStore();
-    await store.saveConfig({ clientId: "one", removed: true });
-    await store.saveConfig({ clientId: "two" });
-    expect(await store.loadConfig()).toEqual({ clientId: "two" });
+    await store.saveConfig("crm", { clientId: "one", removed: true });
+    await store.saveConfig("crm", { clientId: "two" });
+    expect(await store.loadConfig("crm")).toEqual({ clientId: "two" });
+  });
+
+  it("isolates config documents across namespaces", async () => {
+    const store = createStore();
+    await store.saveConfig("crm", { clientId: "crm-client" });
+    await store.saveConfig("cordys", { clientId: "cordys-client" });
+    expect(await store.loadConfig("crm")).toEqual({ clientId: "crm-client" });
+    expect(await store.loadConfig("cordys")).toEqual({ clientId: "cordys-client" });
+    expect(await store.loadConfig("other")).toEqual({});
   });
 });

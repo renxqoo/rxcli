@@ -7,6 +7,7 @@ import {
   defineCli,
   defineCommand,
   memoryStore,
+  createMemoryLocalState,
   type CredentialProvider,
 } from "../index.js";
 
@@ -39,7 +40,7 @@ afterEach(() => {
 
 describe("auth runtime isolation", () => {
   it("defineAuth 的并发 401 只刷新一次", async () => {
-    const store = memoryStore({
+    const localState = createMemoryLocalState({
       credentials: {
         demo: {
           token: "old-token",
@@ -73,13 +74,13 @@ describe("auth runtime isolation", () => {
       });
     });
 
-    const auth = await defineAuth({
+    const auth = defineAuth({
       credentialNamespace: "demo",
       baseUrl: "https://auth.example",
       clientId: "id",
       clientSecret: "secret",
-      store,
     });
+    await auth.apply?.({ localState, appName: "demo" });
     const app = defineCli({
       name: "demo",
       description: "demo",
@@ -111,14 +112,14 @@ describe("auth runtime isolation", () => {
           : null;
       },
     };
-    const auth = await defineAuth({
+    const auth = defineAuth({
       credentialNamespace: "demo",
       baseUrl: "https://auth.example",
       clientId: "id",
       clientSecret: "secret",
       providers: [provider],
-      store: memoryStore(),
     });
+    await auth.apply?.({ localState: createMemoryLocalState(), appName: "demo" });
 
     let arrived = 0;
     let release!: () => void;

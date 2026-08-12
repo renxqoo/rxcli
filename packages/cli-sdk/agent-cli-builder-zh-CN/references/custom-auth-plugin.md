@@ -34,33 +34,46 @@ import {
   type Plugin,
   type CommandContext,
   type ProviderContext,
-  fileStore,
+  type ConfigStore,
   defaultProviders,
   resolveWithChain,
   injectAuthHeader,
   createOn401Hook,
   AuthenticationError,
 } from "@renxqoo/agent-data-cli";
-import { homedir } from "node:os";
-import { join } from "node:path";
 
 export function createMyAuth<State extends { user?: unknown }>(opts: {
   namespace: string;
   authStyle?: "bearer" | "x-api-key" | "basic";
   oauth?: { baseUrl: string; clientId: string; clientSecret: string };
 }): Plugin<State> {
-  const store = fileStore({ dir: join(homedir(), ".my-cli") });
-  const providers = defaultProviders();
   const authStyle = opts.authStyle ?? "bearer";
-  const refresh = opts.oauth
-    ? createOn401Hook({ cfg: opts.oauth, store, namespace: opts.namespace })
-    : undefined;
   const sessions = new WeakMap<CommandContext<State>, { token: string; refreshable: boolean }>();
+
+  // 装配期状态:apply 里从 services.localState.store 解析后填入(工厂不收目录/store 参数)。
+  let ready!: {
+    store: ConfigStore;
+    providers: ReturnType<typeof defaultProviders>;
+    refresh?: () => Promise<Record<string, unknown> | null>;
+  };
 
   return {
     name: `auth:${opts.namespace}`,
     enforce: "pre", // 鉴权必须 pre,先填 token 再发请求
+
+    async apply(services) {
+      const store = services.localState.store;
+      ready = {
+        store,
+        providers: defaultProviders(),
+        refresh: opts.oauth
+          ? createOn401Hook({ cfg: opts.oauth, store, namespace: opts.namespace })
+          : undefined,
+      };
+    },
+
     async beforeCommand(ctx: CommandContext<State>) {
+      const { store, providers } = ready;
       const pctx: ProviderContext = {
         namespace: opts.namespace,
         configStore: store,
@@ -98,8 +111,8 @@ export function createMyAuth<State extends { user?: unknown }>(opts: {
 
     async handleUnauthorized(ctx) {
       const session = sessions.get(ctx);
-      if (!refresh || !session?.refreshable) return { action: "decline" };
-      const token = await refresh();
+      if (!ready.refresh || !session?.refreshable) return { action: "decline" };
+      const token = await ready.refresh();
       if (!token) {
         return {
           action: "reject",
@@ -118,17 +131,22 @@ export function createMyAuth<State extends { user?: unknown }>(opts: {
 }
 ```
 
-用法:
+用法(`defineCliApp` 自动执行 apply):
 
 ```ts
 // src/index.ts
 import { createMyAuth } from './auth.js'
-const auth = createMyAuth({
-  namespace: 'my-cli',
-  authStyle: 'bearer',
-  oauth: { baseUrl: process.env.AUTH_BASE_URL!, clientId: process.env.CLIENT_ID!, clientSecret: process.env.CLIENT_SECRET! },
+const app = await defineCliApp({
+  dir: appStateDir,
+  plugins: [
+    createMyAuth({
+      namespace: 'my-cli',
+      authStyle: 'bearer',
+      oauth: { baseUrl: process.env.AUTH_BASE_URL!, clientId: process.env.CLIENT_ID!, clientSecret: process.env.CLIENT_SECRET! },
+    }),
+  ],
+  ...
 })
-defineCli({ plugins: [auth], ... })
 ```
 
 ### provides 的 login/logout 命令:直接用 `store`,不用 `ctx.credentials`
@@ -206,7 +224,7 @@ resolveWithChain(providers, pctx) 按 priority 升序逐个尝试:
 
 `defaultProviders()` 默认装好这 5 个(含 envBearerProvider)。**业务包通常不用关心**——只有自定义鉴权(HMAC/mTLS)时才自己 `providers = [...defaultProviders(), customProvider]`。
 
-> **sandbox/CI 场景**:admin 通过 `POST /admin/web/issue-token` 签发 JWT → 注入环境变量 `NS_BEARER_TOKEN`(如 `CRM_BEARER_TOKEN`)→ envBearerProvider 自动命中,agent 直接用,不需要 device flow 登录。也可用 `defineAuth({ bearerToken: process.env.CRM_BEARER_TOKEN })` 一行显式注入(priority 0,优先级最高)。
+> **sandbox/CI 场景**:admin 通过 `POST /admin/web/issue-token` 签发 JWT → 注入环境变量 `NS_BEARER_TOKEN`(如 `CRM_BEARER_TOKEN`)→ envBearerProvider 自动命中,agent 直接用,不需要 device flow 登录。也可用 `defineAuth({ credentialNamespace, baseUrl, bearerToken: process.env.CRM_BEARER_TOKEN, ... })` 显式注入(priority 0,优先级最高)。
 
 ### provider 接口(写自定义 Provider 时用)
 

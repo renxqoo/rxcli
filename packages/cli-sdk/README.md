@@ -123,17 +123,21 @@ export default app;
 Add auth (one line):
 
 ```ts
-import { defineCli, defineAuth } from "@renxqoo/agent-data-cli";
+import { defineCliApp, defineAuth } from "@renxqoo/agent-data-cli";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
-const auth = await defineAuth({
-  credentialNamespace: "orders",
-  baseUrl: "https://auth.example.com",
-  scope: "orders.read offline_access", // business-defined, no default
-});
-
-export default defineCli({
+export default await defineCliApp({
   name: "orders",
-  plugins: [auth], // ← hooks + login/status/logout/register auto-injected
+  // One app-owned root; the assembler hands it to every stateful plugin via apply(services).
+  dir: join(homedir(), ".orders"),
+  plugins: [
+    defineAuth({
+      credentialNamespace: "orders", // → config/orders.json + credentials/orders.json
+      baseUrl: "https://auth.example.com",
+      scope: "orders.read offline_access", // business-defined, no default
+    }),
+  ], // ← hooks + login/status/logout/register auto-injected
   commands: {},
   // ...
 });
@@ -200,19 +204,21 @@ does not merge JSON with business flags. The same Zod schema drives validation, 
 `--input-schema`; no adapter or second schema protocol exists. See
 [`docs/07-structured-input.md`](docs/07-structured-input.md).
 
-### `defineAuth(opts)` — OAuth auth factory
+### `defineAuth(opts)` — OAuth 2.1 auth factory (sync; assembly in `apply(services)`)
 
 ```ts
-const auth = await defineAuth({
-  credentialNamespace: "crm", // → credentials/crm.json
+const auth = defineAuth({
+  credentialNamespace: "crm", // → config/crm.json + credentials/crm.json
   baseUrl: AUTH_BASE_URL, // OAuth middleware
-  scope: "company.api offline_access", // business-defined; empty = no scope
-  // commandNamespace: 'auth',      // default 'auth' → rxcli auth login
-  // authStyle: 'bearer',           // default 'bearer' | 'x-api-key' | 'basic'
+  scope: "company.api offline_access", // one scope for both login and registration metadata
+  // flow: 'device',                 // default 'device' | 'authorization_code' | 'client_credentials'
+  // commandNamespace: 'auth',       // default 'auth' → rxcli auth login
 });
 ```
 
-Returns a Plugin — drop it into `plugins: [auth]` to activate the hooks and auto-mount the auth commands.
+Three OAuth 2.1 flows, one factory: `device` (RFC 8628, default), `authorization_code` + PKCE (the only user-interactive flow), and `client_credentials` (server-to-server, no user). Registration metadata (RFC 7591) is derived per field — `client_name` from `credentialNamespace`, `grant_types` from `flow`, `scope` from `scope`, `token_endpoint_auth_method` as `client_secret_basic` — pass explicit `clientMetadata` fields to override.
+
+Returns a Plugin — drop it into `plugins: [auth]` of `defineCliApp`. The assembler runs `apply(services)` once before routing compiles; the plugin resolves `services.localState.store` there and auto-mounts the auth commands. (Low-level `defineCli` users call `await auth.apply?.({ localState, appName })` manually.)
 
 ### Plugin (hooks + provides)
 
@@ -275,6 +281,23 @@ const myPlugin: Plugin = {
   }
 }
 ```
+
+Optional update awareness remains outside the business channel:
+
+```ts
+import { createUpdateNotifier } from "@renxqoo/agent-data-cli";
+
+const updateNotifier = createUpdateNotifier({
+  packageName: "@scope/my-cli",
+  currentVersion: "1.2.0",
+});
+
+const app = await defineCliApp({ /* dir, plugins: [updateNotifier], ... */ });
+```
+
+`defineCliApp({ dir })` is the only application-directory decision. The assembler creates one local-state object and injects it into every plugin through `apply(services)`. Layout: per-namespace app config `<dir>/config/<ns>.json`, credentials `<dir>/credentials/<ns>.json`, and update metadata `<dir>/cache/updates/`. The high-level APIs (`defineAuth`, `defineInstaller`, `createUpdateNotifier`) take no directory parameters.
+
+The notifier runs once per app run (`afterAppRun`, successful runs only), reads its throttled cache, refreshes registry metadata in a detached helper, and writes an XML `<system-message>` only to stderr. It never contaminates stdout or appends to structured command errors. Set `NO_UPDATE_NOTIFIER=1` to disable it. The suggested upgrade command is informational and is never executed automatically.
 
 **Exit code mapping** (set automatically by the framework by error category; agents can use it to decide handling strategy):
 

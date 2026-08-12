@@ -13,7 +13,7 @@ import type {
 } from "../credentials/index.js";
 import { resolveWithChain } from "../credentials/index.js";
 import { AuthenticationError } from "../errs/index.js";
-import { injectAuthHeader, type AuthStyle } from "../oauth.js";
+import { injectAuthHeader } from "../oauth.js";
 import type { TokenInfo } from "../oauth-contracts.js";
 import { identityKey } from "../context.js";
 
@@ -27,7 +27,6 @@ export interface AuthSessionManagerOptions {
   commandNamespace: string;
   store: ConfigStore;
   providers: CredentialProvider[];
-  authStyle: AuthStyle;
   refresh: () => Promise<TokenInfo | null>;
 }
 
@@ -76,7 +75,8 @@ export class AuthSessionManager {
       headers: { ...logical.headers },
     };
     const session = this.#sessions.get(ctx);
-    if (session) injectAuthHeader(request, session.token.token, this.#options.authStyle);
+    // OAuth 2.1 access token 一律 Bearer(RFC 6750);其它风格属于自定义插件(injectAuthHeader)。
+    if (session) injectAuthHeader(request, session.token.token, "bearer");
     return request;
   }
 

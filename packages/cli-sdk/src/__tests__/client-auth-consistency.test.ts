@@ -7,9 +7,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   pollDeviceToken,
-  refreshAccessToken,
   exchangeCodeForToken,
   clientCredentialsToken,
+  OAuthClient,
   type OAuthClientConfig,
 } from "../oauth.js";
 
@@ -67,7 +67,7 @@ describe("client 认证一致性:token 端点用 Basic auth", () => {
     expect(body).not.toContain("client_secret");
   });
 
-  it("refreshAccessToken:用 Basic auth(不在 body 里传 secret)", async () => {
+  it("OAuthClient.refresh:用 Basic auth(不在 body 里传 secret)", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(200, {
         access_token: "AT",
@@ -76,7 +76,7 @@ describe("client 认证一致性:token 端点用 Basic auth", () => {
         scope: "s",
       }),
     );
-    await refreshAccessToken(cfg, "rt_old");
+    await new OAuthClient(cfg).refresh("rt_old");
     const headers = getCallHeaders();
     const body = getCallBody();
     expect(headers.authorization).toMatch(/^Basic /);

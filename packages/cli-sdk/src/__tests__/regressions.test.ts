@@ -20,6 +20,7 @@ import { ValidationError } from "../errs/index.js";
 import { readReference } from "../skills/reader.js";
 import { createBuiltinSkillsCommands } from "../skills/builtin.js";
 import { createTestCtx } from "../test-utils.js";
+import { createMemoryLocalState } from "../local-state.js";
 import type { Plugin } from "../types.js";
 
 describe("args: reject ambiguous or unsafe values", () => {
@@ -124,11 +125,11 @@ describe("defineCli: plugin lifecycle boundaries", () => {
   });
 
   it("passes the reserved --api-key flag to the auth provider chain", async () => {
-    const auth = await defineAuth({
+    const auth = defineAuth({
       credentialNamespace: "crm",
       baseUrl: "https://example.test",
-      store: memoryStore(),
     });
+    await auth.apply?.({ localState: createMemoryLocalState(), appName: "crm" });
     const app = defineCli({
       name: "crm",
       description: "crm",
@@ -189,11 +190,11 @@ describe("defineCli: plugin lifecycle boundaries", () => {
         ),
       ),
     );
-    const auth = await defineAuth({
+    const auth = defineAuth({
       credentialNamespace: "crm",
       baseUrl: "https://auth.test",
-      store: memoryStore(),
     });
+    await auth.apply?.({ localState: createMemoryLocalState(), appName: "crm" });
     const app = defineCli({
       name: "crm",
       description: "crm",

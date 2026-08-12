@@ -68,7 +68,7 @@ export interface AuthFlow {
   login(deps: FlowDeps): Promise<TokenInfo>;
 
   /**
-   * 续期(401 刷新时调)。可选——不实现 = 框架用默认 refreshAccessToken。
+   * 续期(401 刷新时调)。可选——不实现 = 框架用默认 OAuthClient.refresh。
    * 只有 client_credentials 覆盖(它没有 refresh_token,重新 login)。
    */
   refresh?(deps: FlowDeps): Promise<TokenInfo>;

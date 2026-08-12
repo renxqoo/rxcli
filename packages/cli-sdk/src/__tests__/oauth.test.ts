@@ -8,9 +8,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   deviceAuthorization,
   pollDeviceToken,
-  refreshAccessToken,
   getUserInfo,
   registerClient,
+  OAuthClient,
   type OAuthClientConfig,
 } from "../oauth.js";
 import { InternalError, APIError, AuthenticationError, NetworkError } from "../errs/index.js";
@@ -69,9 +69,9 @@ describe("M8: 非 JSON 响应应抛 InternalError(decode_failure),不抛裸 Synt
     await expect(pollDeviceToken(cfg, "code")).rejects.toThrow(InternalError);
   });
 
-  it("refreshAccessToken: 非 JSON → decode_failure", async () => {
+  it("OAuthClient.refresh: 非 JSON → decode_failure", async () => {
     fetchMock.mockResolvedValue(htmlResponse(200));
-    await expect(refreshAccessToken(cfg, "rt")).rejects.toThrow(InternalError);
+    await expect(new OAuthClient(cfg).refresh("rt")).rejects.toThrow(InternalError);
   });
 
   it("getUserInfo: 非 JSON → decode_failure", async () => {
@@ -108,9 +108,9 @@ describe("oauth: 正常 JSON 路径仍工作(回归保护)", () => {
     expect(info.interval).toBe(5);
   });
 
-  it("refreshAccessToken 失败(!ok)→ AuthenticationError(token_expired)", async () => {
+  it("OAuthClient.refresh 失败(!ok)→ AuthenticationError(token_expired)", async () => {
     fetchMock.mockResolvedValue(jsonResponse(400, { error: "invalid_grant" }));
-    await expect(refreshAccessToken(cfg, "rt")).rejects.toBeInstanceOf(AuthenticationError);
+    await expect(new OAuthClient(cfg).refresh("rt")).rejects.toBeInstanceOf(AuthenticationError);
   });
 });
 

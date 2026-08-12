@@ -11,18 +11,21 @@ Use plugins for cross-cutting behavior such as authentication, fixed headers, si
 
 ## 1. Hooks and ordering
 
-| Hook                 | Runs                              | Typical use                                          |
-| -------------------- | --------------------------------- | ---------------------------------------------------- |
-| `beforeCommand`      | Before command `run`              | Resolve identity, initialize state, reject execution |
-| `observeInput`       | After JSON args validation/redaction | Audit JSON provenance without raw data             |
-| `beforeRequest`      | Before each `ctx.*` attempt       | Headers, tenant, signatures                          |
-| `observeRequest`     | After each physical attempt       | Metrics and awaited audit side effects               |
-| `handleUnauthorized` | After a 401 response              | Refresh a context-bound credential once              |
-| `transformOutput`    | After `run`, before serialization | Redact or reshape structured data                    |
-| `observeError`       | After an error is normalized      | Telemetry that cannot change the result              |
-| `handleError`        | After error observers             | Explicitly pass, replace, or recover                 |
+| Hook                 | Runs                                 | Typical use                                          |
+| -------------------- | ------------------------------------ | ---------------------------------------------------- |
+| `apply`              | Once at assembly, before routing    | Resolve `services.localState.store`, fill `provides` |
+| `onAppRun`           | Once per `app.run`, before routing  | Best-effort startup awareness                        |
+| `afterAppRun`        | Once per `app.run`, after it settles| Best-effort operational notices (update awareness)   |
+| `beforeCommand`      | Before command `run`                 | Resolve identity, initialize state, reject execution |
+| `observeInput`       | After JSON args validation/redaction | Audit JSON provenance without raw data               |
+| `beforeRequest`      | Before each `ctx.*` attempt          | Headers, tenant, signatures                          |
+| `observeRequest`     | After each physical attempt          | Metrics and awaited audit side effects               |
+| `handleUnauthorized` | After a 401 response                 | Refresh a context-bound credential once              |
+| `transformOutput`    | After `run`, before serialization    | Redact or reshape structured data                    |
+| `observeError`       | After an error is normalized         | Telemetry that cannot change the result              |
+| `handleError`        | After error observers                | Explicitly pass, replace, or recover                 |
 
-`enforce` supports `"pre"`, `"normal"`, and `"post"`; omitting it means `"normal"`. Hooks run pre, normal, then post, preserving registration order inside each tier.
+`enforce` supports `"pre"`, `"normal"`, and `"post"`; omitting it means `"normal"`. Hooks run pre, normal, then post, preserving registration order inside each tier. `apply` is not a hook: `defineCliApp` runs it for every plugin, in registration order, before routing compiles; a thrown error aborts startup.
 
 Typical order:
 
@@ -33,6 +36,8 @@ Typical order:
 Write lifecycle tests when two plugins depend on registration order.
 
 `observeInput` receives the route, input metadata and cloned `redactedArgs`; it never receives raw JSON. Register `sensitive` JSON Pointers in the root Zod schema metadata and keep observers telemetry-only. Observer failures are logged and cannot change command execution.
+
+App-level hooks (`onAppRun` / `afterAppRun`) are stricter: they fire exactly once per process run (help, `--version`, unknown routes, and errors included) and failures are silent so they cannot change the exit code or append an ambiguous warning after a machine-readable result. Use them only for optional operational awareness. Do not use them for audit events or any side effect that requires delivery. Prefer `afterAppRun` over per-command observers for run-scoped notices such as update awareness.
 
 ## 2. Common patterns
 

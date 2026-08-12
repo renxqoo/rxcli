@@ -127,19 +127,19 @@ describe("BUG-R3: prettyPrint 单对象含数组字段不应丢失其他字段",
 });
 
 // ============================================================================
-// BUG-R7 [中]: semverLessThan 对非版本字符串('unknown'/'abc')返回 true
-// 根因: install-wizard.ts:134-142 Number("unknown")=NaN, NaN??0=NaN, 后续段 0<2 → true
+// BUG-R7 [中]: isOlderVersion 对非版本字符串('unknown'/'abc')返回 true
+// 根因: install-workflow.ts isOlderVersion Number("unknown")=NaN, NaN??0=NaN, 后续段 0<2 → true
 // 说明:stepInstallGlobally 调用处已有 installedVer!=="unknown" 守卫,故 install 流程不受影响;
-//      但 semverLessThan 是导出的纯函数,"非版本 → true" 违反直觉契约,任何不带守卫的调用都会踩坑。
+//      但 isOlderVersion 是导出的纯函数,"非版本 → true" 违反直觉契约,任何不带守卫的调用都会踩坑。
 // ============================================================================
-describe("BUG-R7: semverLessThan 对非版本字符串应返回 false", () => {
+describe("BUG-R7: isOlderVersion 对非版本字符串应返回 false", () => {
   it("'unknown' vs '1.2.3' → 不应判为小于", async () => {
-    const { semverLessThan } = await import("../install-wizard.js");
-    expect(semverLessThan("unknown", "1.2.3")).toBe(false);
+    const { isOlderVersion } = await import("../install-workflow.js");
+    expect(isOlderVersion("unknown", "1.2.3")).toBe(false);
   });
   it("'abc' vs '1.2.3' → 不应判为小于", async () => {
-    const { semverLessThan } = await import("../install-wizard.js");
-    expect(semverLessThan("abc", "1.2.3")).toBe(false);
+    const { isOlderVersion } = await import("../install-workflow.js");
+    expect(isOlderVersion("abc", "1.2.3")).toBe(false);
   });
 });
 

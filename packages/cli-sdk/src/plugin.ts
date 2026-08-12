@@ -14,6 +14,9 @@ import type {
   StructuredData,
   CommandResult,
   CommandInputEvent,
+  AppServices,
+  AppRunEvent,
+  AppExitEvent,
 } from "./types.js";
 import { InternalError } from "./errs/index.js";
 import { isStructuredData } from "./output.js";
@@ -43,6 +46,63 @@ function withHook<State, K extends keyof Plugin<State>>(
   hook: K,
 ): Plugin<State>[] {
   return sortPlugins(plugins).filter((p) => typeof p[hook] === "function");
+}
+
+// ============================================================================
+// 装配期(apply)
+// ============================================================================
+
+/**
+ * 按注册序执行每个插件的 apply(services),让插件在路由编译前解析共享服务
+ * (如 services.localState.store)并填充 provides。装配是启动的一部分:任一插件
+ * 抛错即中止启动(与旧 defineAuth 在模块顶层失败同语义)。
+ */
+export async function applyPlugins<State>(
+  plugins: Plugin<State>[],
+  services: Readonly<AppServices>,
+): Promise<void> {
+  for (const plugin of plugins) {
+    if (typeof plugin.apply === "function") await plugin.apply(services);
+  }
+}
+
+// ============================================================================
+// app 级生命周期(每次 app.run 恰一次)
+// ============================================================================
+
+/**
+ * 应用级观察钩子按注册序执行、事件冻结、失败静默:不得改变启动与退出码,
+ * 也不得向机器可读通道写入业务内容。update awareness 等运维性通知专属。
+ */
+export async function runOnAppRun<State>(
+  plugins: Plugin<State>[],
+  event: Readonly<AppRunEvent>,
+): Promise<void> {
+  for (const plugin of plugins) {
+    if (typeof plugin.onAppRun !== "function") continue;
+    try {
+      await plugin.onAppRun(Object.freeze({ argv: Object.freeze([...event.argv]) }));
+    } catch {
+      // App-level observers are best-effort: a failure must never affect the run's outcome.
+    }
+  }
+}
+
+/** afterAppRun 与 onAppRun 同语义,额外携带最终退出码(覆盖 help/version/错误等所有路径)。 */
+export async function runAfterAppRun<State>(
+  plugins: Plugin<State>[],
+  event: Readonly<AppExitEvent>,
+): Promise<void> {
+  for (const plugin of plugins) {
+    if (typeof plugin.afterAppRun !== "function") continue;
+    try {
+      await plugin.afterAppRun(
+        Object.freeze({ argv: Object.freeze([...event.argv]), exitCode: event.exitCode }),
+      );
+    } catch {
+      // Best-effort: never affect the run's outcome.
+    }
+  }
 }
 
 // ============================================================================

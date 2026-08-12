@@ -21,17 +21,13 @@ export type {
   TokenInfo,
   UserInfo,
 } from "./oauth-contracts.js";
-export { OAuthClient, type OAuthFetch } from "./oauth-client.js";
+export { OAuthClient } from "./oauth-client.js";
 
 export function injectAuthHeader(request: RequestOptions, token: string, style: AuthStyle): void {
   const headers = request.headers ?? {};
   headers[style === "x-api-key" ? "x-api-key" : "authorization"] =
     style === "bearer" ? `Bearer ${token}` : style === "basic" ? `Basic ${token}` : token;
   request.headers = headers;
-}
-
-export async function fetchScopesFromMetadata(config: OAuthClientConfig): Promise<string[]> {
-  return new OAuthClient(config).scopes();
 }
 
 export async function deviceAuthorization(config: OAuthClientConfig, scope?: string) {
@@ -43,10 +39,6 @@ export async function pollDeviceToken(
   deviceCode: string,
 ): Promise<PollResult> {
   return new OAuthClient(config).pollDevice(deviceCode);
-}
-
-export async function refreshAccessToken(config: OAuthClientConfig, refreshToken: string) {
-  return new OAuthClient(config).refresh(refreshToken);
 }
 
 export async function getUserInfo(config: OAuthClientConfig, accessToken: string) {

@@ -122,17 +122,21 @@ export default app;
 加鉴权(一行):
 
 ```ts
-import { defineCli, defineAuth } from "@renxqoo/agent-data-cli";
+import { defineCliApp, defineAuth } from "@renxqoo/agent-data-cli";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
-const auth = await defineAuth({
-  credentialNamespace: "orders",
-  baseUrl: "https://auth.example.com",
-  scope: "orders.read offline_access", // 业务自定,无默认值
-});
-
-export default defineCli({
+export default await defineCliApp({
   name: "orders",
-  plugins: [auth], // ← 钩子 + login/status/logout/register 全自动注入
+  // app 只决定一次根目录;装配器经 apply(services) 把它派发给每个有状态的插件。
+  dir: join(homedir(), ".orders"),
+  plugins: [
+    defineAuth({
+      credentialNamespace: "orders", // → config/orders.json + credentials/orders.json
+      baseUrl: "https://auth.example.com",
+      scope: "orders.read offline_access", // 业务自定,无默认值
+    }),
+  ], // ← 钩子 + login/status/logout/register 全自动注入
   commands: {},
   // ...
 });
@@ -226,19 +230,23 @@ JSON 命令只能通过 `--input`、`--input-file` 或原生 stdin 提供一个�
 不存在适配器或第二套校验协议。完整来源、安全限制和写策略见
 [`docs/07-structured-input.md`](docs/07-structured-input.md)。
 
-### `defineAuth(opts)` — OAuth 鉴权工厂
+### `defineAuth(opts)` — OAuth 2.1 鉴权工厂(同步工厂,装配在 `apply(services)`)
 
 ```ts
-const auth = await defineAuth({
-  credentialNamespace: "crm", // → credentials/crm.json
+const auth = defineAuth({
+  credentialNamespace: "crm", // → config/crm.json + credentials/crm.json
   baseUrl: AUTH_BASE_URL, // OAuth 中间层
-  scope: "company.api offline_access", // 业务自定,空=不带 scope
-  // commandNamespace: 'auth',      // 默认 'auth' → rxcli auth login
-  // authStyle: 'bearer',           // 默认 'bearer' | 'x-api-key' | 'basic'
+  scope: "company.api offline_access", // 一份 scope:登录授权与注册声明共用
+  // flow: 'device',                 // 默认 'device' | 'authorization_code' | 'client_credentials'
+  // commandNamespace: 'auth',       // 默认 'auth' → rxcli auth login
 });
 ```
 
-返回一个 Plugin,塞进 `plugins: [auth]` 即:钩子生效 + auth 命令自动挂载。
+一个工厂,OAuth 2.1 三种流程:`device`(RFC 8628,默认)、`authorization_code` + PKCE(唯一需要用户交互的流程)、`client_credentials`(服务器间,无用户)。注册 metadata(RFC 7591)按字段缺省派生——`client_name` ← credentialNamespace、`grant_types` ← flow、`scope` ← scope、`token_endpoint_auth_method` ← `client_secret_basic`;显式传 `clientMetadata` 字段可覆盖。
+
+返回一个 Plugin,塞进 `defineCliApp` 的 `plugins: [auth]`。装配器在路由编译前执行一次
+`apply(services)`,插件在 apply 里解析 `services.localState.store` 并自动挂载 auth 命令。
+(低层 `defineCli` 用户手动 `await auth.apply?.({ localState, appName })`。)
 
 ### Plugin(钩子 + provides)
 
@@ -296,6 +304,29 @@ const myPlugin: Plugin = {
   "error": { "type": "api", "subtype": "not_found", "message": "订单不存在", "hint": "检查 ID" }
 }
 ```
+
+可选的版本感知始终与业务信道隔离：
+
+```ts
+import { createUpdateNotifier } from "@renxqoo/agent-data-cli";
+
+const updateNotifier = createUpdateNotifier({
+  packageName: "@scope/my-cli",
+  currentVersion: "1.2.0",
+});
+
+const app = await defineCliApp({ /* dir, plugins: [updateNotifier], ... */ });
+```
+
+`defineCliApp({ dir })` 是 app 唯一一次目录决策。装配器创建唯一的本地状态对象,并通过
+`apply(services)` 注入每个插件。目录布局:按 namespace 的应用配置 `<dir>/config/<ns>.json`、
+凭证 `<dir>/credentials/<ns>.json>`、更新元数据 `<dir>/cache/updates/`。高层 API
+(`defineAuth`、`defineInstaller`、`createUpdateNotifier`)一律不接收目录参数。
+
+通知器每次 app 运行(仅成功运行)在 `afterAppRun` 触发一次,读取节流后的本地缓存,用分离的
+后台 helper 刷新 registry 元数据,并且只向 stderr 写 XML `<system-message>`。它不会污染
+stdout,也不会追加到结构化命令错误。可用 `NO_UPDATE_NOTIFIER=1` 关闭。升级命令只是提示,
+框架绝不会自动执行。
 
 **exit code 映射**(框架按错误类别自动设,agent 可据此判断处理策略):
 

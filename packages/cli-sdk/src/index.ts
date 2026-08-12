@@ -20,16 +20,31 @@
 // 核心装配
 export { defineCli, defineCommand, defineCommands } from "./define.js";
 
-// 认证基础能力(defineAuth 覆盖标准场景；特殊协议可用这些公开边界组合 Plugin)
+// 应用装配器(推荐入口:唯一目录决策点 + 插件 apply 装配)
+export {
+  defineCliApp,
+  type DefineCliAppOptions,
+  type DefineCliAppState,
+} from "./define-cli-app.js";
+
+export {
+  createLocalState,
+  createMemoryLocalState,
+  type CreateLocalStateOptions,
+  type FileLocalState,
+  type LocalState,
+  type LocalStatePaths,
+  type MemoryLocalState,
+} from "./local-state.js";
+
+// 认证基础能力(defineAuth 覆盖 OAuth 2.1 三种流程;特殊协议可用这些公开边界组合 Plugin)
 export {
   OAuthClient,
-  type OAuthFetch,
   injectAuthHeader,
   type AuthStyle,
-  // OAuth device flow(供 auth 命令 / OAuth provider 用)
+  // OAuth 2.1 基础原语(供 auth 命令 / 自定义 Plugin 用)
   deviceAuthorization,
   pollDeviceToken,
-  refreshAccessToken,
   getUserInfo,
   revokeToken,
   registerClient,
@@ -46,7 +61,6 @@ export {
   type PollResult,
   type ClientMetadata,
   type RegisteredClient,
-  fetchScopesFromMetadata,
 } from "./oauth.js";
 
 // 多流程鉴权(L3 策略层 + L2 基础设施)
@@ -119,6 +133,9 @@ export { createFetchAdapter, throwForResponse, type CreateFetchAdapterOptions } 
 // 插件
 export {
   sortPlugins,
+  applyPlugins,
+  runOnAppRun,
+  runAfterAppRun,
   runBeforeCommand,
   observeInput,
   beforeRequest,
@@ -128,6 +145,9 @@ export {
   observeError,
   handleError,
 } from "./plugin.js";
+
+// Best-effort update awareness (cached, stderr-only, and opt-in)
+export { createUpdateNotifier, type UpdateNotifierOptions } from "./update-notifier.js";
 
 export { rawText } from "./output.js";
 
@@ -177,8 +197,8 @@ export {
 // 执行器
 export { runCommand, type RunCommandOptions } from "./pipeline.js";
 
-// install 向导(框架层,业务包拦截 install 命令后调)
-export { runInstallWizard, type InstallWizardOptions } from "./install-wizard.js";
+// install 向导(内部插件:提供顶层 install 命令,业务入口无需拦截)
+export { defineInstaller, type DefineInstallerOptions } from "./installer.js";
 export { detectBizPackage, type BizPackageInfo } from "./define.js";
 
 // OAuth 鉴权工厂(plugin.provides 自动注入 login/status/logout/register 命令)
@@ -213,6 +233,9 @@ export type {
   ErrorDecision,
   Plugin,
   CommandInputEvent,
+  AppServices,
+  AppRunEvent,
+  AppExitEvent,
   UnauthorizedDecision,
 } from "./plugin-contracts.js";
 export type {
@@ -224,4 +247,4 @@ export type {
   TransportResponse,
 } from "./request-contracts.js";
 export type { CommandContext, CredentialsApi, LogApi, PipeApi } from "./runtime-contracts.js";
-export type { JsonInputMeta } from "./command-schema.js";
+export type { JsonInputMeta } from "./json-input.js";

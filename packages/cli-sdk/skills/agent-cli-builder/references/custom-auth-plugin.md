@@ -12,19 +12,17 @@ Use this only when `defineAuth` cannot express the protocol, such as HMAC, mTLS,
 
 ## 1. Auth plugin skeleton
 
-An auth plugin resolves a token in `beforeCommand`, stores it in a context-keyed `WeakMap`, injects it in `beforeRequest`, and may implement `handleUnauthorized` for one refresh and retry. Never keep one mutable token directly in a plugin closure: one plugin instance serves concurrent `App.run()` calls.
+An auth plugin resolves a token in `beforeCommand`, stores it in a context-keyed `WeakMap`, injects it in `beforeRequest`, and may implement `handleUnauthorized` for one refresh and retry. Never keep one mutable token directly in a plugin closure: one plugin instance serves concurrent `App.run()` calls. The store comes from `apply(services)` — factories take no directory or state parameters:
 
 ```ts
-import { homedir } from "node:os";
-import { join } from "node:path";
 import {
   AuthenticationError,
   createOn401Hook,
   defaultProviders,
-  fileStore,
   injectAuthHeader,
   resolveWithChain,
   type CommandContext,
+  type ConfigStore,
   type Plugin,
   type ProviderContext,
 } from "@renxqoo/agent-data-cli";
@@ -34,18 +32,33 @@ export function createCustomAuth<State extends { user?: unknown }>(options: {
   authStyle?: "bearer" | "x-api-key" | "basic";
   oauth?: { baseUrl: string; clientId: string; clientSecret: string };
 }): Plugin<State> {
-  const store = fileStore({ dir: join(homedir(), ".my-cli") });
-  const providers = defaultProviders();
   const authStyle = options.authStyle ?? "bearer";
-  const refresh = options.oauth
-    ? createOn401Hook({ cfg: options.oauth, store, namespace: options.namespace })
-    : undefined;
   const sessions = new WeakMap<CommandContext<State>, { token: string; refreshable: boolean }>();
+
+  // 装配期状态:apply 里从 services.localState.store 解析后填入。
+  let ready!: {
+    store: ConfigStore;
+    providers: ReturnType<typeof defaultProviders>;
+    refresh?: () => Promise<Record<string, unknown> | null>;
+  };
 
   return {
     name: `auth:${options.namespace}`,
     enforce: "pre",
+
+    async apply(services) {
+      const store = services.localState.store;
+      ready = {
+        store,
+        providers: defaultProviders(),
+        refresh: options.oauth
+          ? createOn401Hook({ cfg: options.oauth, store, namespace: options.namespace })
+          : undefined,
+      };
+    },
+
     async beforeCommand(ctx: CommandContext<State>) {
+      const { store, providers } = ready;
       const providerContext: ProviderContext = {
         namespace: options.namespace,
         configStore: store,
@@ -83,8 +96,8 @@ export function createCustomAuth<State extends { user?: unknown }>(options: {
 
     async handleUnauthorized(ctx) {
       const session = sessions.get(ctx);
-      if (!refresh || !session?.refreshable) return { action: "decline" };
-      const token = await refresh();
+      if (!ready.refresh || !session?.refreshable) return { action: "decline" };
+      const token = await ready.refresh();
       if (!token) {
         return {
           action: "reject",
@@ -107,7 +120,7 @@ export function createCustomAuth<State extends { user?: unknown }>(options: {
 
 ## 2. Plugin-owned login commands
 
-A command contributed through `provides` skips that same plugin's `beforeCommand`. Therefore `ctx.credentials` is still the default no-op implementation. Plugin-owned login and logout commands must use the closed-over store directly.
+A command contributed through `provides` skips that same plugin's `beforeCommand`. Therefore `ctx.credentials` is still the default no-op implementation. Plugin-owned login and logout commands must use the store captured during `apply` (`ready.store` in the skeleton above):
 
 ```ts
 const authCommands = defineCommands({
@@ -122,7 +135,7 @@ const authCommands = defineCommands({
           message: "MY_CLI_API_KEY is not set",
         });
       }
-      await store.saveCredentials(options.namespace, { apiKey });
+      await ready.store.saveCredentials(options.namespace, { apiKey });
       return { data: { saved: true } };
     },
   }),
@@ -130,7 +143,7 @@ const authCommands = defineCommands({
     name: "logout",
     description: "Clear stored credentials",
     async run() {
-      await store.clearCredentials(options.namespace);
+      await ready.store.clearCredentials(options.namespace);
       return { data: { cleared: true } };
     },
   }),

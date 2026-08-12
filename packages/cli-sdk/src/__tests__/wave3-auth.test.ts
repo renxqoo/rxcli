@@ -15,6 +15,7 @@ import { buildOn401Handler } from "../auth/helpers.js";
 import { defineAuth } from "../auth/index.js";
 import { createTestCtx } from "../test-utils.js";
 import { memoryStore } from "../credentials/config-store.js";
+import { createMemoryLocalState } from "../local-state.js";
 import { AuthenticationError, NetworkError } from "../errs/index.js";
 
 afterEach(() => vi.restoreAllMocks());
@@ -81,7 +82,7 @@ describe("L2: client_credentials refresh re-requests persisted scopes", () => {
       oauth: cfg,
       store,
       namespace: "app",
-      flowDeps: { type: "client_credentials", cfg, scope: "static" },
+      scope: "static",
     });
 
     const token = await handler();
@@ -156,13 +157,13 @@ describe("B6: logout revokes access + refresh tokens", () => {
         },
       },
     });
-    const plugin = await defineAuth({
+    const plugin = defineAuth({
       credentialNamespace: "crm",
       baseUrl: "http://t",
       clientId: "c",
       clientSecret: "s",
-      store,
     });
+    await plugin.apply?.({ localState: { kind: "memory", store }, appName: "test" });
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(new Response("{}", { status: 200 }));
@@ -198,13 +199,13 @@ describe("L3: status reports expired user session without throwing", () => {
         },
       },
     });
-    const plugin = await defineAuth({
+    const plugin = defineAuth({
       credentialNamespace: "crm",
       baseUrl: "http://t",
       clientId: "c",
       clientSecret: "s",
-      store,
     });
+    await plugin.apply?.({ localState: { kind: "memory", store }, appName: "test" });
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
     const ctx = createTestCtx();

@@ -13,6 +13,7 @@ import { registerClient, type ClientMetadata } from "../../oauth.js";
 export interface RegisterCommandDeps {
   baseUrl: string;
   store: ConfigStore;
+  credentialNamespace: string;
   commandNamespace: string;
   clientMetadata?: ClientMetadata;
 }
@@ -57,10 +58,11 @@ export function createRegisterCommand(deps: RegisterCommandDeps): CommandSpec<an
       }
 
       const { clientId, clientSecret } = await registerClient(baseUrl, token, deps.clientMetadata);
-      const config = (await store.loadConfig()) as Record<string, unknown>;
+      const namespace = deps.credentialNamespace;
+      const config = (await store.loadConfig(namespace)) as Record<string, unknown>;
       config.clientId = clientId;
       config.clientSecret = clientSecret;
-      await store.saveConfig(config);
+      await store.saveConfig(namespace, config);
 
       ctx.log.info(`\n✓ Registered successfully. clientId=${clientId}`);
       return { data: { registered: true, clientId } };

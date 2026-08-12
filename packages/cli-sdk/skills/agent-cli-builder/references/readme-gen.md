@@ -18,7 +18,7 @@ Extract facts from implementation rather than filling a template from memory:
 | ------------------------------ | -------------------------------------------- |
 | Package, bin, Node.js version  | `package.json`                               |
 | Positioning, commands, domains | `defineCli`, `defineCommand`                 |
-| Installation effects           | Entry-point `runInstallWizard` configuration |
+| Installation effects           | `defineInstaller` plugin options in `defineCliApp` |
 | Authentication                 | Auth implementation and real `--help`        |
 | Output and pagination          | Command returns and `defaultFormat`          |
 | Development commands           | `package.json.scripts`                       |
@@ -65,7 +65,7 @@ npm install -g {{package-name}}
 {{bin}} --help
 ```
 
-If the package has no `runInstallWizard`, do not document `npx <pkg> install`.
+If the app has no `defineInstaller` plugin, do not document `npx <pkg> install`.
 
 ## 3. Authentication variants
 

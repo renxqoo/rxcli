@@ -17,80 +17,81 @@
 | 贡献                    | 说明                                                                                                      |
 | ----------------------- | --------------------------------------------------------------------------------------------------------- |
 | **4 个 auth 命令**      | `login` / `status` / `logout` / `register`(通过 `provides.namespaces.auth` 自动注入到 `<bin> auth <cmd>`) |
-| **login 三分支**        | 默认阻塞轮询(人类)/ `--no-wait --json`(发起,立即返回)/ `--device-code <code>`(完成轮询)                   |
-| **register 命令**       | 用注册令牌 + client_metadata 换独立 client(RFC 7591 snake_case 响应),写 `~/.rxcli/config.json`            |
+| **login 三分支**        | 默认阻塞轮询(人类)/ `--no-wait --json`(发起,立即返回)/ `--device-code <code>`(完成轮询,device flow 专属)  |
+| **register 命令**       | 用注册令牌 + client_metadata 换独立 client(RFC 7591 snake_case 响应),写 `<dir>/config/<ns>.json`        |
 | **beforeCommand 钩子**  | 跑 provider chain 取 token → 填 `ctx.credentials` / `ctx.state.user`                                      |
-| **beforeRequest 钩子** | 按 `authStyle` 注入 header(bearer/x-api-key/basic)                                                        |
+| **beforeRequest 钩子**  | 注入 `Authorization: Bearer`(OAuth 2.1 access token 一律 Bearer,RFC 6750)                                 |
 | **401 续期 hook**       | 公开的 `handleUnauthorized`(singleflight refresh + 落盘 + 重跑 request hooks 后重试一次)                  |
 | **精确豁免**            | `auth login/register` 等自动跳过自身 `beforeCommand`(不会被"必须登录"拦截)                                |
-| **多 flow 支持**        | `flow` 选项:device(默认)/ authorization_code+PKCE / client_credentials                                    |
-| **动态 scope**          | `scopeFromMetadata: true` → 读取并采用 metadata 的全部 `scopes_supported`                                 |
+| **OAuth 2.1 三流程**    | `flow` 选项:device(RFC 8628,默认)/ authorization_code+PKCE / client_credentials                            |
+| **注册 metadata 派生**  | client_name/grant_types/scope/token_endpoint_auth_method 按字段缺省派生,显式 `clientMetadata` 优先        |
 | **sandbox 注入**        | `bearerToken` 一行注入预签发 JWT(priority 0,显式配置优先级最高)                                           |
 
 ### defineAuth 全部选项
 
 ```ts
-const auth = await defineAuth({
-  credentialNamespace: "crm",           // 必填:凭证隔离命名空间
+const auth = defineAuth({                  // 同步工厂,禁止 await;异步装配在 apply(services)
+  credentialNamespace: "crm",           // 必填:config/<ns>.json 与 credentials/<ns>.json 的隔离命名空间
   baseUrl: AUTH_BASE_URL,               // 必填:auth-proxy 地址
-  scope: "orders:read offline_access",  // 可选:OAuth scope(写死)
-  scopeFromMetadata: true,              // 可选:从 metadata 读取全部 scope(覆盖 scope)
+  scope: "orders:read offline_access",  // 可选:一份 scope,登录授权与注册声明(clientMetadata.scope)共用
   flow: "device",                       // 可选:device(默认)/ authorization_code / client_credentials
-  clientMetadata: {                     // 可选:RFC 7591 注册时声明
-    client_name: "crm",
+  clientMetadata: {                     // 可选:RFC 7591 注册声明;缺省字段按 flow/scope 派生
+    client_name: "crm",                 //  ← 显式覆盖派生值
     redirect_uris: ["http://localhost:8080/callback"],  // authCode flow 需要
   },
   bearerToken: process.env.CRM_BEARER_TOKEN, // 可选:sandbox/CI 一行注入 JWT
   providers: [...],                     // 可选:自定义 provider chain(不传=defaultProviders)
   clientId: "...",                      // 可选:env/config 回退
   clientSecret: "...",                  // 可选
-  authStyle: "bearer",                  // 可选:bearer(默认)/ x-api-key / basic
   redirectPort: 8080,                   // 可选:authCode flow 本地回调端口
-  store: memoryStore(),                 // 可选:测试注入
   commandNamespace: "auth",             // 可选:命令命名空间(默认 auth)
 });
 ```
 
-### 最小用法(必须 await,常见错误)
+工厂**不接收目录/store/localState 参数**——本地状态经 `apply(services)` 从 `defineCliApp({ dir })` 注入。
 
-`defineAuth` 是 `async` 函数,返回 `Promise<Plugin>`,必须 `await`:
+**注册 metadata 缺省派生**(显式字段优先,hasOwnProperty 判断):
+
+| 字段                        | 缺省值                                        |
+| --------------------------- | --------------------------------------------- |
+| `client_name`               | `credentialNamespace`                         |
+| `grant_types`               | 按 flow:device → `urn:ietf:params:oauth:grant-type:device_code refresh_token`;authorization_code → `authorization_code refresh_token`;client_credentials → `client_credentials` |
+| `scope`                     | `scope`(注册声明与授权请求需要不同时显式覆盖) |
+| `token_endpoint_auth_method`| `client_secret_basic`                         |
+
+### 最小用法
 
 ```ts
-import { defineCli, defineAuth, fileStore } from "@renxqoo/agent-data-cli";
+import { defineCliApp, defineAuth } from "@renxqoo/agent-data-cli";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-// 正确:await 拿到的是 Plugin
-const auth = await defineAuth({
-  credentialNamespace: "rxweather",
-  baseUrl: process.env.AUTH_BASE_URL!,
-  store: fileStore({ dir: join(homedir(), ".rxweather") }), // 目录由 app 决定(SDK 无默认)
-  scope: "weather:read offline_access", // 仅使用已确认的最小权限 scope
-  clientMetadata: { client_name: "rxweather" },
-  bearerToken: process.env.RXWEATHER_BEARER_TOKEN, // sandbox/CI 注入(可选)
-});
-
-defineCli({
+const app = await defineCliApp({
   name: "rxweather",
-  plugins: [auth],
+  dir: join(homedir(), ".rxweather"), // app 唯一一次目录决策
+  plugins: [
+    defineAuth({
+      credentialNamespace: "rxweather",
+      baseUrl: process.env.AUTH_BASE_URL!,
+      scope: "weather:read offline_access", // 仅使用已确认的最小权限 scope
+      clientMetadata: { client_name: "rxweather" },
+      bearerToken: process.env.RXWEATHER_BEARER_TOKEN, // sandbox/CI 注入(可选)
+    }),
+  ],
   // ...
 });
 ```
 
-```ts
-// 错误:缺 await → auth 是 Promise → plugins:[Promise] → beforeCommand 不执行,鉴权失效,且无报错
-const auth = defineAuth({ ... })
-defineCli({ plugins: [auth], ... })
-```
+`defineAuth` 是**同步工厂**,返回 Plugin(不是 Promise),禁止 `await`。`defineCliApp` 在路由编译前自动执行插件 `apply(services)`,鉴权配置解析(读 config、可能请求 metadata)都在 apply 里完成。低层 `defineCli` 用户须手动 `await auth.apply?.({ localState, appName })`。
 
-> 此为鉴权场景最常见 bug。所有 `defineAuth` 示例均 `await`。若将 auth 工厂拆到单独 `src/auth.ts` 导出,该处也必须 `await` 后再 `export`(不能 `export const auth = defineAuth(...)`)。
+> 旧版 `await defineAuth({ localState })` 形态已删除,不保留兼容参数。
 
 ### 首次使用顺序
 
 ```
-register(注册令牌 + client_metadata → client_id/client_secret,写 ~/.rxcli/config.json)
+register(注册令牌 + client_metadata → client_id/client_secret,写 <dir>/config/<ns>.json)
    ↓
-login(OAuth device flow → token,写 ~/.rxcli/credentials/<ns>.json)
+login(OAuth device flow → token,写 <dir>/credentials/<ns>.json)
    ↓
 业务命令(orders list / ...)
 ```
@@ -104,8 +105,8 @@ login(OAuth device flow → token,写 ~/.rxcli/credentials/<ns>.json)
 `defineAuth` 不传 `clientId/clientSecret` 时:
 
 1. `process.env.RXCLI_CLIENT_ID` / `RXCLI_CLIENT_SECRET`(CI/临时覆盖)
-2. `~/.rxcli/config.json`(register 写入,持久化)
-3. 空(向后兼容未注册态,login 会失败提示 register)
+2. `<dir>/config/<ns>.json`(register 写入,按 namespace 隔离——其他 app 的注册不会覆盖)
+3. 空(未注册态,login 会失败提示 register)
 
 ---
 
@@ -125,7 +126,7 @@ my-cli qrcode <verification_url> --output /tmp/login-qr.png
 
 # 第二步:用户在浏览器完成授权后,完成登录(下一轮)
 my-cli auth login --device-code <第一步的 device_code>
-# → stderr "✓ 登录成功:<name>",token 写入 ~/.rxcli/credentials/<ns>.json
+# → stderr "✓ 登录成功:<name>",token 写入 <dir>/credentials/<ns>.json
 ```
 
 **禁止**:agent 在同一轮展示 URL 后立刻跑 `--device-code`(harness 不透传中间输出,用户看不到 URL);缓存 `device_code`/`verification_url`(几分钟过期,每次重新发起)。
@@ -134,75 +135,76 @@ my-cli auth login --device-code <第一步的 device_code>
 
 ## 2. install 向导(4 步,分发 CLI 用)
 
-框架自带 install 向导,把"装包 → 装 skills → register → login"串成一键流程。业务包入口拦截 `argv[0]==='install'` 转给它:
+向导是内部插件(`defineInstaller`),提供顶层 `install` 命令——入口**不再需要拦截**。加入 `defineCliApp` 的 plugins 即可:
 
 ```ts
-// src/index.ts(bin 入口)。npm 全局安装时 argv[1] 是 bin 软链,用 realpathSync 比对入口。
-import { realpathSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-function isMainEntry(): boolean {
-  try {
-    return realpathSync(process.argv[1] ?? "") === fileURLToPath(import.meta.url);
-  } catch {
-    return false;
-  }
-}
-
-const argv = process.argv.slice(2);
-if (isMainEntry() && argv[0] === "install") {
-  const { runInstallWizard } = await import("@renxqoo/agent-data-cli");
-  process.exitCode = await runInstallWizard({ skillsSource: process.env.X_SKILLS_SOURCE });
-}
-if (isMainEntry() && argv[0] !== "install") await app.run(argv);
+const app = await defineCliApp({
+  name: "rxweather",
+  dir: join(homedir(), ".rxweather"),
+  plugins: [
+    defineAuth({ credentialNamespace: "rxweather", baseUrl: AUTH_BASE_URL }),
+    defineInstaller({
+      skillsSource: process.env.X_SKILLS_SOURCE,
+      // auth: false,   // 无鉴权的开放数据 CLI 用:跳过 register/login 步骤
+    }),
+  ],
+  // ...
+});
+// rxcli install [--lang zh|en] 是普通路由命令;入口保持 app.run(argv) 不变。
 ```
 
 **4 步流程**(向导自动跑,无需手写):
 
 1. `npm install -g <业务包名>`(由 `detectBizPackage()` 从 package.json 探测,不是问用户)
 2. 装 skills:`skillsSource` 设了 → `npx skills add <url>`;空 → `<bin> skills sync`
-3. `<bin> auth register`(若 `~/.rxcli/config.json` 无 clientId)
+3. `<bin> auth register`(若 `<dir>/config/` 下没有任何 clientId;`auth: false` 时跳过)
 4. `<bin> auth login`(失败仅 warn,不阻断)
 
-**传给 `runInstallWizard` 的 `skillsSource` 决定 skills 怎么装**:空 → 本地 `skills/` 同步到用户已装的 agent 工具发现目录(`~/.agents` 始终写 + 探测到的已装工具);设 URL → `npx skills add`(覆盖 30+ AI 工具发现路径)。当前 `defineCli({ skillsSource })` 不会自动转交该配置。
+**传给 `defineInstaller` 的 `skillsSource` 决定 skills 怎么装**:空 → 本地 `skills/` 同步到用户已装的 agent 工具发现目录(`~/.agents` 始终写 + 探测到的已装工具);设 URL → `npx skills add`(覆盖 30+ AI 工具发现路径)。`defineCliApp`/`defineCli({ skillsSource })` 不会自动转交该配置。
 
 ---
 
 ## 3. 凭证存储路径(隔离多 CLI)
 
-存储目录由 app 显式决定(cli-sdk **无默认目录**,不自动隔离)。在同一目录内,凭证靠 `credentialNamespace` 区分(`<dir>/credentials/<ns>.json`)。若两个 CLI 用了同一目录且 namespace 撞了 → **静默共用同一份凭证**,引发鉴权混乱。
+存储目录由 app 显式决定(cli-sdk **无默认目录**,不自动隔离)。在同一目录内,**配置与凭证都**靠 `credentialNamespace` 区分:
+
+```
+<dir>/
+├── config/<ns>.json        ← register 写入的 clientId/clientSecret(namespace 隔离)
+├── credentials/<ns>.json   ← token
+└── cache/updates/          ← 版本检查缓存
+```
+
+两个 CLI 用同一目录且 namespace 撞了 → **静默共用同一份凭证**,引发鉴权混乱;namespace 不同 → 注册配置互不覆盖。
 
 **(a) 多个 CLI 共享同一目录,靠 namespace 区分**(适合同一家公司的多个 CLI,token 可复用):
 
 ```ts
-import { fileStore } from "@renxqoo/agent-data-cli";
-import { join } from "node:path";
-import { homedir } from "node:os";
-
-// 目录由 app 显式决定;多个 CLI 传同一目录即可共享(靠 namespace 区分凭证文件)
-const store = fileStore({ dir: join(homedir(), ".rxcli") }); // → ~/.rxcli/credentials/<ns>.json
-const auth = await defineAuth({
-  credentialNamespace: "crm", // → ~/.rxcli/credentials/crm.json
-  baseUrl: AUTH_BASE_URL,
-  store,
+const app = await defineCliApp({
+  dir: join(homedir(), ".rxcli"),
+  plugins: [
+    defineAuth({
+      credentialNamespace: "crm", // → ~/.rxcli/config/crm.json + credentials/crm.json
+      baseUrl: AUTH_BASE_URL,
+    }),
+  ],
+  // ...
 });
 ```
 
 **(b) 完全独立目录**(适合独立产品):
 
 ```ts
-import { fileStore } from "@renxqoo/agent-data-cli";
-import { join } from "node:path";
-import { homedir } from "node:os";
-
-const store = fileStore({ dir: join(homedir(), ".my-cli") }); // → ~/.my-cli/credentials/<ns>.json
-const auth = await defineAuth({
-  credentialNamespace: "my-cli",
-  baseUrl: AUTH_BASE_URL,
-  store, // 目录由 app 决定
+const app = await defineCliApp({
+  dir: join(homedir(), ".my-cli"),
+  plugins: [
+    defineAuth({ credentialNamespace: "my-cli", baseUrl: AUTH_BASE_URL }),
+  ],
+  // ...
 });
 ```
 
-> `defineAuth` 的 `store` 是**必填项**:cli-sdk 不内置默认目录,落盘位置完全由 app 决定。生产用 `fileStore({ dir })`,测试用 `memoryStore({ credentials: { 'my-cli': { apiKey: 'sk_test' } } })`(不碰磁盘)。
+> cli-sdk 不内置默认目录，app 用 `defineCliApp({ dir })` 决定一次；装配器把唯一 localState 经 `apply(services)` 注入 `defineAuth`、`defineInstaller`、`createUpdateNotifier`。测试使用 `defineCliApp({ localState: createMemoryLocalState(...) })`。高层 API 不保留 `store`、`configDir`、`cacheDir`、`localState` 兼容参数。
 
 ### 安全边界
 
@@ -211,7 +213,7 @@ const auth = await defineAuth({
 - `--api-key` 只适合用户明确授权的一次性覆盖；不得回显其值。
 - `auth register` 省略 `--token` 时使用普通终端输入，字符**不会遮罩**；带 `--token` 又可能暴露在历史和进程列表。不要向用户索取真实生产注册令牌，让用户在私密终端自行执行，并将这一限制列为高敏环境的已知风险。
 - 注册和登录会写入本地配置或凭证文件。执行前说明路径与影响，并使用已确认的最小权限 scope。
-- `scopeFromMetadata: true` 会采用 metadata 返回的全部 `scopes_supported`。生产环境仅在该集合已审核时使用；否则显式配置经确认的最小 scope。
+- 注册 metadata 由 `scope`/`flow`/`credentialNamespace` 缺省派生；仅当服务端要求注册声明与授权请求不同时才显式传 `clientMetadata` 字段覆盖。
 - 调试认证失败时只报告 provider 来源、过期状态和缺失 scope，不打印原始凭证或认证响应。
 
 ---
@@ -220,8 +222,9 @@ const auth = await defineAuth({
 
 | 场景                                          | 用什么                                                          |
 | --------------------------------------------- | --------------------------------------------------------------- |
-| 标准 OAuth(OAuth 中间层 + device flow)        | `defineAuth` 工厂(本文档)                                       |
-| Bearer / API key / Basic(单 token,无 refresh) | `defineAuth({ authStyle: 'x-api-key' \| 'bearer' \| 'basic' })` |
+| 标准 OAuth 2.1(device / authorization_code+PKCE / client_credentials) | `defineAuth` 工厂(本文档)                  |
+| 单 Bearer 凭证(非 OAuth)                      | 手写 Plugin + `injectAuthHeader(req, token, "bearer")`          |
+| API key / Basic 凭证                          | 手写 Plugin + `injectAuthHeader`(`x-api-key` / `basic`)         |
 | HMAC 签名(非 header 注入,要算签名)            | 手写 auth Plugin,见 `references/custom-auth-plugin.md`          |
 | mTLS(客户端证书)                              | 手写 auth Plugin + `beforeRequest` 注入证书,见同文件            |
 | 复合鉴权(签名 + header)                       | 手写 auth Plugin + 签名 Plugin(`enforce:'post'`),见同文件       |

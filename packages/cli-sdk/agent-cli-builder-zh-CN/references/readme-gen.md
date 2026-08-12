@@ -18,7 +18,7 @@ README 面向开发者和终端用户；Skill 面向 AI agent。两者共享事�
 | -------------------- | ------------------------------ |
 | 包名、bin、Node 版本 | `package.json`                 |
 | 定位、命令和业务域   | `defineCli`、`defineCommand`   |
-| 安装行为             | 入口的 `runInstallWizard` 配置 |
+| 安装行为             | `defineCliApp` 里 `defineInstaller` 插件的配置 |
 | 鉴权步骤             | auth 实现和真实 `--help`       |
 | 输出与分页           | 命令返回值、`defaultFormat`    |
 | 开发命令             | `package.json.scripts`         |
@@ -65,7 +65,7 @@ npm install -g {{package-name}}
 {{bin}} --help
 ```
 
-若包没有 `runInstallWizard`，不要写 `npx <pkg> install`。使用真实支持的安装方式。
+若 app 没有 `defineInstaller` 插件，不要写 `npx <pkg> install`。使用真实支持的安装方式。
 
 ## 3. 鉴权分支
 

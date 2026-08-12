@@ -2,12 +2,12 @@
  * @renxqoo/agent-data-cli/credentials —— ConfigStore 实现
  *
  * 设计依据:docs/05-credentials.md "凭证存储"。
- *   - 按 namespace 分文件(每个业务包一个文件)
+ *   - 配置与凭证都按 namespace 分文件(每个业务包一份,互不覆盖)
  *   - 单环境(框架,业务包各自声明 baseUrl,无 dev/test/prod)
  *
- * 安全契约(POSIX):凭证文件以 0600、目录以 0700 写入。Windows 不支持 chmod/mode,
+ * 安全契约(POSIX):凭证/配置文件以 0600、目录以 0700 写入。Windows 不支持 chmod/mode,
  * 文件 ACL 继承父目录 —— 因此 0600 的保密保证仅在 POSIX 成立(见 docs/05)。
- * 凭证以明文 at-rest 存储(仅依赖文件系统权限保护),不做混淆/加密。
+ * 凭证与配置以明文 at-rest 存储(仅依赖文件系统权限保护),不做混淆/加密。
  */
 
 import { join } from "node:path";
@@ -57,22 +57,25 @@ export interface FileStoreOptions {
  * 创建磁盘 ConfigStore。
  * 目录结构:
  *   <dir>/
- *   ├── config.json              全局配置(业务包 baseUrl 等)
+ *   ├── config/
+ *   │   └── <namespace>.json    应用配置(注册 clientId 等,按 namespace 隔离,0600)
  *   └── credentials/
  *       └── <namespace>.json     按业务包命名空间隔离(0600)
  */
 export function fileStore(opts: FileStoreOptions): ConfigStore {
   const dir = opts.dir;
   const credsDir = join(dir, "credentials");
-  const configPath = join(dir, "config.json");
+  const configDir = join(dir, "config");
 
   // C11: directories are a write-side concern. Reads tolerate a missing dir.
   const ensureDirs = () => {
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
     if (!existsSync(credsDir)) mkdirSync(credsDir, { recursive: true, mode: 0o700 });
+    if (!existsSync(configDir)) mkdirSync(configDir, { recursive: true, mode: 0o700 });
     try {
       chmodSync(dir, 0o700);
       chmodSync(credsDir, 0o700);
+      chmodSync(configDir, 0o700);
     } catch {
       /* 非 POSIX(Windows)忽略:见模块安全契约。 */
     }
@@ -99,7 +102,7 @@ export function fileStore(opts: FileStoreOptions): ConfigStore {
     }
   };
   sweepStaleTemps(credsDir);
-  sweepStaleTemps(dir);
+  sweepStaleTemps(configDir);
 
   const writeJsonAtomic = (path: string, data: Record<string, unknown>) => {
     const temp = `${path}.${process.pid}.${randomUUID()}.tmp`;
@@ -134,14 +137,14 @@ export function fileStore(opts: FileStoreOptions): ConfigStore {
     }
   };
 
-  const readConfig = (): Record<string, unknown> => {
-    if (!existsSync(configPath)) return {};
+  const readConfig = (path: string): Record<string, unknown> => {
+    if (!existsSync(path)) return {};
     try {
-      return decodeJsonDocument(readFileSync(configPath, "utf8"), configPath);
+      return decodeJsonDocument(readFileSync(path, "utf8"), path);
     } catch (cause) {
       throw new ConfigError({
         subtype: "invalid_config",
-        message: `Config file corrupted or unreadable: ${configPath}`,
+        message: `Config file corrupted or unreadable: ${path}`,
         cause,
       });
     }
@@ -177,13 +180,15 @@ export function fileStore(opts: FileStoreOptions): ConfigStore {
       }
     },
 
-    async loadConfig() {
-      return readConfig();
+    async loadConfig(namespace) {
+      assertCredentialNamespace(namespace);
+      return readConfig(join(configDir, `${namespace}.json`));
     },
 
-    async saveConfig(data) {
+    async saveConfig(namespace, data) {
+      assertCredentialNamespace(namespace);
       ensureDirs();
-      writeJsonAtomic(configPath, data);
+      writeJsonAtomic(join(configDir, `${namespace}.json`), data);
     },
 
     async withLock<T>(namespace: string, fn: () => Promise<T>): Promise<T> {
@@ -202,22 +207,23 @@ export function fileStore(opts: FileStoreOptions): ConfigStore {
 // ============================================================================
 
 /**
- * 创建内存 ConfigStore。测试用:不碰磁盘,可预设凭证。
+ * 创建内存 ConfigStore。测试用:不碰磁盘,可预设凭证与配置(均按 namespace)。
  * ```ts
  * const store = memoryStore({
  *   credentials: { orders: { apiKey: 'sk_test' } },
+ *   config: { orders: { baseUrl: 'http://x' } },
  * })
  * ```
  */
 export function memoryStore(
   initial: {
     credentials?: Record<string, Record<string, unknown>>;
-    config?: Record<string, unknown>;
+    config?: Record<string, Record<string, unknown>>;
   } = {},
 ): ConfigStore & {
   _snapshot: () => {
     credentials: Record<string, Record<string, unknown>>;
-    config: Record<string, unknown>;
+    config: Record<string, Record<string, unknown>>;
   };
 } {
   const creds: Record<string, Record<string, unknown>> = {};
@@ -225,7 +231,11 @@ export function memoryStore(
     assertCredentialNamespace(namespace);
     creds[namespace] = roundTripJsonDocument(data, `credentials:${namespace}`);
   }
-  let config = roundTripJsonDocument(initial.config ?? {}, "config");
+  const config: Record<string, Record<string, unknown>> = {};
+  for (const [namespace, data] of Object.entries(initial.config ?? {})) {
+    assertCredentialNamespace(namespace);
+    config[namespace] = roundTripJsonDocument(data, `config:${namespace}`);
+  }
 
   // In-process mutex per namespace (single-process equivalent of withLock).
   const mutexes = new Map<string, Promise<unknown>>();
@@ -262,11 +272,15 @@ export function memoryStore(
       assertCredentialNamespace(namespace);
       delete creds[namespace];
     },
-    async loadConfig() {
-      return roundTripJsonDocument(config, "config");
+    async loadConfig(namespace) {
+      assertCredentialNamespace(namespace);
+      return config[namespace]
+        ? roundTripJsonDocument(config[namespace], `config:${namespace}`)
+        : {};
     },
-    async saveConfig(data) {
-      config = roundTripJsonDocument(data, "config");
+    async saveConfig(namespace, data) {
+      assertCredentialNamespace(namespace);
+      config[namespace] = roundTripJsonDocument(data, `config:${namespace}`);
     },
     async withLock<T>(namespace: string, fn: () => Promise<T>): Promise<T> {
       assertCredentialNamespace(namespace);
@@ -280,7 +294,10 @@ export function memoryStore(
         string,
         Record<string, unknown>
       >,
-      config: roundTripJsonDocument(config, "config"),
+      config: roundTripJsonDocument(config, "config snapshot") as Record<
+        string,
+        Record<string, unknown>
+      >,
     }),
   });
 }

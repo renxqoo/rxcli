@@ -56,29 +56,32 @@ rxcli-orders/
 
 ```ts
 #!/usr/bin/env node
-import { defineCli, defineAuth } from "@renxqoo/agent-data-cli";
+import { defineCliApp, defineAuth } from "@renxqoo/agent-data-cli";
 import { ordersCommands } from "./commands/orders.js";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 type OrdersState = {
   user: { userId: string } | null;
 };
 
-const auth = await defineAuth<OrdersState>({
-  credentialNamespace: "orders",
-  baseUrl: "https://auth.example.com",
-  scope: "orders.read offline_access",
-});
-
-export default defineCli<OrdersState>({
+export default await defineCliApp<OrdersState>({
   name: "orders",
   description: "订单查询与管理",
-  plugins: [auth],
+  dir: join(homedir(), ".orders"), // 唯一一次目录决策
+  plugins: [
+    defineAuth({
+      credentialNamespace: "orders", // → config/orders.json + credentials/orders.json
+      baseUrl: "https://auth.example.com",
+      scope: "orders.read offline_access",
+    }),
+  ],
   commands: ordersCommands,
   skillsDir: "./skills",
 });
 ```
 
-> `defineAuth` 返回普通 `Plugin` 并自动贡献 login/status/logout/register 命令。需要特殊协议时，再使用 `fileStore`、provider chain、context-keyed session 和 `handleUnauthorized` 等公开基础块手写 Plugin；见 `05-credentials.md`。
+> `defineAuth` 是同步工厂,返回普通 `Plugin` 并自动贡献 login/status/logout/register 命令;`defineCliApp` 在路由编译前执行插件 `apply(services)` 完成装配。需要特殊协议时，再使用 provider chain、context-keyed session 和 `handleUnauthorized` 等公开基础块手写 Plugin；见 `05-credentials.md`。
 
 **就这些。** 下面逐块讲 `ctx`、`defineCommand`、插件系统、auth。
 
@@ -181,11 +184,11 @@ list: defineCommand<OrderListArgs, OrderItem[]>({
 defineCli<OrdersState>({ ... })
 ```
 
-| 类型     | 声明位置                          | 职责                                      |
-| -------- | --------------------------------- | ----------------------------------------- |
-| `State`  | `defineCli<State>`                | `ctx.state` 的类型,业务包级(所有命令共享) |
-| `Args`   | `args.schema` 的 Zod output       | `run(ctx, args)` 中 `args` 的唯一类型来源 |
-| `Result` | `run` 返回的 `{ data }` 自动推导  | 命令输出类型                              |
+| 类型     | 声明位置                         | 职责                                      |
+| -------- | -------------------------------- | ----------------------------------------- |
+| `State`  | `defineCli<State>`               | `ctx.state` 的类型,业务包级(所有命令共享) |
+| `Args`   | `args.schema` 的 Zod output      | `run(ctx, args)` 中 `args` 的唯一类型来源 |
+| `Result` | `run` 返回的 `{ data }` 自动推导 | 命令输出类型                              |
 
 **一个入口,一个类型来源。** `defineCommand({...})` 只从 `args.schema` 的 Zod object 推导并校验参数；不接受手写 `Args` 泛型覆盖，不存在适配器或第二套 schema。
 
@@ -485,11 +488,11 @@ export const ordersCommands = defineCommands({
 
 ### args 字段规范
 
-| 字段     | 类型                       | 说明                                             |
-| -------- | -------------------------- | ------------------------------------------------ |
-| `type`   | `"argv" \| "json"`       | 省略默认 argv；json 与 flags/位置参数互斥        |
-| `schema` | Zod object                 | 唯一校验、默认值、描述和类型来源                 |
-| `pos`    | schema 字段名数组          | 仅 argv 可用；按顺序映射原生位置参数             |
+| 字段     | 类型               | 说明                                      |
+| -------- | ------------------ | ----------------------------------------- |
+| `type`   | `"argv" \| "json"` | 省略默认 argv；json 与 flags/位置参数互斥 |
+| `schema` | Zod object         | 唯一校验、默认值、描述和类型来源          |
+| `pos`    | schema 字段名数组  | 仅 argv 可用；按顺序映射原生位置参数      |
 
 SDK 只负责 Shell token 到对象的确定性映射和 Zod 校验,不参与业务参数语义。后端要 `page/pageSize` 还是 `cursor`,业务包在 `run` 里翻译。
 
@@ -514,6 +517,9 @@ SDK 只负责 Shell token 到对象的确定性映射和 Zod 校验,不参与业
 interface Plugin<State = {}> {
   name: string; // 必填:插件名(日志/溯源)
   enforce?: "pre" | "normal" | "post";
+  apply?(services: Readonly<AppServices>): void | Promise<void>; // 装配期一次(defineCliApp 自动调)
+  onAppRun?(event: Readonly<AppRunEvent>): void | Promise<void>; // 每次 app.run 一次
+  afterAppRun?(event: Readonly<AppExitEvent>): void | Promise<void>; // 每次 app.run 结束一次
   beforeCommand?(ctx: CommandContext<State>): Promise<void>;
   beforeRequest?(
     ctx: CommandContext<State>,
@@ -537,6 +543,9 @@ interface Plugin<State = {}> {
 
 | 钩子                 | 何时触发             | 能改什么                               | 典型用途                                |
 | -------------------- | -------------------- | -------------------------------------- | --------------------------------------- |
+| `apply`              | 装配期(路由编译前)   | 解析 services、填 provides、建运行时状态 | 从 `services.localState.store` 装配 auth |
+| `onAppRun`           | 每次 app.run 开始    | 只观察；失败被静默隔离                 | 启动打点                                |
+| `afterAppRun`        | 每次 app.run 结束    | 只观察；失败被静默隔离                 | 版本感知通知(update-notifier)          |
 | `beforeCommand`      | 命令 run 前          | `ctx.state`(填数据)                    | auth 填 user、参数预处理                |
 | `beforeRequest`      | 每次 attempt 前      | 返回新的请求对象                       | 加固定 header、HMAC 签名、注入 tenantId |
 | `observeRequest`     | 每次 attempt 后      | 只读事件(`response` / `network-error`) | 审计、metric、请求日志                  |
@@ -560,6 +569,8 @@ post 插件(注册序)   ← 最终包装(签名、收尾)
 ```
 
 观察 hook (`observeRequest` / `observeError`) 的失败只记录 warning；控制流只能由显式 handle 决策改变。
+
+app 级钩子 (`onAppRun` / `afterAppRun`) 是每次进程运行恰一次的观察器:覆盖 help、--version、未知命令与错误路径,异常被静默隔离,不能改变退出码或任何输出。它们只适合无需可靠交付的运维提示;需要保证完成的审计、写入或 telemetry 不得放在这里。`apply` 属于装配(失败 = 启动失败),由 `defineCliApp` 在路由编译前按注册序执行。
 
 ### beforeRequest:统一处理请求参数
 
@@ -657,24 +668,24 @@ cli-sdk 出的基础块(从主包 `@renxqoo/agent-data-cli` import):
 
 | 基础块                                                                                                              | 作用                                                                  |
 | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `fileStore({ dir })` / `memoryStore()`                                                                              | 凭证存储(ConfigStore 实现)                                            |
+| `defineCliApp({ dir, plugins })` / `defineCli({ plugins })`                                                         | app 装配器(唯一目录决策,自动 apply 插件)/ 低层同步组装器               |
+| `createLocalState({ dir })` / `createMemoryLocalState()`                                                            | 本地状态(含 ConfigStore;dir 与 localState 二选一注入 defineCliApp)     |
 | `defaultProviders()` / `flagProvider` / `envProvider` / `fileProvider` / `oauthProvider`                            | provider chain 的默认 provider                                        |
 | `resolveWithChain(providers, pctx)` / `resolveIdentityWithChain(providers, pctx)`                                   | 跑 chain 取 token / identity                                          |
 | `injectAuthHeader(req, token, style)`                                                                               | 按 authStyle(bearer/x-api-key/basic)注入 header                       |
 | `createOn401Hook({cfg, store, namespace})`                                                                          | 401 singleflight refresh 原语(由 Plugin 的 `handleUnauthorized` 调用) |
-| `deviceAuthorization` / `pollDeviceToken` / `refreshAccessToken` / `getUserInfo` / `revokeToken` / `registerClient` | OAuth device flow 端点                                                |
+| `deviceAuthorization` / `pollDeviceToken` / `getUserInfo` / `revokeToken` / `registerClient` | OAuth 2.1 端点原语(device 设备授权 + 用户信息/吊销/注册) |
 
 #### 如何写 auth Plugin(参考 `apps/crm/src/auth.ts` 的 `createCrmAuth`)
 
-下面是一个完整的 auth Plugin 工厂示例。业务包照着这个骨架写,可换 provider、换 header 注入、换 identity 来源:
+下面是一个完整的 auth Plugin 工厂示例。业务包照着这个骨架写,可换 provider、换 header 注入、换 identity 来源。目录/store 不在工厂入参:经 `apply(services)` 从装配器取(defineCliApp 自动执行):
 
 ```ts
 import {
   type Plugin,
-  type CredentialsApi,
   type CommandContext,
   type ProviderContext,
-  fileStore,
+  type ConfigStore,
   defaultProviders,
   resolveWithChain,
   injectAuthHeader,
@@ -684,23 +695,30 @@ import {
 
 export function createCrmAuth<State extends { user?: unknown }>(opts: {
   namespace: string;
-  dir: string; // 必填:凭证目录(业务包声明,如 ~/.rxcli)
   authStyle?: "bearer" | "x-api-key" | "basic";
   oauth?: { baseUrl: string; clientId: string; clientSecret: string };
 }): Plugin<State> {
-  const store = fileStore({ dir: opts.dir }); // dir 必填,无默认
-  const providers = defaultProviders();
+  // 装配期状态:apply 里从 services.localState.store 解析后填入
+  let ready!: { store: ConfigStore; providers: ReturnType<typeof defaultProviders>; on401?: () => Promise<any> };
   const authStyle = opts.authStyle ?? "bearer";
   const sessions = new WeakMap<CommandContext<State>, { token: string; refreshable: boolean }>();
-  // 401 singleflight refresh hook(有 oauth 配置才创建)
-  const on401 = opts.oauth
-    ? createOn401Hook({ cfg: opts.oauth, store, namespace: opts.namespace })
-    : undefined;
 
   return {
     name: `auth:${opts.namespace}`,
     enforce: "pre",
+
+    async apply(services) {
+      const store = services.localState.store;
+      const providers = defaultProviders();
+      // 401 singleflight refresh hook(有 oauth 配置才创建)
+      const on401 = opts.oauth
+        ? createOn401Hook({ cfg: opts.oauth, store, namespace: opts.namespace })
+        : undefined;
+      ready = { store, providers, on401 };
+    },
+
     async beforeCommand(ctx) {
+      const { store, providers } = ready;
       // ① provider chain 取 token(命中即停)
       const pctx: ProviderContext = {
         namespace: opts.namespace,
@@ -718,11 +736,9 @@ export function createCrmAuth<State extends { user?: unknown }>(opts: {
 
       // ② 把 store 包装成 ctx.credentials(命令运行时 API)
       (ctx as any).credentials = {
-        get: async (ns) => {
-          /* 透传到 store.loadCredentials */
-        },
-        save: (ns, d) => store.saveCredentials(ns, d),
-        clear: (ns) => store.clearCredentials(ns),
+        get: async (ns: string) => store.loadCredentials(ns),
+        save: (ns: string, d: Record<string, unknown>) => store.saveCredentials(ns, d),
+        clear: (ns: string) => store.clearCredentials(ns),
       };
 
       sessions.set(ctx, {
@@ -740,8 +756,8 @@ export function createCrmAuth<State extends { user?: unknown }>(opts: {
 
     async handleUnauthorized(ctx) {
       const session = sessions.get(ctx);
-      if (!on401 || !session?.refreshable) return { action: "decline" };
-      const token = await on401();
+      if (!ready.on401 || !session?.refreshable) return { action: "decline" };
+      const token = await ready.on401();
       if (!token)
         return {
           action: "reject",
@@ -921,7 +937,7 @@ defineCli<State>({
 })
 ```
 
-**认证**:`await defineAuth({...})` 后把返回值放进 `plugins`;特殊协议才手写 Plugin(见 `05-credentials.md`)。
+**认证**:`defineAuth({...})` 是同步工厂,返回值直接放进 `defineCliApp` 的 `plugins`(装配器自动执行 `apply`);特殊协议才手写 Plugin(见 `05-credentials.md`)。
 
 ---
 

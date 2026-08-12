@@ -60,13 +60,13 @@ export const todoCommands = defineCommands({
 
 参数规则：
 
-| 配置                         | 行为                                               |
-| ---------------------------- | -------------------------------------------------- |
-| 省略 `args`                  | 无业务参数，`run` 收到 `{}`                        |
-| 省略 `type` / `"argv"`      | 原生 argv 模式                                     |
-| `schema`                     | 直接 Zod object；唯一校验和类型来源                |
-| `pos: ["id"]`               | schema 字段 `id` 作为位置参数读取                  |
-| `type: "json"`              | 一个完整 JSON 文档；不允许业务 flags 或 `pos`      |
+| 配置                   | 行为                                          |
+| ---------------------- | --------------------------------------------- |
+| 省略 `args`            | 无业务参数，`run` 收到 `{}`                   |
+| 省略 `type` / `"argv"` | 原生 argv 模式                                |
+| `schema`               | 直接 Zod object；唯一校验和类型来源           |
+| `pos: ["id"]`          | schema 字段 `id` 作为位置参数读取             |
+| `type: "json"`         | 一个完整 JSON 文档；不允许业务 flags 或 `pos` |
 
 必填位置参数不能放在可选位置参数后。argv 数字使用 `z.coerce.number()`，因为 Shell token 是字符串。必填、默认值、枚举、refine、transform、描述和 `run(ctx, args)` 中 `args` 的推导全部由 Zod 表达。
 
@@ -148,18 +148,7 @@ export default app;
 | `skillsTargets` | 覆盖默认 Skill 同步目标                |
 | `skillsScopes`  | 按 Skill 过滤生成的命令索引            |
 
-若入口支持安装向导，传播返回码，不要固定写成功：
-
-```ts
-if (isMainEntry() && process.argv[2] === "install") {
-  const { runInstallWizard } = await import("@renxqoo/agent-data-cli");
-  process.exitCode = await runInstallWizard({
-    skillsSource: process.env.MY_CLI_SKILLS_SOURCE,
-  });
-} else if (isMainEntry()) {
-  await app.run(process.argv.slice(2));
-}
-```
+安装向导是插件提供的命令,不是入口拦截。把 `defineInstaller({ skillsSource })` 放进 `defineCliApp` 的 plugins,`rxcli install [--lang zh|en]` 走普通管道;入口保持 `app.run(argv)` 即可。
 
 ## 4. 运行时上下文
 
@@ -193,7 +182,22 @@ return {
 - `{}`、`{ data: undefined }` 和 string/number/boolean data 会触发 `internal/contract_violation`。
 - 分页元数据不会自动生成；列表命令必须根据后端响应如实填写。Wire 字段固定为 camelCase 的 `complete` 和 `nextToken`，不要透传后端的 `next_token` 等命名。结束时 `{ complete: true }` 并省略 `nextToken`；未结束时返回 `{ complete: false, nextToken: "..." }`。
 - 成功 JSON 写 stdout；错误 JSON 和日志写 stderr。
+- 可选版本感知使用 `createUpdateNotifier`，只向 stderr 写 `<system-message>`。每次 app 运行(仅成功运行)在 `afterAppRun` 触发一次，读取本地缓存，分离的后台 helper 刷新 npm 元数据供后续运行使用，绝不向 stdout 增加更新字段。
 - 默认 `auto` 在 TTY 输出文本，在管道/CI 输出 JSON；agent 调用时显式加 `--json`。
 - 业务命令不得直接写 stdout。`skills read` 的原文输出是框架内部例外。
+
+```ts
+const updateNotifier = createUpdateNotifier({
+  packageName: "@scope/my-cli",
+  currentVersion: "1.2.0",
+  updateCommand: "npm install -g @scope/my-cli",
+});
+
+const app = await defineCliApp({ /* dir, plugins: [updateNotifier], ... */ });
+```
+
+`defineCliApp({ dir })` 是 app 唯一一次目录决策。装配器创建唯一 localState 并经 `apply(services)` 注入每个插件。目录布局固定为 `<dir>/config/<ns>.json`(按 namespace 的应用配置)、`<dir>/credentials/<ns>.json`、`<dir>/cache/updates/`；高层 API 不支持各自覆盖目录。
+
+该能力默认不启用，因为它会写缓存，并按节流策略访问 registry。`NO_UPDATE_NOTIFIER=1` 可关闭。Skill 可以识别系统消息并在业务任务完成后报告，但不得把它作为业务数据解析，也不得在未获用户授权时执行其中的安装命令。
 
 业务错误使用 `errs.*`。裸 `Error` 会被归类为 `internal/unknown`，只适合真正的未预期内部故障。通用状态放 `errorOnStatus`，命令特有语义在 `run` 中抛类型化错误；两者不要重复处理。
