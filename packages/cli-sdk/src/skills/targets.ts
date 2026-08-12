@@ -102,8 +102,12 @@ export function resolveActiveTargets(
 ): SkillTarget[] {
   const result: SkillTarget[] = [];
   const seen = new Set<string>();
-  // agents 始终纳入(标准兜底)
-  const agentsTarget = candidates.find((t) => t.key === "agents") ?? DEFAULT_SKILL_TARGETS[0];
+  // M12: agents 始终纳入仅当调用方用的是默认列表;调用方完全自定义列表时按字面尊重,
+  // 不再强行注入默认 agents 目标(否则违反"完全覆盖"契约)。
+  const usingDefaults = candidates === DEFAULT_SKILL_TARGETS;
+  const agentsTarget =
+    candidates.find((t) => t.key === "agents") ??
+    (usingDefaults ? DEFAULT_SKILL_TARGETS[0] : undefined);
   if (agentsTarget && !seen.has(agentsTarget.key)) {
     result.push(agentsTarget);
     seen.add(agentsTarget.key);

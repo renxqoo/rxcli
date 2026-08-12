@@ -50,9 +50,12 @@ describe("OAuthFlowCoordinator boundary", () => {
       strategy: { requiresRefreshToken: true, acquire },
     });
 
-    await expect(
-      Promise.all([coordinator.refreshStoredSession(), coordinator.refreshStoredSession()]),
-    ).resolves.toEqual(["new", "new"]);
+    const [a, b] = await Promise.all([
+      coordinator.refreshStoredSession(),
+      coordinator.refreshStoredSession(),
+    ]);
+    expect(a).toMatchObject({ access_token: "new" });
+    expect(b).toMatchObject({ access_token: "new" });
     expect(acquire).toHaveBeenCalledTimes(1);
     await expect(store.loadCredentials("app")).resolves.toMatchObject({
       token: "new",

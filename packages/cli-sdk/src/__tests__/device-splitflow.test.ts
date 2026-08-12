@@ -28,6 +28,7 @@ function jsonResponse(status: number, body: unknown): Response {
 }
 
 const baseDeps: FlowDeps = {
+  type: "device",
   cfg: { baseUrl: "http://test", clientId: "cid", clientSecret: "csec" },
   scope: "orders:read offline_access",
   log: { info: vi.fn() },

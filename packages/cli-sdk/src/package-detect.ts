@@ -45,7 +45,13 @@ export function detectBinName(): string | undefined {
           dir = dirname(dir);
           continue;
         }
-        return typeof pkg.bin === "string" ? pkg.name : Object.keys(pkg.bin)[0];
+        // M6: bin 是字符串但无 name 时无法确定 bin 名,继续上溯(与 detectBizPackage 一致)。
+        const binName = typeof pkg.bin === "string" ? pkg.name : Object.keys(pkg.bin)[0];
+        if (!pkg.name || !binName) {
+          dir = dirname(dir);
+          continue;
+        }
+        return binName;
       }
       dir = dirname(dir);
     }

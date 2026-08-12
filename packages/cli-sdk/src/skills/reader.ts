@@ -61,15 +61,21 @@ export function listSkills(skillsRoot: string): SkillInfo[] {
       continue; // 不可读条目:跳过,不影响其它 skill 的发现
     }
     if (!stat.isDirectory()) continue; // 普通文件 / 符号链接(含 broken)跳过
-    assertExistingPathInside(skillsRoot, full, `skill "${e}"`);
-    const skillMd = join(full, "SKILL.md");
-    if (!existsSync(skillMd)) continue;
-    assertExistingPathInside(full, skillMd, `SKILL.md in skill "${e}"`);
-    const { description, version, metadata } = parseFrontmatter(skillMd);
-    const info: SkillInfo = { name: e, description };
-    if (version) info.version = version;
-    if (metadata && Object.keys(metadata).length > 0) info.metadata = metadata;
-    out.push(info);
+    // L7: a single unreadable/escaping SKILL.md must not abort discovery of every
+    // other skill — the BUG-3 resilience contract. Wrap the whole per-entry body.
+    try {
+      assertExistingPathInside(skillsRoot, full, `skill "${e}"`);
+      const skillMd = join(full, "SKILL.md");
+      if (!existsSync(skillMd)) continue;
+      assertExistingPathInside(full, skillMd, `SKILL.md in skill "${e}"`);
+      const { description, version, metadata } = parseFrontmatter(skillMd);
+      const info: SkillInfo = { name: e, description };
+      if (version) info.version = version;
+      if (metadata && Object.keys(metadata).length > 0) info.metadata = metadata;
+      out.push(info);
+    } catch {
+      continue; // 跳过坏条目,不影响其它 skill
+    }
   }
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -100,10 +106,22 @@ export function listPath(skillsRoot: string, arg: string): { entries: DirEntry[]
   const entries = readdirSync(listedDir);
   return {
     entries: entries
-      .map((e) => {
+      .flatMap((e) => {
         const entry = join(listedDir, e);
-        assertExistingPathInside(join(skillsRoot, name), entry, `path in skill "${name}"`);
-        return { path: `${dir}/${e}`, is_dir: statSync(entry).isDirectory() };
+        // L8: use lstatSync (does not follow symlinks) and skip unreadable/broken
+        // entries instead of crashing the whole listing — consistent with listSkills.
+        let entryStat;
+        try {
+          entryStat = lstatSync(entry);
+        } catch {
+          return [];
+        }
+        try {
+          assertExistingPathInside(join(skillsRoot, name), entry, `path in skill "${name}"`);
+        } catch {
+          return [];
+        }
+        return [{ path: `${dir}/${e}`, is_dir: entryStat.isDirectory() }];
       })
       .sort((a, b) => a.path.localeCompare(b.path)),
     listed: dir,

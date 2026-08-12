@@ -53,7 +53,7 @@ function withHook<State, K extends keyof Plugin<State>>(
  * beforeCommand:命令 run 前,填 state。无返回值。
  *
  * 精确豁免:plugin 自己贡献的命令(由 App-local ownership map 标记)跳自身 beforeCommand,
- * 不跳别的 plugin。比 spec.internal 的"全跳"更细 —— auth 的 login 命令豁免 auth plugin 的
+ * 不跳别的 plugin。比 spec.skipPluginHooks 的"全跳"更细 —— auth 的 login 命令豁免 auth plugin 的
  * "必须登录"校验,但日志/审计 plugin 照跑。
  *
  * @param route 当前命令的路径段(如 ['auth','login'])。

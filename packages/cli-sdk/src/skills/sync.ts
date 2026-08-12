@@ -15,16 +15,18 @@
 import { basename, dirname, join, resolve } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import {
-  cpSync,
+  copyFileSync,
   existsSync,
   mkdirSync,
   readFileSync,
   readdirSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { listSkills } from "./reader.js";
+import { withFileLockSync } from "../infra/file-lock.js";
 import {
   resolveSkillTargets,
   resolveActiveTargets,
@@ -55,6 +57,11 @@ export interface SyncSkillsOptions {
   targets?: SkillTarget[];
   /** 对 targets 也走探测(只写父目录已存在的);默认 false(targets 强制全写)。 */
   detect?: boolean;
+  /**
+   * 跨进程锁的陈旧回收阈值(ms):一个被信号中断的 sync 留下的锁,超过该时长且属主进程
+   * 已死时,下次 sync 直接回收。默认 5 分钟。调大可容忍更长的 sync,调小可更快恢复。
+   */
+  lockStaleAfterMs?: number;
 }
 
 /**
@@ -76,12 +83,38 @@ export interface DirectoryTransactionOperations {
 const NODE_DIRECTORY_OPERATIONS: DirectoryTransactionOperations = {
   exists: existsSync,
   mkdir: (path) => mkdirSync(path, { recursive: true }),
-  copy: (source, destination) => cpSync(source, destination, { recursive: true }),
+  // B2: materialize symlinks into real files. Agent tools that scan the discovery dir
+  // bypass the reader's path guard, so symlinks must not be propagated verbatim. Node's
+  // cpSync `dereference` does NOT materialize nested symlinks, so we recurse manually.
+  copy: copyTreeDereferenced,
   list: readdirSync,
   rename: renameSync,
   remove: (path) => rmSync(path, { recursive: true, force: true }),
   id: randomUUID,
 };
+
+/** Recursive copy that dereferences every symlink into a real file/dir. Broken symlinks are skipped. */
+function copyTreeDereferenced(source: string, destination: string): void {
+  mkdirSync(destination, { recursive: true });
+  for (const entry of readdirSync(source, { withFileTypes: true })) {
+    const srcPath = join(source, entry.name);
+    const destPath = join(destination, entry.name);
+    if (entry.isSymbolicLink()) {
+      let real;
+      try {
+        real = statSync(srcPath); // follows the link
+      } catch {
+        continue; // broken symlink — skip
+      }
+      if (real.isDirectory()) copyTreeDereferenced(srcPath, destPath);
+      else copyFileSync(srcPath, destPath); // follows the link, copies target content
+    } else if (entry.isDirectory()) {
+      copyTreeDereferenced(srcPath, destPath);
+    } else {
+      copyFileSync(srcPath, destPath);
+    }
+  }
+}
 
 /** Crash-recoverable directory swap. A failed activation restores the previous destination. */
 export function replaceDirectoryTransaction(
@@ -139,6 +172,12 @@ function recoverInterruptedSwap(
   const parent = dirname(dest);
   if (!operations.exists(parent)) return;
   const prefix = `.${basename(dest)}.`;
+  // L11: clean stale .tmp (copy artifacts from a crashed swap) alongside .backup recovery.
+  for (const name of operations.list(parent)) {
+    if (name.startsWith(prefix) && name.endsWith(".tmp")) {
+      operations.remove(join(parent, name));
+    }
+  }
   const backups = operations
     .list(parent)
     .filter((name) => name.startsWith(prefix) && name.endsWith(".backup"))
@@ -156,9 +195,9 @@ function recoverInterruptedSwap(
  *
  * 这是原 syncSkills 的核心逻辑,抽出来供多 target 循环复用。
  */
-function syncOne(skillsRoot: string, destDir: string): void {
+function syncOne(skillsRoot: string, destDir: string, lockStaleAfterMs?: number): void {
   mkdirSync(destDir, { recursive: true });
-  withSyncLock(destDir, () => syncOneLocked(skillsRoot, destDir));
+  withSyncLock(destDir, () => syncOneLocked(skillsRoot, destDir), lockStaleAfterMs);
 }
 
 function syncOneLocked(skillsRoot: string, destDir: string): void {
@@ -233,23 +272,19 @@ function syncOneLocked(skillsRoot: string, destDir: string): void {
   );
 }
 
-function withSyncLock<T>(destDir: string, operation: () => T): T {
-  const lockDir = join(destDir, ".rxcli-sync.lock");
+function withSyncLock<T>(destDir: string, operation: () => T, lockStaleAfterMs?: number): T {
+  // B1: cross-process O_EXCL lockfile with stale-PID + TTL recovery. A sync killed by
+  // a signal (Ctrl+C / SIGTERM) leaves the lock behind; the next run reclaims it once
+  // the recorded PID is dead or the TTL elapses.
   try {
-    mkdirSync(lockDir);
+    return withFileLockSync(destDir, "sync", operation, {
+      staleAfterMs: lockStaleAfterMs ?? 5 * 60_000,
+    });
   } catch (error) {
-    const code = error instanceof Error && "code" in error ? String(error.code) : "";
-    if (code === "EEXIST") throw new Error(`skill sync already in progress for ${destDir}`);
+    if (error instanceof Error && error.message.includes("held by another process")) {
+      throw new Error(`skill sync already in progress for ${destDir}`);
+    }
     throw error;
-  }
-  try {
-    writeFileSync(
-      join(lockDir, "owner.json"),
-      JSON.stringify({ pid: process.pid, startedAt: Date.now() }),
-    );
-    return operation();
-  } finally {
-    rmSync(lockDir, { recursive: true, force: true });
   }
 }
 
@@ -279,6 +314,12 @@ function writeFileTransaction(path: string, content: string): void {
 function recoverFileTransaction(path: string): void {
   const parent = dirname(path);
   const prefix = `${basename(path)}.`;
+  // L11: clean stale .tmp write artifacts from a crashed manifest write.
+  for (const name of readdirSync(parent)) {
+    if (name.startsWith(prefix) && name.endsWith(".tmp")) {
+      rmSync(join(parent, name), { force: true });
+    }
+  }
   const backups = readdirSync(parent)
     .filter((name) => name.startsWith(prefix) && name.endsWith(".backup"))
     .sort();
@@ -328,7 +369,7 @@ export function syncSkills(skillsRoot: string, options?: SyncSkillsOptions): Syn
   for (const t of activeTargets) {
     const expanded = expandTargetDir(t.dir);
     try {
-      syncOne(skillsRoot, expanded);
+      syncOne(skillsRoot, expanded, options?.lockStaleAfterMs);
       results.push({ key: t.key, dir: expanded, ok: true });
     } catch (err) {
       // 单个 target 失败(权限/磁盘/路径非法)不中断其余 target。

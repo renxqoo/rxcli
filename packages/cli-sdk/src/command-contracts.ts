@@ -58,7 +58,12 @@ export interface CommandSpec<Args = NoArgs, Result = unknown, State = unknown> {
   description: string;
   args?: CommandArgs;
   policy?: CommandPolicy<Args, State>;
-  internal?: boolean;
+  /**
+   * C6: skip plugin `beforeCommand` hooks for this command (e.g. so a management
+   * command bypasses "must be logged in"). The command stays routable and visible in
+   * help — to hide a command, do not register it.
+   */
+  skipPluginHooks?: boolean;
   humanFormat?: (data: unknown, meta?: Meta) => string;
   run: (context: CommandContext<State>, args: Args) => Promise<CommandResult<Result> | void>;
 }

@@ -21,7 +21,7 @@ import { errs } from "./errs/index.js";
 export const qrcodeCommand: CommandSpec<any, unknown> = {
   name: "qrcode",
   description: "Generate a QR code from a URL (terminal ASCII or PNG file)",
-  internal: true,
+  skipPluginHooks: true,
   args: {
     schema: z.object({
       url: z.string().describe("URL to encode (opaque string, do not modify)"),

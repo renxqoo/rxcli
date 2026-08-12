@@ -1,7 +1,6 @@
 /** Node/terminal adapter for the installation workflow. */
 import { execFile, execFileSync, type ExecFileSyncOptions } from "node:child_process";
 import { existsSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileStore } from "./credentials/config-store.js";
 import {
@@ -21,6 +20,12 @@ export interface InstallWizardOptions {
   skillsSource?: string;
   binName?: string;
   pkgName?: string;
+  /**
+   * Optional app config directory. When provided, the wizard can detect an already
+   * registered client and skip `auth register`. cli-sdk imposes no default; the app
+   * decides where its config lives.
+   */
+  configDir?: string;
 }
 
 export const fmt = formatInstallMessage;
@@ -88,6 +93,8 @@ function findGlobalBinary(binName: string): string | null {
 }
 
 class NodeInstallSystem implements InstallSystem {
+  constructor(private readonly configDir?: string) {}
+
   async globallyInstalledVersion(packageName: string): Promise<string | null> {
     try {
       const output = execCommand("npm", ["list", "-g", packageName], {
@@ -131,8 +138,10 @@ class NodeInstallSystem implements InstallSystem {
   }
 
   async isRegistered(): Promise<boolean> {
+    // cli-sdk does not pick a config directory; only check when the app provided one.
+    if (!this.configDir) return false;
     try {
-      const config = (await fileStore({ dir: join(homedir(), ".rxcli") }).loadConfig()) as {
+      const config = (await fileStore({ dir: this.configDir }).loadConfig()) as {
         clientId?: string;
       };
       return Boolean(config.clientId);
@@ -142,11 +151,12 @@ class NodeInstallSystem implements InstallSystem {
   }
 
   async register(binary: string): Promise<void> {
-    execCommand(binary, ["auth", "register"], { stdio: "inherit" });
+    // M15: honor the async InstallSystem contract (was a blocking execFileSync).
+    await runAsync(binary, ["auth", "register"], { stdio: "inherit" });
   }
 
   async login(binary: string): Promise<void> {
-    execCommand(binary, ["auth", "login"], { stdio: "inherit" });
+    await runAsync(binary, ["auth", "login"], { stdio: "inherit" });
   }
 }
 
@@ -220,7 +230,7 @@ export async function runInstallWizard(options: InstallWizardOptions = {}): Prom
   const interactive = Boolean(process.stdin.isTTY);
   const clack = await import("@clack/prompts");
   const workflow = new InstallWorkflow(
-    new NodeInstallSystem(),
+    new NodeInstallSystem(options.configDir),
     new ClackInstallPresenter(clack, interactive),
   );
   return workflow.run({

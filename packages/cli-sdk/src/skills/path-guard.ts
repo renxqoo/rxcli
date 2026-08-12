@@ -39,7 +39,10 @@ export function prepareSkillDir(skillsRoot: string, name: string): string {
 
 /** Normalize an untrusted relative reference path and reject traversal. */
 export function cleanSubPath(relpath: string): string {
-  if (!relpath || relpath.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(relpath)) {
+  // A4: reject any Windows drive prefix (with or without a trailing separator) so a
+  // drive-relative value like `C:etc` cannot resolve relative to another drive's CWD.
+  // The realpath backstop in assertExistingPathInside still catches real escapes.
+  if (!relpath || relpath.startsWith("/") || /^[a-zA-Z]:/.test(relpath)) {
     throw invalidPath(relpath);
   }
   const cleaned = normalize(relpath).split(sep).join("/");

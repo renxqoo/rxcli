@@ -74,6 +74,13 @@ interface CommandExecutionState {
 
 export const commandExecutionKey: unique symbol = Symbol("rxcli.commandExecution");
 
+/**
+ * C1: a command spec is compiled exactly once. `defineCommand`/`defineCommands`
+ * compile and stash the result here; the registry reuses it instead of recomputing
+ * `z.toJSONSchema` on every registration path.
+ */
+export const compiledSchemaKey: unique symbol = Symbol("rxcli.compiledSchema");
+
 export type ResolvedCommandArgs = Record<string, unknown> & {
   [commandExecutionKey]?: CommandExecutionState;
 };
@@ -196,13 +203,16 @@ class DefaultCommandSchema implements CompiledCommandSchema {
       const policyType = policyOptionType(flagName, this.#policy);
       const descriptor = this.#byFlag.get(flagName);
 
-      if (flagName.startsWith("no-") && inlineValue === undefined) {
+      // L1: only interpret `--no-<x>` as negation when `<x>` is NOT itself a declared
+      // field. A boolean field literally named e.g. `noCache` (flag `--no-cache`) must
+      // be settable via its own flag, not hijacked by the negation heuristic.
+      if (!descriptor && flagName.startsWith("no-") && inlineValue === undefined) {
         const positive = flagName.slice(3);
         const positiveDescriptor = this.#byFlag.get(positive);
-        if (!positiveDescriptor || positiveDescriptor.type !== "boolean")
-          throw unknownArgument(flagName);
-        options[positiveDescriptor.name] = false;
-        continue;
+        if (positiveDescriptor && positiveDescriptor.type === "boolean") {
+          options[positiveDescriptor.name] = false;
+          continue;
+        }
       }
       if (!descriptor && !policyType) throw unknownArgument(flagName);
       const targetName = descriptor?.name ?? flagName;

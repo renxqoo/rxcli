@@ -39,6 +39,12 @@ export function createStatusCommand(deps: StatusCommandDeps): CommandSpec {
         return { data: { loggedIn: true, expired } };
       }
 
+      // L3: 用户态 session 在 token 已过期时短路返回(与机器态同形结构),
+      // 不再用可能过期的 token 调 getUserInfo 导致命令失败。框架会在下次调用时续期。
+      if (expired) {
+        return { data: { loggedIn: true, expired } };
+      }
+
       try {
         const user = await getUserInfo(oauth, creds.token);
         ctx.log.info(

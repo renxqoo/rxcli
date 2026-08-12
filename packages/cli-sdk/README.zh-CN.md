@@ -276,7 +276,7 @@ const myPlugin: Plugin = {
 };
 ```
 
-> plugin `provides` 贡献的命令**自动豁免该 plugin 自身的 beforeCommand**(精确豁免),不豁免别的 plugin。无需手写 `internal: true`。
+> plugin `provides` 贡献的命令**自动豁免该 plugin 自身的 beforeCommand**(精确豁免),不豁免别的 plugin。无需手写 `skipPluginHooks: true`。
 
 ---
 

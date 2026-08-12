@@ -21,6 +21,7 @@ describe("authorization-code resource cleanup", () => {
   it("浏览器打开失败时关闭回调服务器", async () => {
     await expect(
       authCodeFlow.login({
+        type: "authorization_code",
         cfg: { baseUrl: "https://auth.example", clientId: "id", clientSecret: "" },
         browser: { open: vi.fn().mockRejectedValue(new Error("browser unavailable")) },
       }),

@@ -176,7 +176,7 @@ throw new errs.ValidationError({
 | validation     | `invalid_argument`, `missing_required`, `out_of_range`                    |
 | authentication | `no_token`, `token_expired`, `token_revoked`                              |
 | authorization  | `missing_scope`, `app_permission_denied`, `forbidden`                     |
-| config         | `missing_config`, `invalid_config`, `unbound_env`                         |
+| config         | `missing_config`, `invalid_config`, `unbound_env`, `skill_sync_failed`    |
 | network        | `timeout`, `connection_refused`, `dns_failure`, `ssl_error`               |
 | api            | `not_found`, `already_exists`, `conflict`, `rate_limited`, `server_error` |
 | policy         | `content_blocked`, `challenge_required`, `access_denied`                  |

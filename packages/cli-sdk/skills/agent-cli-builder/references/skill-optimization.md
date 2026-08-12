@@ -240,26 +240,8 @@ Keep:
 
 Do not optimize to a fixed line count. Required decision complexity determines length.
 
-## 7. Installation and independent distribution
 
-The body should check and route:
-
-```markdown
-Check whether `example-cli` is on PATH. If missing, read `references/install.md`, disclose the installation effects, and obtain any required approval.
-```
-
-Generate identical `references/install.md` files at build time rather than maintaining copies. The reference must cover runtime requirements, material writes, verification, and finite failure handling.
-
-The generator must:
-
-1. Discover directories containing `SKILL.md`; do not hard-code a list.
-2. Read package, bin, and runtime facts from one source of truth.
-3. Write only when content changes.
-4. Support `--check` for CI.
-5. Run before build or publish.
-6. Put generated files in every independently packaged Skill.
-
-## 8. Validation workflow
+## 7. Validation workflow
 
 ### Layer 1: structure
 

@@ -250,7 +250,7 @@ const myPlugin: Plugin = {
 };
 ```
 
-> Commands contributed via a plugin's `provides` are **automatically exempted from that same plugin's own `beforeCommand`** (precise exemption), but not from other plugins. No need to hand-write `internal: true`.
+> Commands contributed via a plugin's `provides` are **automatically exempted from that same plugin's own `beforeCommand`** (precise exemption), but not from other plugins. No need to hand-write `skipPluginHooks: true`.
 
 ---
 

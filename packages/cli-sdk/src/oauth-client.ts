@@ -112,8 +112,11 @@ export class OAuthClient {
     };
   }
 
-  async revoke(accessToken: string): Promise<void> {
-    const form = new URLSearchParams({ token: accessToken, token_type_hint: "access_token" });
+  async revoke(
+    token: string,
+    hint: "access_token" | "refresh_token" = "access_token",
+  ): Promise<void> {
+    const form = new URLSearchParams({ token, token_type_hint: hint });
     const response = await this.request("/revoke", this.formRequest(form, false));
     if (!response.ok) throw apiFailure(response, "revoke failed");
   }
@@ -276,9 +279,12 @@ function missingField(
 
 function tokenInfo(body: unknown, endpoint: string): TokenInfo {
   const value = objectBody(body, endpoint);
+  const expiresIn = value.expires_in;
   return {
     access_token: stringField(value, "access_token", endpoint),
-    expires_in: numberField(value, "expires_in", endpoint),
+    ...(typeof expiresIn === "number" && Number.isFinite(expiresIn)
+      ? { expires_in: expiresIn }
+      : {}),
     ...(typeof value.refresh_token === "string" && value.refresh_token
       ? { refresh_token: value.refresh_token }
       : {}),

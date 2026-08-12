@@ -40,6 +40,9 @@ describe("AuthSessionManager boundary", () => {
       },
       async saveCredentials() {},
       async clearCredentials() {},
+      async withLock<T>(_namespace: string, fn: () => Promise<T>): Promise<T> {
+        return fn();
+      },
     };
 
     await expect(

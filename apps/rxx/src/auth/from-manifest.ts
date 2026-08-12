@@ -11,8 +11,9 @@
  * env 注入:支持 `<NAME>_BEARER_TOKEN` 环境变量(sandbox/CI/admin 预签 JWT 场景)。
  */
 
-import { defineAuth, type Plugin, type ClientMetadata } from "@renxqoo/agent-data-cli";
+import { defineAuth, fileStore, type Plugin, type ClientMetadata } from "@renxqoo/agent-data-cli";
 import type { Manifest, ManifestAuth } from "../manifest/schema.js";
+import { getRxDir } from "../config.js";
 
 /**
  * 从 manifest 构造 auth 插件。
@@ -43,6 +44,8 @@ function manifestAuthToOptions(name: string, auth: ManifestAuth) {
     baseUrl: auth.baseUrl,
     scope: auth.scope,
     flow: auth.flow ?? ("device" as const),
+    // 目录由 app 决定(cli-sdk 不内置默认):rxx 用 ~/.rxx
+    store: fileStore({ dir: getRxDir() }),
     clientMetadata,
     redirectPort: auth.redirectPort,
     bearerToken,

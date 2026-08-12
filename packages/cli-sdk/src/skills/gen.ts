@@ -163,12 +163,13 @@ function formatDefault(def: unknown): string {
 }
 
 /**
- * 转义 markdown 表格单元格:| → \|、换行 → 空格(BUG-13)。
+ * 转义 markdown 表格单元格:| → \|、换行 → 空格(BUG-13)、` → &#96;(M9,非 code-span 单元格里
+ * 反引号会开启不平衡的 code span,markdown 不支持反斜杠转义反引号)。
  * 避免含 | 或 \n 的 default/desc 把表格撑出多列或多行。
  */
 function escapeCell(value: unknown): string {
   const s = value === undefined || value === null ? "—" : String(value);
-  return s.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+  return s.replace(/\|/g, "\\|").replace(/`/g, "&#96;").replace(/\r?\n/g, " ");
 }
 
 // ============================================================================
@@ -208,14 +209,17 @@ export function generateAutogenBlock(
   const t = GEN_STRINGS[lang];
 
   const lines: string[] = [];
-  // ## 命令表(操作 / 命令)—— 仅命令索引,参数细节交给 references 按需加载
+  // ## 命令表(操作 / 命令)—— 仅命令索引(签名 + 描述)。参数细节不在此处展开。
   lines.push(t.commandsHeading);
   lines.push("");
   lines.push(t.commandsHeader);
   lines.push("|------|------|");
   for (const cmd of cmds) {
     const desc = escapeCell(cmd.spec.description ?? "");
-    const sig = escapeCell(signatureLine(binName, cmd)).replace(/`/g, "\\`");
+    // M9: code spans do not honor backslash escapes; signatures never contain
+    // backticks, so the former `\`` escaping was both useless and harmful. escapeCell
+    // neutralizes backticks for the non-code-span desc cell.
+    const sig = escapeCell(signatureLine(binName, cmd));
     lines.push(`| ${desc} | \`${sig}\` |`);
   }
 
@@ -273,16 +277,24 @@ export function refreshAutogen(
   const fullBlock = `${AUTOGEN_START}\n${t.autogenComment}\n${block}\n${AUTOGEN_END}`;
 
   if (existing.includes(AUTOGEN_START)) {
-    // 替换已有块(块外内容保留)
+    // 替换已有块:只替换 AUTO-GEN 区域,M10 不再 trimEnd 整份文档(避免动到块外尾随内容)。
     const regex = new RegExp(
       `${escapeRegex(AUTOGEN_START)}[\\s\\S]*?${escapeRegex(AUTOGEN_END)}`,
       "g",
     );
-    return existing.replace(regex, fullBlock).trimEnd() + "\n";
+    const replaced = existing.replace(regex, fullBlock);
+    return replaced.endsWith("\n") ? replaced : `${replaced}\n`;
   }
 
-  // 无块:接在已有内容末尾(或新文件)
-  return (existing.trimEnd() + "\n\n" + fullBlock + "\n").trimStart();
+  // 无块:接在已有内容末尾。M10 不再 trimStart 整份文档(避免剥掉用户的 frontmatter/标题前导空白),
+  // 仅保证块与已有内容之间有一个空行分隔。
+  const separator =
+    existing.length === 0 || existing.endsWith("\n\n")
+      ? ""
+      : existing.endsWith("\n")
+        ? "\n"
+        : "\n\n";
+  return `${existing}${separator}${fullBlock}\n`;
 }
 
 // ============================================================================

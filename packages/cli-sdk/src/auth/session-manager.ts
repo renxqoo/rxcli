@@ -14,6 +14,7 @@ import type {
 import { resolveWithChain } from "../credentials/index.js";
 import { AuthenticationError } from "../errs/index.js";
 import { injectAuthHeader, type AuthStyle } from "../oauth.js";
+import type { TokenInfo } from "../oauth-contracts.js";
 import { identityKey } from "../context.js";
 
 interface AuthSession {
@@ -27,7 +28,7 @@ export interface AuthSessionManagerOptions {
   store: ConfigStore;
   providers: CredentialProvider[];
   authStyle: AuthStyle;
-  refresh: () => Promise<string | null>;
+  refresh: () => Promise<TokenInfo | null>;
 }
 
 /** Owns provider resolution, per-command auth state, identity, injection and refresh. */
@@ -83,8 +84,8 @@ export class AuthSessionManager {
     const session = this.#sessions.get(ctx);
     if (!session?.token.refreshable) return { action: "decline" };
 
-    const token = await this.#options.refresh();
-    if (!token) {
+    const refreshed = await this.#options.refresh();
+    if (!refreshed) {
       return {
         action: "reject",
         error: new AuthenticationError({
@@ -96,10 +97,18 @@ export class AuthSessionManager {
       };
     }
 
-    this.#sessions.set(ctx, {
-      ...session,
-      token: { ...session.token, token },
-    });
+    // L4: rebuild the full session token (access token, expiry, refresh token) from
+    // the refreshed TokenInfo — previously only the access-token string was replaced,
+    // leaving expiresAt/refreshToken stale and inconsistent with the persisted store.
+    const nextToken: TokenResult = {
+      ...session.token,
+      token: refreshed.access_token,
+      ...(typeof refreshed.expires_in === "number"
+        ? { expiresAt: Date.now() + refreshed.expires_in * 1000 }
+        : { expiresAt: undefined }),
+      ...(refreshed.refresh_token ? { refreshToken: refreshed.refresh_token } : {}),
+    };
+    this.#sessions.set(ctx, { ...session, token: nextToken });
     return { action: "retry" };
   }
 

@@ -2,7 +2,7 @@
  * defineAuth 辅助纯函数:配置解析、provider chain 构造、on401 handler 构造。
  * 从 defineAuth 主体提取,每个函数职责单一,独立可测。
  */
-import { OAuthClient, type AuthStyle, type OAuthClientConfig } from "../oauth.js";
+import { OAuthClient, type AuthStyle, type OAuthClientConfig, type TokenInfo } from "../oauth.js";
 import { defaultProviders, type ConfigStore } from "../credentials/index.js";
 import type { CredentialProvider } from "../credentials/types.js";
 import type { AuthFlow, FlowDeps } from "../flows/types.js";
@@ -89,19 +89,26 @@ export function buildProviderChain(input: BuildProviderChainInput): CredentialPr
 // ③ buildOn401Handler:构造 401 续期 handler(两条路径统一 singleflight)
 // ============================================================================
 
-export function buildOn401Handler(input: BuildOn401Input): () => Promise<string | null> {
+export function buildOn401Handler(input: BuildOn401Input): () => Promise<TokenInfo | null> {
   const { flow, oauth, store, namespace, flowDeps } = input;
   const coordinator = new OAuthFlowCoordinator({
     store,
     namespace,
     strategy: flow.refresh
       ? {
+          // client_credentials: re-request the EXACT scope envelope that was granted at
+          // login (persisted), not the static opts.scope. L2 — login and refresh now
+          // share one scope source.
           type: flow.type,
-          acquire: () => flow.refresh!(flowDeps),
+          acquire: (ctx) =>
+            flow.refresh!({
+              ...flowDeps,
+              scope: ctx.scopes && ctx.scopes.length ? ctx.scopes.join(" ") : flowDeps.scope,
+            }),
         }
       : {
           requiresRefreshToken: true,
-          acquire: (refreshToken) => new OAuthClient(oauth).refresh(refreshToken!),
+          acquire: (ctx) => new OAuthClient(oauth).refresh(ctx.refreshToken!),
         },
   });
   return coordinator.refreshStoredSession;
