@@ -55,7 +55,7 @@ rxcli auth login --device-code <第一步的 device_code>
 
 ## auth register
 
-注册本机客户端,换取独立 clientId/clientSecret(写入 `~/.rxcli/config.json`)。
+注册本机客户端,换取独立 clientId/clientSecret(写入 `~/.rxcli/config/crm.json`)。
 
 ```bash
 rxcli auth register                          # 交互式(仅 TTY,提示输入令牌)

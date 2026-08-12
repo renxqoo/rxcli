@@ -106,11 +106,11 @@ rxxxx 和 cli-sdk 静态包在可靠性上同档(都强制 envelope + 错误 + �
                            │ rx run 时,按 argv 选服务
                            ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  动态调度器(每次 rx run 现场 build 一个临时 defineCli App)        │
-│    1. loadManifest(name)      读 ~/.rxcli/registry/<name>/...    │
+│  动态调度器(每次 rx run 现场 build 一个临时 defineCliApp App)      │
+│    1. loadManifest(name)      读 ~/.rxx/registry/<name>/...      │
 │    2. buildAuthFromManifest   manifest.auth → defineAuth(...)    │
 │    3. buildCommands           manifest → 通用执行器 → CommandSpec │
-│    4. defineCli({...})        装配独立 App(原生 2 层路由)         │
+│    4. defineCliApp({dir,...}) 装配独立 App(原生 2 层路由)         │
 │    5. app.run(serviceArgs)    转发剩余 argv                       │
 └──────────────────────────┬──────────────────────────────────────┘
                            │
@@ -160,8 +160,8 @@ apps/rxxxx/
       update.ts               rx update <name>
       remove.ts               rx remove <name>
       run.ts                  rx run <service> ...  调度入口
-    shim.ts                   生成 ~/.rxcli/bin/<name> 转发脚本(跨平台)
-    registry.ts               ~/.rxcli/registry 读写(已装服务索引)
+    shim.ts                   生成 ~/.rxx/bin/<name> 转发脚本(跨平台)
+    registry.ts               ~/.rxx/registry 读写(已装服务索引)
   package.json                bin: { rx: ./dist/index.js }
   docs/DESIGN.md              本文档
 ```
@@ -469,16 +469,17 @@ export async function buildAuthFromManifest<State>(m: Manifest): Promise<Plugin<
 ### 4.5 调度入口(`commands/run.ts`)
 
 ```ts
-import { defineCli } from "@renxqoo/agent-data-cli";
+import { defineCliApp } from "@renxqoo/agent-data-cli";
 import { loadManifest } from "../manifest/loader.js";
-import { buildAuthFromManifest } from "../executor/dynamic-command.js";
+import { buildAuthFromManifest } from "../auth/from-manifest.js";
 import { manifestToCommand } from "../executor/dynamic-command.js";
+import { getRxDir } from "../config.js";
 
 export async function runService(serviceName: string, serviceArgs: string[]): Promise<void> {
   const manifest = await loadManifest(serviceName);      // 读缓存
-  const auth = await buildAuthFromManifest(manifest);
+  const auth = buildAuthFromManifest(manifest);          // 同步工厂;装配在 apply(services)
 
-  // manifest.namespaces → defineCli namespaces(通用执行器包每个命令)
+  // manifest.namespaces → defineCliApp namespaces(通用执行器包每个命令)
   const namespaces: Record<string, CommandGroup> = {};
   for (const [nsName, group] of Object.entries(manifest.namespaces ?? {})) {
     namespaces[nsName] = {};
@@ -487,8 +488,9 @@ export async function runService(serviceName: string, serviceArgs: string[]): Pr
     }
   }
 
-  const app = defineCli({
+  const app = await defineCliApp({
     name: manifest.name,
+    dir: getRxDir(),                    // 动态服务的本地状态根(RXX_HOME)
     binName: serviceName,               // help / SKILL 签名显示 rxcrm orders list
     description: manifest.description,
     plugins: [auth],
@@ -514,11 +516,11 @@ rx init https://crm.example.com/cli-manifest
   ├─ 2. 验签(如有签名)+ sha256 记录
   ├─ 3. manifest 合法性校验(必填字段、http.method 合法、name 合法)
   ├─ 4. 信任确认(展示 host / scope / 写操作数,用户 y/N)
-  ├─ 5. 缓存:~/.rxcli/registry/<name>/manifest.json
+  ├─ 5. 缓存:~/.rxx/registry/<name>/manifest.json
   ├─ 6. 生成 SKILL.md(复用 cli-sdk generateSkillSkeleton + manifest 命令)
   ├─ 7. 分发 skill 到各 agent 目录(复用 cli-sdk syncSkills / DEFAULT_SKILL_TARGETS)
-  ├─ 8. 生成 shim:~/.rxcli/bin/<name> (跨平台)
-  └─ 9. 确保 ~/.rxcli/bin 在 PATH(必要时写 rc 文件,幂等)
+  ├─ 8. 生成 shim:~/.rxx/bin/<name> (跨平台)
+  └─ 9. 确保 ~/.rxx/bin 在 PATH(必要时写 rc 文件,幂等)
 ```
 
 ---
@@ -566,7 +568,7 @@ rx init https://crm.example.com/cli-manifest
 
 #### S2. manifest 签名验证(必做,推荐默认开)
 - manifest 可携带 `signature` 字段(服务端私钥签 sha256 of body)
-- rxxxx 内置可信公钥集(或 `~/.rxcli/trusted-keys`)
+- rxxxx 内置可信公钥集(或 `~/.rxx/trusted-keys`)
 - **无签名的 manifest**:`init` 时红色警告 + 必须二次确认,不能默认信任
 - 这是对标 npm provenance / cosign 的做法
 
@@ -596,11 +598,11 @@ rx init https://crm.example.com/cli-manifest
 - 如果 scope 含通配(`*` / `offline_access` 之外的全量),额外醒目警告
 
 #### S7. shim 不可写保护(必做)
-- `~/.rxcli/bin/<name>` 写入后 `chmod 500`(仅 owner 可执行)
+- `~/.rxx/bin/<name>` 写入后 `chmod 500`(仅 owner 可执行)
 - 每次 `rx run` 前可选校验 shim 的 sha256(防篡改,牺牲一点启动速度)
 
 #### S8. registry 完整性(必做)
-- `~/.rxcli/registry/<name>/manifest.json` 写入时原子写(临时文件 + rename)
+- `~/.rxx/registry/<name>/manifest.json` 写入时原子写(临时文件 + rename)
 - 记录 `source_url` / `fetched_at` / `sha256` / `signature_verified`
 - `rx list` 展示这些,让用户审计
 
@@ -665,7 +667,7 @@ manifest 拉取后:
 
 公钥来源:
   首次:从 manifest URL 同源 HTTPS 拉 /cli-pubkey.pem
-  后续:用本地 pinning 的公钥(~/.rxcli/registry/<name>/pubkey.pem,防公钥被换)
+  后续:用本地 pinning 的公钥(~/.rxx/registry/<name>/pubkey.pem,防公钥被换)
 ```
 
 #### TOFU(首次信任)窗口的缩小

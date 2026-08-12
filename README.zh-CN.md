@@ -31,8 +31,8 @@
 | **确定性的机器契约** | 统一的 JSON 成功 envelope、结构化错误、稳定的数据源标识、元数据、分页信息和分类退出码。 |
 | **Agent 与人共用一套 CLI** | 管道和 CI 自动获得 JSON；交互式终端获得易读文本或支持中日韩字符宽度的表格。也可通过 `--json`、`--no-json` 显式指定。 |
 | **Agent Skill 自发现** | CLI 可以列出、读取、生成并同步自己的 `SKILL.md`，让 Agent 知道何时使用、如何调用。 |
-| **组件化鉴权** | 复用凭证 Provider、OAuth Device Flow、Token 刷新和自动生成的鉴权命令，也可以接入双 Header、HMAC 等业务鉴权方案。 |
-| **Schema 驱动的类型安全命令** | `defineCommand` 直接根据命令 Schema 推导必填、可选、默认值和基础参数类型。 |
+| **组件化鉴权** | 复用凭证 Provider、OAuth 2.1 三种流程(设备授权 / 授权码+PKCE / 客户端凭据)、Token 刷新和自动生成的鉴权命令,也可以接入双 Header、HMAC 等业务鉴权方案。 |
+| **Schema 驱动的类型安全命令** | `defineCommand` 直接根据命令的 Zod Schema 推导必填、可选、默认值和参数类型。 |
 | **直接使用 Zod 的结构化输入** | 大量或嵌套载荷直接用 Zod 4 完成类型推导、校验、发现、脱敏、dry-run、确认和幂等。 |
 | **天然可组合** | 结构化 stdout 不受污染，诊断信息进入 stderr，一个命令的 envelope 可以自动转成下游管道记录。 |
 | **无需修改框架即可扩展** | 八个生命周期 Hook 与插件贡献命令机制，可以实现鉴权、输入审计、请求转换、重试、输出转换和错误标准化。 |
@@ -89,7 +89,7 @@
 | [`rxstock`](apps/a-stock) | `npx @renxqoo/rxstock install` | 无 | A 股行情、K 线、财务、板块、资金流和本地技术指标计算，并支持多数据源自动降级。 |
 | [`rxopen`](apps/rxopen) | `npx @renxqoo/rxopen-cli install` | 无 | 新闻、热搜、天气、价格、翻译、开发工具和媒体等 60 多个公开数据接口，并按领域拆分为六个 Skill。 |
 | [`rxcordys`](apps/cordys-crm) | `npx @renxqoo/rxcordys-cli install` | 静态双 Header | 完整的 Lead-to-Cash CRM 能力：线索、客户、商机、合同、回款、发票、订单、审批和统计。 |
-| [`rxcli`](apps/crm) | `npx @renxqoo/cli install` | OAuth Device Flow | 通过公司网关访问订单、商品、发票和账号，并提供注册、登录、刷新、状态查询和退出能力。 |
+| [`rxcli`](apps/crm) | `npx @renxqoo/cli install` | OAuth 2.1 设备授权 | 通过公司网关访问订单、商品、发票和账号，并提供注册、登录、刷新、状态查询和退出能力。 |
 
 [`rx60s`](apps/60s) 是旧版单 Skill 包。新接入应使用 `rxopen`，其按领域组织的 Skill 结构更便于 Agent 准确发现。
 
@@ -129,10 +129,10 @@ pnpm add @renxqoo/agent-data-cli
 声明参数 Schema，只实现业务操作：
 
 ```ts
-import {
-  defineCli,
-  defineCommand,
-} from "@renxqoo/agent-data-cli";
+import { defineCliApp, defineCommand } from "@renxqoo/agent-data-cli";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import * as z from "zod";
 
 interface TodoListResponse {
   items: Array<{ id: string; title: string; completed: boolean }>;
@@ -142,13 +142,11 @@ const list = defineCommand({
   name: "list",
   description: "查询待办列表",
   args: {
-    limit: {
-      type: "number",
-      default: 20,
-      desc: "最大返回数量",
-    },
+    schema: z.object({
+      limit: z.coerce.number().min(1).max(100).default(20),
+    }),
   },
-  async run(args, ctx) {
+  async run(ctx, args) {
     const response = await ctx.get<TodoListResponse>("/todos", {
       limit: args.limit,
     });
@@ -160,10 +158,12 @@ const list = defineCommand({
   },
 });
 
-export default defineCli({
+export default await defineCliApp({
   name: "todos",
   binName: "todos",
   description: "Agent 原生待办 CLI",
+  // app 只决定一次目录；插件经 apply(services) 拿到这份本地状态。
+  dir: join(homedir(), ".todos"),
   baseUrl: "https://api.example.com",
   commands: { list },
 });
@@ -174,18 +174,22 @@ export default defineCli({
 ### 添加与业务命令解耦的鉴权
 
 ```ts
-import { defineAuth, defineCli } from "@renxqoo/agent-data-cli";
+import { defineAuth, defineCliApp } from "@renxqoo/agent-data-cli";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
-const auth = await defineAuth({
-  credentialNamespace: "todos",
-  baseUrl: "https://auth.example.com",
-  scope: "todos.read offline_access",
-});
-
-export default defineCli({
+export default await defineCliApp({
   name: "todos",
   description: "带鉴权的待办 CLI",
-  plugins: [auth],
+  dir: join(homedir(), ".todos"),
+  plugins: [
+    defineAuth({
+      // 同步工厂；异步装配在插件的 apply(services) 里完成。
+      credentialNamespace: "todos", // → config/todos.json + credentials/todos.json
+      baseUrl: "https://auth.example.com",
+      scope: "todos.read offline_access",
+    }),
+  ],
   commands: {},
 });
 ```
@@ -195,9 +199,11 @@ export default defineCli({
 自定义插件可以使用以下生命周期：
 
 ```text
-beforeCommand → beforeRequest → afterRequest → onUnauthorized
-              → beforeOutput  → onError
+beforeCommand → observeInput → beforeRequest → observeRequest → handleUnauthorized
+              → transformOutput → observeError → handleError
 ```
+
+另有装配期 `apply` 与应用级 `onAppRun` / `afterAppRun` 钩子。
 
 插件还可以通过 `provides` 贡献命令，把鉴权、审计、策略等横切能力封装为组件，避免散落在各个业务命令文件中。
 
