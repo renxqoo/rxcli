@@ -100,13 +100,17 @@ Framework-reserved names include `json`, `no-json`, `api-key`, `help`, `version`
 #!/usr/bin/env node
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { defineCli } from "@renxqoo/agent-data-cli";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { defineCliApp } from "@renxqoo/agent-data-cli";
 import { todoCommands } from "./commands/todos.js";
 
-const app = defineCli({
+const app = await defineCliApp({
   name: "my-cli",
   binName: "my-cli",
   description: "Query and manage todos",
+  // The app's one directory decision; plugins receive this local state via apply(services).
+  dir: join(homedir(), ".my-cli"),
   baseUrl: process.env.TODOS_API_URL ?? "https://api.example.com",
   commands: todoCommands,
   errorOnStatus: { 404: "not_found", 429: "rate_limited", "5xx": "server_error" },
@@ -128,15 +132,16 @@ export default app;
 
 Global installation makes `argv[1]` a symlink, so compare real paths. Never run the CLI when the module is imported.
 
-Key `defineCli` options:
+Key `defineCliApp` options:
 
 | Option          | Rule                                            |
 | --------------- | ----------------------------------------------- |
+| `dir`           | The app's one local-state root (`dir` XOR `localState`; injected via `apply(services)`) |
 | `name`          | Output `source`, pipe type, and Skill identity  |
 | `binName`       | The actual shell command; set it explicitly     |
 | `commands`      | Required top-level commands; use for one domain |
 | `namespaces`    | Use only for multiple unrelated domains         |
-| `plugins`       | Must contain resolved Plugins, never Promises   |
+| `plugins`       | Plain Plugin objects (`defineAuth` and friends are sync factories), never Promises |
 | `errorOnStatus` | HTTP status to registered subtype mapping       |
 | `defaultFormat` | `auto` by default, or `json` / `human`          |
 | `skillsDir`     | Enables built-in `skills` commands              |

@@ -165,13 +165,13 @@ Trust model: TOFU (trust-on-first-use) for the publisher's public key, pinned af
 ```
 rxx run <service> <args>
   → load manifest from ~/.rxx/registry/<service>/
-  → buildAuthFromManifest(manifest)        // defineAuth (OAuth) or no-op
+  → buildAuthFromManifest(manifest)        // defineAuth (OAuth) or no-op, sync factory
   → manifestToCommands(manifest)           // each command → CommandSpec via generic executor
-  → defineCli({ name, plugins:[auth], namespaces, baseUrl, errorOnStatus })
+  → defineCliApp({ dir: getRxDir(), plugins:[auth], namespaces, baseUrl, errorOnStatus })
   → app.run(args)                          // native 2-level routing, full pipeline
 ```
 
-Every dynamic service is a fresh, ephemeral `defineCli` App — inheriting the entire cli-sdk pipeline (envelope, typed errors, pagination, pipes, pretty-printing). The cold-assemble cost is <10ms (`defineAuth` does zero network calls during construction).
+Every dynamic service is a fresh, ephemeral `defineCliApp` App — inheriting the entire cli-sdk pipeline (envelope, typed errors, pagination, pipes, pretty-printing). The cold-assemble cost is <10ms (`defineAuth` is a sync factory that does zero network calls).
 
 ## Relationship to Agent Skills, MCP, and cli-sdk
 

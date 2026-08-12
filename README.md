@@ -31,8 +31,8 @@ With `@renxqoo/agent-data-cli`, a business package declares its commands and API
 | **Deterministic machine contract**      | JSON success envelopes, structured errors, stable sources, metadata, pagination, and categorized exit codes.                                                          |
 | **One CLI for agents and humans**       | Pipes and CI receive JSON automatically; an interactive terminal receives readable text or CJK-width-aware tables. `--json` and `--no-json` make the choice explicit. |
 | **Self-discovering Agent Skills**       | A CLI can list, read, generate, and sync its own `SKILL.md` documentation so agents know when and how to call it.                                                     |
-| **Authentication as a component**       | Reuse credential providers, OAuth device flow, token refresh, generated auth commands, or plug in a business-specific scheme such as dual headers or HMAC.            |
-| **Schema-first, type-safe commands**    | `defineCommand` infers required, optional, defaulted, and scalar argument types directly from the command schema.                                             |
+| **Authentication as a component**       | Reuse credential providers, OAuth 2.1 flows (device, authorization code + PKCE, client credentials), token refresh, generated auth commands, or plug in a business-specific scheme such as dual headers or HMAC.              |
+| **Schema-first, type-safe commands**    | `defineCommand` infers required, optional, defaulted, and scalar argument types directly from the command's Zod schema.                                                                                                       |
 | **Direct Zod structured input**         | Large and nested payloads use a Zod 4 schema directly for type inference, validation, discovery, redaction, dry-run, confirmation, and idempotency.          |
 | **Composable by design**                | Structured stdout stays clean, diagnostics stay on stderr, and one command's envelope can become downstream pipe records.                                             |
 | **Extensible without a framework fork** | Eight lifecycle hooks and plugin-contributed commands cover authentication, input auditing, request transformation, retries, output shaping, and error normalization. |
@@ -89,7 +89,7 @@ Each active application supports one-step setup with `npx <package> install`, wh
 | [`rxstock`](apps/a-stock)     | `npx @renxqoo/rxstock install`      | None                | A-share quotes, K-lines, financials, sectors, capital flows, and locally computed indicators, with multi-source fallback.                         |
 | [`rxopen`](apps/rxopen)       | `npx @renxqoo/rxopen-cli install`   | None                | More than 60 public-data endpoints for news, trends, weather, prices, translation, developer tools, and media, organized into six focused skills. |
 | [`rxcordys`](apps/cordys-crm) | `npx @renxqoo/rxcordys-cli install` | Static dual headers | A full Lead-to-Cash CRM surface: leads, accounts, opportunities, contracts, payments, invoices, orders, approvals, and statistics.                |
-| [`rxcli`](apps/crm)           | `npx @renxqoo/cli install`          | OAuth device flow   | Orders, products, invoices, and accounts through a company gateway, including registration, login, refresh, status, and logout.                   |
+| [`rxcli`](apps/crm)           | `npx @renxqoo/cli install`          | OAuth 2.1 device flow | Orders, products, invoices, and accounts through a company gateway, including registration, login, refresh, status, and logout.                   |
 
 [`rx60s`](apps/60s) is the legacy single-skill package. New integrations should use `rxopen`, whose domain-oriented skill structure is easier for agents to discover accurately.
 
@@ -129,7 +129,10 @@ pnpm add @renxqoo/agent-data-cli
 Define a schema and implement only the business operation:
 
 ```ts
-import { defineCli, defineCommand } from "@renxqoo/agent-data-cli";
+import { defineCliApp, defineCommand } from "@renxqoo/agent-data-cli";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import * as z from "zod";
 
 interface TodoListResponse {
   items: Array<{ id: string; title: string; completed: boolean }>;
@@ -139,13 +142,11 @@ const list = defineCommand({
   name: "list",
   description: "List todos",
   args: {
-    limit: {
-      type: "number",
-      default: 20,
-      desc: "Maximum number of results",
-    },
+    schema: z.object({
+      limit: z.coerce.number().min(1).max(100).default(20),
+    }),
   },
-  async run(args, ctx) {
+  async run(ctx, args) {
     const response = await ctx.get<TodoListResponse>("/todos", {
       limit: args.limit,
     });
@@ -157,10 +158,12 @@ const list = defineCommand({
   },
 });
 
-export default defineCli({
+export default await defineCliApp({
   name: "todos",
   binName: "todos",
   description: "Agent-native todo CLI",
+  // The app's one directory decision; plugins receive this local state via apply(services).
+  dir: join(homedir(), ".todos"),
   baseUrl: "https://api.example.com",
   commands: { list },
 });
@@ -171,18 +174,22 @@ That definition provides argument parsing and validation, typed request helpers,
 ### Add authentication without coupling it to commands
 
 ```ts
-import { defineAuth, defineCli } from "@renxqoo/agent-data-cli";
+import { defineAuth, defineCliApp } from "@renxqoo/agent-data-cli";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
-const auth = await defineAuth({
-  credentialNamespace: "todos",
-  baseUrl: "https://auth.example.com",
-  scope: "todos.read offline_access",
-});
-
-export default defineCli({
+export default await defineCliApp({
   name: "todos",
   description: "Authenticated todo CLI",
-  plugins: [auth],
+  dir: join(homedir(), ".todos"),
+  plugins: [
+    defineAuth({
+      // Sync factory; async assembly runs in the plugin's apply(services).
+      credentialNamespace: "todos", // → config/todos.json + credentials/todos.json
+      baseUrl: "https://auth.example.com",
+      scope: "todos.read offline_access",
+    }),
+  ],
   commands: {},
 });
 ```
@@ -192,9 +199,11 @@ The plugin contributes `auth login`, `auth status`, `auth logout`, and `auth reg
 For custom behavior, plugins can use:
 
 ```text
-beforeCommand → prepareRequest → observeRequest → handleUnauthorized
+beforeCommand → observeInput → beforeRequest → observeRequest → handleUnauthorized
               → transformOutput → observeError → handleError
 ```
+
+Plus assembly (`apply`) and app-level (`onAppRun` / `afterAppRun`) hooks.
 
 Plugins may also contribute commands through `provides`, which keeps cross-cutting features componentized instead of scattering them across business command files.
 

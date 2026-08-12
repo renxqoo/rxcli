@@ -100,13 +100,17 @@ const update = defineCommand({
 #!/usr/bin/env node
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { defineCli } from "@renxqoo/agent-data-cli";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { defineCliApp } from "@renxqoo/agent-data-cli";
 import { todoCommands } from "./commands/todos.js";
 
-const app = defineCli({
+const app = await defineCliApp({
   name: "my-cli",
   binName: "my-cli",
   description: "查询和管理待办",
+  // app 只决定一次目录;插件经 apply(services) 拿到这份本地状态。
+  dir: join(homedir(), ".my-cli"),
   baseUrl: process.env.TODOS_API_URL ?? "https://api.example.com",
   commands: todoCommands,
   errorOnStatus: {
@@ -133,15 +137,16 @@ export default app;
 
 全局安装时 `argv[1]` 通常是软链接，必须用 `realpathSync` 比较真实入口。不要在被 import 时自动运行 CLI。
 
-`defineCli` 关键选项：
+`defineCliApp` 关键选项：
 
 | 选项            | 规则                                   |
 | --------------- | -------------------------------------- |
+| `dir`           | app 唯一一次目录决策(`dir` 与 `localState` 二选一,经 `apply(services)` 注入插件) |
 | `name`          | 输出 `source`、管道类型和 Skill 标识   |
 | `binName`       | 用户实际输入的命令名；建议显式设置     |
 | `commands`      | 顶层命令；单业务域使用，必填           |
 | `namespaces`    | 仅用于多个无关业务域，避免命令重名覆盖 |
-| `plugins`       | 必须是已解析的 Plugin，不能传 Promise  |
+| `plugins`       | 必须是 Plugin 对象(`defineAuth` 等是同步工厂),不能传 Promise |
 | `errorOnStatus` | HTTP status 到已登记 subtype 的映射    |
 | `defaultFormat` | `auto`（默认）、`json` 或 `human`      |
 | `skillsDir`     | 设置后注入 `skills` 命令               |

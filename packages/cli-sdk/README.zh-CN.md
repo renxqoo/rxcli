@@ -36,15 +36,15 @@
 
 ## 特性
 
-- **🔐 鉴权工厂 `defineAuth`** —— OAuth 2.0 device flow(RFC 8628)+ 401 singleflight 自动刷新。一行配置,login/status/logout/register 命令自动注入。
+- **🔐 鉴权工厂 `defineAuth`** —— OAuth 2.1 三种流程(设备授权 RFC 8628 / 授权码+PKCE / 客户端凭据)+ 401 singleflight 自动刷新。一行配置,login/status/logout/register 命令自动注入。
 - **📦 结构化统一输出** —— JSON 模式输出 `{ok, source, data, meta}`,stderr 是错误输出,exit code 分类；`defaultFormat` 可选择 JSON、人类文本或 TTY 自动模式。
 - **🏷️ 9 类类型化错误** —— validation/authentication/permission/config/network/api/not_found/policy/internal,每类映射 exit code。
-- **🔌 vite 式插件** —— prepare/observe/handle/transform 职责分离的生命周期钩子 + `provides` 自动贡献命令。
+- **🔌 vite 式插件** —— 装配(`apply`)+ before/observe/handle/transform 职责分离的生命周期钩子与应用级 `onAppRun`/`afterAppRun`,加 `provides` 自动贡献命令。
 - **🔑 provider chain** —— flag/env/file/oauth 四级凭证解析优先级,业务自定义凭证源。
 - **🚇 unix 管道** —— `rxcli orders list | rxcli report` 自动把上游统一输出格式拆成记录流。
 - **📖 skill 系统** —— SKILL.md 命令文档自动生成,同步到用户已装的 AI agent 发现目录(`~/.agents` 始终写 + 探测到的 `~/.claude`/`~/.codex`/`~/.cursor`/`~/.zcode`/`~/.openclaw`/`~/.pi`),供 AI agent 自服务发现。
 - **🖥️ 双模输出** —— 默认 `auto`(TTY 文本、脚本/管道 JSON);`--json` / `--no-json` 显式覆盖；`defaultFormat` 可固定默认。
-- **🧙 install 向导** —— 全局安装 + skills 装载 + 注册 + 登录引导,业务包拦截 `install` 命令即可。
+- **🧙 install 插件** —— `defineInstaller` 提供顶层 `install` 命令(全局安装 + skills 装载 + 注册 + 登录引导),业务入口无需拦截。
 
 ### 实际业务包(基于本框架)
 

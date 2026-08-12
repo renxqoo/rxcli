@@ -15,6 +15,12 @@
 ### Added
 
 - `defineCommand` 直接接受 Zod 4 `input.schema`，同一 Schema 提供结构化载荷类型推导、运行时校验和 JSON Schema 发现，并统一执行严格 JSON、脱敏、dry-run、确认和幂等策略。
+- **@renxqoo/agent-data-cli** — vite 式应用装配器重构:
+  - `defineCliApp`:`{ dir | localState }` 唯一目录决策(类型级互斥),异步装配插件 `apply(services)` 后编译路由;`defineCli` 保持同步零 I/O。
+  - `defineInstaller`:安装向导收编为内部插件,提供顶层 `install` 命令(`skipPluginHooks`,向导 UI 全走 stderr),开放数据 CLI 可用 `auth: false`。
+  - `createUpdateNotifier`:缓存式版本感知(`afterAppRun` 触发、仅 stderr XML `<system-message>`、分离后台 helper 刷新、`NO_UPDATE_NOTIFIER=1` 关闭)。
+  - 插件契约 v2:`apply` / `onAppRun` / `afterAppRun`;命名空间本地状态(`config/<ns>.json`、`credentials/<ns>.json`、`cache/updates/`)。
+- **apps** — 六个业务 CLI 全部迁移到 `defineCliApp` + `defineInstaller` + `createUpdateNotifier`(crm/cordys-crm/rxx/60s/a-stock/rxopen)。
 
 ### Fixed
 
@@ -37,6 +43,8 @@
 
 ### Changed
 
+- **@renxqoo/agent-data-cli** — `defineAuth` 重构为同步工厂,收敛为 OAuth 2.1 三种流程(device 设备授权 / authorization_code+PKCE / client_credentials),选项 13 → 9;RFC 7591 注册 metadata 按字段缺省派生(`client_name` ← credentialNamespace、`grant_types` ← flow、`scope` ← opts.scope、`token_endpoint_auth_method` ← client_secret_basic),显式字段优先(crm 注册报文字节不变)。
+- **@renxqoo/agent-data-cli** — `ConfigStore.loadConfig/saveConfig` 改为按 namespace(`config/<ns>.json`),修复多 app 共用 `~/.rxcli/config.json` 互相覆盖的问题;旧全局 `config.json` 不迁移,重新 register 写入新布局。
 - `@renxqoo/agent-data-cli` 发布产物改为 bundle、tree-shake、minify、声明文件和 source map，并通过真实 tarball 消费测试验证公开入口。
 - 字段多或嵌套的命令统一使用 `defineCommand({ input: { schema } })`；业务包直接依赖 Zod 4，推荐 `zod/mini`。
 
@@ -49,6 +57,7 @@
 
 ### Removed
 
+- **@renxqoo/agent-data-cli** — 删除 `authStyle`、`poller`、`scopeFromMetadata`、`refreshAccessToken`、`fetchScopesFromMetadata`、`OAuthFetch`、`runInstallWizard`、`runAfterCommand` 与 `OAuthClient.scopes()`(零消费者或仅测试消费);`injectAuthHeader` / `createOn401Hook` 等自定义插件边界保留。
 - 直接删除 `defineCommandFromArgs`、`defineStructuredCommand` 和 `@renxqoo/agent-data-cli/zod`，不提供兼容别名；所有命令统一使用 `defineCommand`。
 - 删除 `@standard-schema/spec` 边界和 `zodInput` 包装层；结构化输入以 Zod 4 为唯一 Schema 标准。
 

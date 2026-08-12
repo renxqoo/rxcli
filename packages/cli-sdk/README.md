@@ -37,15 +37,15 @@ When an AI agent (or script, or pipeline) consumes your business data, there's a
 
 ## Features
 
-- **🔐 Auth factory `defineAuth`** — OAuth 2.0 device flow (RFC 8628) + 401 singleflight auto-refresh. One line of config and login/status/logout/register commands are injected automatically.
+- **🔐 Auth factory `defineAuth`** — OAuth 2.1 flows (device RFC 8628, authorization code + PKCE, client credentials) + 401 singleflight auto-refresh. One line of config and login/status/logout/register commands are injected automatically.
 - **📦 Structured unified output** — JSON mode outputs `{ok, source, data, meta}`, stderr is the error stream, exit codes are categorized; `defaultFormat` can choose JSON, human text, or TTY auto mode.
 - **🏷️ 9 typed error classes** — validation/authentication/permission/config/network/api/not_found/policy/internal, each mapped to an exit code.
-- **🔌 Vite-style plugins** — explicit prepare/observe/handle/transform hooks + `provides` for auto-contributing commands.
+- **🔌 Vite-style plugins** — assembly (`apply`) plus before/observe/handle/transform lifecycle hooks and app-level `onAppRun`/`afterAppRun`, with `provides` for auto-contributing commands.
 - **🔑 Provider chain** — flag / env API key / env bearer / file / OAuth credential resolution, with custom sources per business.
 - **🚇 Unix pipes** — `rxcli orders list | rxcli report` automatically splits the upstream unified output into a record stream.
 - **📖 Skill system** — SKILL.md command docs auto-generated and synced to installed AI agent discovery dirs (`~/.agents` always + detected tools among `~/.claude`/`~/.codex`/`~/.cursor`/`~/.zcode`/`~/.openclaw`/`~/.pi`) for AI agent self-discovery.
 - **🖥️ Dual-mode output** — defaults to `auto` (TTY→text, script/pipe→JSON); `--json` / `--no-json` for explicit override; `defaultFormat` to pin a default.
-- **🧙 Install wizard** — global install + skills loading + register + login guidance; business packages just intercept the `install` command.
+- **🧙 Install wizard** — global install + skills loading + register + login guidance, provided as the `defineInstaller` plugin (`install` command); business entries never intercept commands.
 
 ### Real business packages (built on this framework)
 
