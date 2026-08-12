@@ -19,6 +19,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   readdirSync,
   renameSync,
   rmSync,
@@ -93,27 +94,47 @@ const NODE_DIRECTORY_OPERATIONS: DirectoryTransactionOperations = {
   id: randomUUID,
 };
 
-/** Recursive copy that dereferences every symlink into a real file/dir. Broken symlinks are skipped. */
+/**
+ * Recursive copy that dereferences every symlink into a real file/dir. Broken
+ * symlinks are skipped; symlink cycles (a link resolving to an ancestor) are
+ * broken via a realpath-seen guard so the copy cannot recurse forever.
+ */
 function copyTreeDereferenced(source: string, destination: string): void {
-  mkdirSync(destination, { recursive: true });
-  for (const entry of readdirSync(source, { withFileTypes: true })) {
-    const srcPath = join(source, entry.name);
-    const destPath = join(destination, entry.name);
-    if (entry.isSymbolicLink()) {
-      let real;
-      try {
-        real = statSync(srcPath); // follows the link
-      } catch {
-        continue; // broken symlink — skip
+  const seen = new Set<string>();
+  const copy = (src: string, dest: string): void => {
+    mkdirSync(dest, { recursive: true });
+    for (const entry of readdirSync(src, { withFileTypes: true })) {
+      const srcPath = join(src, entry.name);
+      const destPath = join(dest, entry.name);
+      if (entry.isSymbolicLink()) {
+        let real;
+        try {
+          real = statSync(srcPath); // follows the link
+        } catch {
+          continue; // broken symlink — skip
+        }
+        if (real.isDirectory()) {
+          let resolved: string | undefined;
+          try {
+            resolved = realpathSync(srcPath);
+          } catch {
+            resolved = undefined;
+          }
+          // B2: break symlink cycles — skip a link whose target we already copied.
+          if (!resolved || seen.has(resolved)) continue;
+          seen.add(resolved);
+          copy(srcPath, destPath);
+        } else {
+          copyFileSync(srcPath, destPath); // follows the link, copies target content
+        }
+      } else if (entry.isDirectory()) {
+        copy(srcPath, destPath);
+      } else {
+        copyFileSync(srcPath, destPath);
       }
-      if (real.isDirectory()) copyTreeDereferenced(srcPath, destPath);
-      else copyFileSync(srcPath, destPath); // follows the link, copies target content
-    } else if (entry.isDirectory()) {
-      copyTreeDereferenced(srcPath, destPath);
-    } else {
-      copyFileSync(srcPath, destPath);
     }
-  }
+  };
+  copy(source, destination);
 }
 
 /** Crash-recoverable directory swap. A failed activation restores the previous destination. */

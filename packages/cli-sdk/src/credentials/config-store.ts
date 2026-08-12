@@ -45,6 +45,12 @@ export interface FileStoreOptions {
    * 默认 10_000。拿不到锁(另一进程持有且未释放)时抛错。
    */
   lockTimeoutMs?: number;
+  /**
+   * 跨进程锁的陈旧回收阈值(ms):锁属主进程仍存活,但持有时间超过该值时,等待方可
+   * 回收。默认 60_000。OAuth refresh 含网络调用,慢服务器下可调大以避免误回收导致
+   * 两个进程同时写凭证。详见 infra/file-lock.ts 的 staleAfterMs。
+   */
+  lockStaleAfterMs?: number;
 }
 
 /**
@@ -183,7 +189,10 @@ export function fileStore(opts: FileStoreOptions): ConfigStore {
     async withLock<T>(namespace: string, fn: () => Promise<T>): Promise<T> {
       assertCredentialNamespace(namespace);
       ensureDirs();
-      return withFileLock(credsDir, namespace, fn, { timeoutMs: opts.lockTimeoutMs ?? 10_000 });
+      return withFileLock(credsDir, namespace, fn, {
+        timeoutMs: opts.lockTimeoutMs ?? 10_000,
+        ...(opts.lockStaleAfterMs !== undefined ? { staleAfterMs: opts.lockStaleAfterMs } : {}),
+      });
     },
   };
 }

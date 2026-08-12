@@ -141,6 +141,28 @@ describe("B2: replaceDirectoryTransaction dereferences symlinks", () => {
     expect(lstatSync(synced).isSymbolicLink()).toBe(false);
     expect(readFileSync(synced, "utf8")).toBe("head");
   });
+
+  it("breaks a symlink cycle instead of recursing forever", () => {
+    const src = tempDir();
+    writeFileSync(join(src, "SKILL.md"), "head");
+    mkdirSync(join(src, "refs"), { recursive: true });
+    writeFileSync(join(src, "refs", "real.md"), "body");
+    // a symlink pointing at an ancestor directory → would recurse forever
+    // (until stack overflow) without the cycle guard.
+    symlinkSync(src, join(src, "loop"));
+
+    const dest = join(tempDir(), "copied");
+    // Must not throw (RangeError from stack overflow) or hang.
+    expect(() => replaceDirectoryTransaction(src, dest)).not.toThrow();
+
+    // real files are still copied...
+    expect(readFileSync(join(dest, "SKILL.md"), "utf8")).toBe("head");
+    expect(readFileSync(join(dest, "refs", "real.md"), "utf8")).toBe("body");
+    // ...and the loop was entered exactly once: its target was already seen on
+    // the second hit, so no nested loop dir is created.
+    expect(existsSync(join(dest, "loop", "SKILL.md"))).toBe(true);
+    expect(existsSync(join(dest, "loop", "loop"))).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------
