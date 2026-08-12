@@ -4,11 +4,19 @@
  *
  * 迁自 v1 rxcli 单体 CLI,改用 cli-sdk v2:
  *   - 多业务域用 namespaces 聚合(orders/products/invoices/account)
- *   - auth 用 cli-sdk 的 defineAuth 工厂(钩子 + login/status/logout/register 自动注入)
+ *   - auth 用 cli-sdk 的 defineAuth 工厂(同步工厂,装配器自动 apply)
+ *   - installer 是插件(顶层 install 命令),入口不再拦截
+ *   - update awareness 用 createUpdateNotifier(每次运行一次,仅 stderr)
  *   - skill 直接复用 v1(已搬到 skills/)
  */
 
-import { defineCli, defineAuth, fileStore } from "@renxqoo/agent-data-cli";
+import {
+  createUpdateNotifier,
+  defineAuth,
+  defineCliApp,
+  defineInstaller,
+  detectBizPackage,
+} from "@renxqoo/agent-data-cli";
 import { AUTH_BASE_URL, API_BASE_URL, CRM_SCOPES, SKILLS_DIR, RXCLI_DIR } from "./config.js";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -21,31 +29,36 @@ type CrmState = {
   user: { userId: string; name?: string } | null;
 };
 
-// auth plugin(钩子 + auth 命令一捆):defineCli 自动注入 login/status/logout/register
+// update awareness:仅当入口可探测到业务包名/合法版本时启用(库引用场景跳过)
+const biz = detectBizPackage();
+const updateNotifier =
+  biz && /^\d+\.\d+\.\d+/.test(biz.version)
+    ? [createUpdateNotifier<CrmState>({ packageName: biz.name, currentVersion: biz.version })]
+    : [];
+
+// defineCliApp:唯一目录决策(dir),auth/installer/notifier 经 apply(services) 拿本地状态
+// auth plugin(钩子 + auth 命令一捆):defineCliApp 自动注入 login/status/logout/register
 // scope 业务自定(crm 走中间层 company.api + offline_access 拿 refresh_token)
 // bearerToken + envBearerProvider:多环境自适应
 //   - 本地:无 CRM_BEARER_TOKEN → device flow 登录,token 存文件
 //   - sandbox:有 CRM_BEARER_TOKEN → 直接用 admin 预签发的 JWT
-const auth = await defineAuth<CrmState>({
-  credentialNamespace: "crm",
-  baseUrl: AUTH_BASE_URL,
-  scope: CRM_SCOPES.join(" "),
-  // 目录由 app 决定(cli-sdk 不内置默认):crm 用 ~/.rxcli
-  store: fileStore({ dir: RXCLI_DIR }),
-  clientMetadata: {
-    client_name: "crm",
-    grant_types: ["urn:ietf:params:oauth:grant-type:device_code", "refresh_token"],
-    scope: CRM_SCOPES.join(" "),
-    token_endpoint_auth_method: "client_secret_basic",
-  },
-  bearerToken: process.env.CRM_BEARER_TOKEN,
-});
-
-const app = defineCli<CrmState>({
+const app = await defineCliApp<CrmState>({
   name: "crm",
+  dir: RXCLI_DIR,
   createState: () => ({ user: null }),
   description: "通过鉴权中间层访问公司应用(订单/商品/发票/账号)",
-  plugins: [auth],
+  plugins: [
+    defineAuth<CrmState>({
+      credentialNamespace: "crm",
+      baseUrl: AUTH_BASE_URL,
+      // 一份 scope:登录授权与注册声明共用;注册 metadata 其余字段由 SDK 派生
+      // (client_name ← crm、grant_types ← device flow、token_endpoint_auth_method ← client_secret_basic)
+      scope: CRM_SCOPES.join(" "),
+      bearerToken: process.env.CRM_BEARER_TOKEN,
+    }),
+    defineInstaller<CrmState>({ skillsSource: process.env.RXCLI_SKILLS_SOURCE }),
+    ...updateNotifier,
+  ],
   // 顶层命令:无(全部走 namespace)
   commands: {},
 
@@ -79,22 +92,9 @@ function isMainEntry(): boolean {
   }
 }
 
-const argv = process.argv.slice(2);
-
-// install 向导拦截(优先级最高):argv[0]==='install' 转给 cli-sdk 的向导,不走命令路由。
-// skillsSource 空=本地 skills/;设了(如 RXCLI_SKILLS_SOURCE=https://skills.sh/p/xxx)=npx skills add。
-if (isMainEntry() && argv[0] === "install") {
-  const { runInstallWizard } = await import("@renxqoo/agent-data-cli");
-  const code = await runInstallWizard({
-    skillsSource: process.env.RXCLI_SKILLS_SOURCE,
-    configDir: RXCLI_DIR,
-  });
-  process.exit(code);
-}
-
-// bin 入口:被直接执行时自动 run
+// bin 入口:被直接执行时自动 run。install 是 installer 插件提供的普通命令,无需拦截。
 if (isMainEntry()) {
-  app.run(argv).then(() => {
+  app.run(process.argv.slice(2)).then(() => {
     /* exit code 已由 pipeline 设 */
   });
 }

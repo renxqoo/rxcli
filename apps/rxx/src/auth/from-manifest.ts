@@ -2,7 +2,8 @@
  * rxx —— 动态 auth:manifest.auth → cli-sdk defineAuth
  *
  * 已验证:defineAuth 的 DefineAuthOptions 全部是可序列化配置(无业务必须传函数),
- * 调用时零网络请求(冷装配安全)。manifest 的 auth 段直接喂。
+ * 同步工厂零网络请求(冷装配安全)。manifest 的 auth 段直接喂;
+ * store 经 apply(services) 由装配器(defineCliApp)注入,不在工厂入参。
  *
  * 两种情况:
  *   - 有 auth → defineAuth(透传配置,自动生成 login/status/logout/register + 钩子)
@@ -11,19 +12,17 @@
  * env 注入:支持 `<NAME>_BEARER_TOKEN` 环境变量(sandbox/CI/admin 预签 JWT 场景)。
  */
 
-import { defineAuth, fileStore, type Plugin, type ClientMetadata } from "@renxqoo/agent-data-cli";
+import { defineAuth, type Plugin, type ClientMetadata } from "@renxqoo/agent-data-cli";
 import type { Manifest, ManifestAuth } from "../manifest/schema.js";
-import { getRxDir } from "../config.js";
 
 /**
- * 从 manifest 构造 auth 插件。
- *
- * async 因为 defineAuth 本身是 async(内部做 credential store 初始化)。
+ * 从 manifest 构造 auth 插件(同步:defineAuth 是同步工厂,
+ * 异步装配读配置在 defineCliApp 的 apply(services) 里完成)。
  *
  * @param m manifest
  * @returns auth Plugin(有 auth)或 no-op plugin(无 auth)
  */
-export async function buildAuthFromManifest<State = unknown>(m: Manifest): Promise<Plugin<State>> {
+export function buildAuthFromManifest<State = unknown>(m: Manifest): Plugin<State> {
   if (!m.auth) {
     return noAuthPlugin<State>();
   }
@@ -44,8 +43,6 @@ function manifestAuthToOptions(name: string, auth: ManifestAuth) {
     baseUrl: auth.baseUrl,
     scope: auth.scope,
     flow: auth.flow ?? ("device" as const),
-    // 目录由 app 决定(cli-sdk 不内置默认):rxx 用 ~/.rxx
-    store: fileStore({ dir: getRxDir() }),
     clientMetadata,
     redirectPort: auth.redirectPort,
     bearerToken,
