@@ -16,7 +16,7 @@ Use this reference for standard error categories, subtypes, exit codes, and `err
 | `validation`     |    2 | `invalid_argument`, `missing_required`, `out_of_range`                             |
 | `authentication` |    3 | `no_token`, `token_expired`, `token_revoked`, `no_credentials`, `no_refresh_token` |
 | `authorization`  |    3 | `missing_scope`, `app_permission_denied`, `forbidden`                              |
-| `config`         |    3 | `missing_config`, `invalid_config`, `unbound_env`                                  |
+| `config`         |    3 | `missing_config`, `invalid_config`, `unbound_env`, `skill_sync_failed`             |
 | `network`        |    4 | `timeout`, `connection_refused`, `dns_failure`, `ssl_error`                        |
 | `api`            |    1 | `not_found`, `already_exists`, `conflict`, `rate_limited`, `server_error`          |
 | `policy`         |    6 | `content_blocked`, `challenge_required`, `access_denied`                           |

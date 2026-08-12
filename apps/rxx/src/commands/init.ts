@@ -33,7 +33,7 @@ export const initCommand = defineCommand({
     }),
     pos: ["url"],
   },
-  internal: true,
+  skipPluginHooks: true,
   async run(_ctx, args) {
     try {
       // C5 修复:前置读 pinning key,只 fetch 一次

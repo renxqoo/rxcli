@@ -8,7 +8,7 @@ import type {
   RequestOptions,
   TransportResponse,
 } from "./types.js";
-import { CliError, NetworkError } from "./errs/index.js";
+import { CliError, InternalError, NetworkError } from "./errs/index.js";
 import { beforeRequest, handleUnauthorized, observeRequest } from "./plugin.js";
 import { throwForResponse } from "./request.js";
 
@@ -68,7 +68,11 @@ export function createRequestExecutor<State>(options: {
         return response;
       }
 
-      throw new Error("unreachable request attempt state");
+      // M8: keep the typed error taxonomy even for the (unreachable) guard.
+      throw new InternalError({
+        subtype: "contract_violation",
+        message: "unreachable request attempt state",
+      });
     },
   };
 }

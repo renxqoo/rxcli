@@ -41,9 +41,10 @@
 
 | subtype          | 用法                          |
 | ---------------- | ----------------------------- |
-| `missing_config` | 本地配置缺失(如 baseUrl 没设) |
-| `invalid_config` | 配置值不合法                  |
-| `unbound_env`    | 环境变量没绑定                |
+| `missing_config`    | 本地配置缺失(如 baseUrl 没设)   |
+| `invalid_config`    | 配置值不合法                    |
+| `unbound_env`       | 环境变量没绑定                  |
+| `skill_sync_failed` | skills 同步失败(权限/磁盘/路径) |
 
 ### network (exit 4, 默认 `retryable:true`)
 

@@ -19,8 +19,6 @@
  * 故 login 不会被"必须登录"拦截(internal 脚枪消除)。
  */
 
-import { homedir } from "node:os";
-import { join } from "node:path";
 import type { Plugin, CommandGroup, CommandContext } from "../types.js";
 import {
   type ClientMetadata,
@@ -36,7 +34,7 @@ import { createLoginCommand } from "./commands/login.js";
 import { createStatusCommand } from "./commands/status.js";
 import { createLogoutCommand } from "./commands/logout.js";
 import { createRegisterCommand } from "./commands/register.js";
-import { fileStore, type ConfigStore } from "../credentials/index.js";
+import type { ConfigStore } from "../credentials/index.js";
 import type { CredentialProvider } from "../credentials/types.js";
 import { credentialArgsKey } from "../context.js";
 import { resolveAuthConfig, buildProviderChain, buildOn401Handler } from "./helpers.js";
@@ -66,8 +64,11 @@ export interface DefineAuthOptions {
   clientSecret?: string;
   /** token 注入方式。默认 'bearer'。 */
   authStyle?: AuthStyle;
-  /** store 注入(测试用)。默认 fileStore({dir: ~/.rxcli})。 */
-  store?: ConfigStore;
+  /**
+   * 凭证/配置存储。**必填** —— cli-sdk 是底层 SDK,不内置任何目录默认;
+   * 由业务 app 决定落盘位置(如 fileStore({ dir: '~/.rxcli' }))。
+   */
+  store: ConfigStore;
   /**
    * 测试用:注入轮询函数(pollAndPersist 用)。生产不传。
    * 让 M3 RFC 8628 轮询测试能 mock pollDeviceToken。
@@ -128,7 +129,7 @@ export async function defineAuth<State = Record<string, never>>(
   // —— 基础配置 ——
   const cmdNs = opts.commandNamespace ?? "auth";
   const credNs = opts.credentialNamespace;
-  const store = opts.store ?? fileStore({ dir: join(homedir(), ".rxcli") });
+  const store = opts.store;
 
   // —— ① 解析 client 凭证(env → config.json → 空)——
   const { oauth, authStyle } = await resolveAuthConfig(opts, store);
@@ -139,12 +140,13 @@ export async function defineAuth<State = Record<string, never>>(
   // —— ③ 选 flow + 构造 on401 handler ——
   const flowType = opts.flow ?? "device";
   const flow = resolveFlow(flowType);
-  const flowDeps: FlowDeps = {
+  // C2: build the type-discriminated FlowDeps variant matching the selected flow.
+  const flowDeps: FlowDeps = buildFlowDeps(flowType, {
     cfg: oauth,
     scope: opts.scope,
     poller: opts.poller,
     callbackPort: opts.redirectPort,
-  };
+  });
   // handler 只创建一次，内部 singleflight map 才能覆盖并发 401。
   const refresh = buildOn401Handler({
     flow,
@@ -234,6 +236,30 @@ function resolveFlow(type: FlowType): AuthFlow {
       return authCodeFlow;
     case "client_credentials":
       return clientCredentialsFlow;
+  }
+}
+
+interface FlowDepsInputs {
+  cfg: OAuthClientConfig;
+  scope?: string;
+  poller?: DefineAuthOptions["poller"];
+  callbackPort?: number;
+}
+
+/** Construct the discriminated FlowDeps variant for the given flow type. */
+function buildFlowDeps(type: FlowType, input: FlowDepsInputs): FlowDeps {
+  switch (type) {
+    case "device":
+      return { type: "device", cfg: input.cfg, scope: input.scope, poller: input.poller };
+    case "authorization_code":
+      return {
+        type: "authorization_code",
+        cfg: input.cfg,
+        scope: input.scope,
+        callbackPort: input.callbackPort,
+      };
+    case "client_credentials":
+      return { type: "client_credentials", cfg: input.cfg, scope: input.scope };
   }
 }
 

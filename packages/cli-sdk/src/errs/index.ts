@@ -74,6 +74,7 @@ export const SUBTYPE_REGISTRY: Record<string, { category: Category }> = {
   missing_config: { category: "config" },
   invalid_config: { category: "config" },
   unbound_env: { category: "config" },
+  skill_sync_failed: { category: "config" },
 
   // network
   timeout: { category: "network" },

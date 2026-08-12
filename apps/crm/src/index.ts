@@ -8,8 +8,8 @@
  *   - skill 直接复用 v1(已搬到 skills/)
  */
 
-import { defineCli, defineAuth } from "@renxqoo/agent-data-cli";
-import { AUTH_BASE_URL, API_BASE_URL, CRM_SCOPES, SKILLS_DIR } from "./config.js";
+import { defineCli, defineAuth, fileStore } from "@renxqoo/agent-data-cli";
+import { AUTH_BASE_URL, API_BASE_URL, CRM_SCOPES, SKILLS_DIR, RXCLI_DIR } from "./config.js";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { ordersCommands } from "./commands/orders.js";
@@ -30,6 +30,8 @@ const auth = await defineAuth<CrmState>({
   credentialNamespace: "crm",
   baseUrl: AUTH_BASE_URL,
   scope: CRM_SCOPES.join(" "),
+  // 目录由 app 决定(cli-sdk 不内置默认):crm 用 ~/.rxcli
+  store: fileStore({ dir: RXCLI_DIR }),
   clientMetadata: {
     client_name: "crm",
     grant_types: ["urn:ietf:params:oauth:grant-type:device_code", "refresh_token"],
@@ -46,6 +48,7 @@ const app = defineCli<CrmState>({
   plugins: [auth],
   // 顶层命令:无(全部走 namespace)
   commands: {},
+
   // 多业务域聚合:key=子命名空间 → rxcli <ns> <cmd>
   // auth namespace 由 auth plugin 通过 provides 自动注入(login/status/logout/register)
   namespaces: {
@@ -82,7 +85,10 @@ const argv = process.argv.slice(2);
 // skillsSource 空=本地 skills/;设了(如 RXCLI_SKILLS_SOURCE=https://skills.sh/p/xxx)=npx skills add。
 if (isMainEntry() && argv[0] === "install") {
   const { runInstallWizard } = await import("@renxqoo/agent-data-cli");
-  const code = await runInstallWizard({ skillsSource: process.env.RXCLI_SKILLS_SOURCE });
+  const code = await runInstallWizard({
+    skillsSource: process.env.RXCLI_SKILLS_SOURCE,
+    configDir: RXCLI_DIR,
+  });
   process.exit(code);
 }
 

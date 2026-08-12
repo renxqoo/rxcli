@@ -28,6 +28,12 @@ export interface ConfigStore {
   loadConfig(): Promise<Record<string, unknown>>;
   /** 写全局 config.json。 */
   saveConfig(data: Record<string, unknown>): Promise<void>;
+  /**
+   * 在持有命名空间独占锁的情况下执行 `fn`。保护凭证的读-改-写事务
+   * (如 OAuth refresh),避免跨进程并发互相覆盖丢失更新。
+   * fileStore 用进程间文件锁实现,memoryStore 用进程内互斥。
+   */
+  withLock<T>(namespace: string, fn: () => Promise<T>): Promise<T>;
 }
 
 // ============================================================================
@@ -93,7 +99,8 @@ export interface CredentialProvider {
 export interface StoredOAuthCredentials {
   token: string;
   refreshToken: string;
-  expiresAt: number;
+  /** Expiry ms epoch; undefined when the server omitted expires_in (RFC 6749 optional). */
+  expiresAt?: number;
   scopes: string[];
   user?: { userId: string; name: string };
   storedAt: number;

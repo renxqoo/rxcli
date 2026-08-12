@@ -17,6 +17,15 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * L6: defaults for split-flow resume. The original device code's real expires_in /
+ * interval are not recoverable from the bare --device-code string, so resume uses a
+ * conservative interval (NOT the old 100 ms, which would poll ~9000 times over the
+ * TTL and trip server rate-limiting) and a 15-minute TTL.
+ */
+const RESUME_INTERVAL_MS = 2_000;
+const RESUME_TTL_SEC = 15 * 60;
+
+/**
  * SplitFlow 信号:--no-wait 时 login() 抛此对象(不是 Error 子类,框架用 instanceof 检测)。
  * 框架捕获后把 deviceCode/verificationUrl 返回给调用方(agent)。
  */
@@ -56,8 +65,10 @@ async function pollForToken(
       continue;
     }
     if (r.status === "pending") continue;
+    // L12: a denied/expired device poll is an expired/failed authorization, not a
+    // revocation of an existing token. Reserve `token_revoked` for real revocation.
     throw new AuthenticationError({
-      subtype: "token_revoked",
+      subtype: "token_expired",
       message: `Login failed: ${r.message}`,
     });
   }
@@ -71,19 +82,25 @@ export const deviceFlow: AuthFlow = {
   type: "device" as const,
 
   async login(deps: FlowDeps): Promise<TokenInfo> {
+    if (deps.type !== "device") {
+      throw new TypeError(`deviceFlow.login received non-device deps (${deps.type})`);
+    }
     const poller = deps.poller ?? pollDeviceToken;
 
     // 模式 3:--device-code(恢复轮询,不重新申请)
     if (deps.resumeDeviceCode) {
       deps.log?.info("\nResuming login (polling with existing device_code)...");
-      // 恢复时用短 interval 立即开始轮询(用户已经授权了,不需要等)
-      return pollForToken(deps.cfg, deps.resumeDeviceCode, 15 * 60, 100, poller);
+      return pollForToken(
+        deps.cfg,
+        deps.resumeDeviceCode,
+        RESUME_TTL_SEC,
+        RESUME_INTERVAL_MS,
+        poller,
+      );
     }
 
     // 申请设备码(模式 1 和 2 都需要)
-    const info = deps.client
-      ? await deps.client.authorizeDevice(deps.scope)
-      : await deviceAuthorization(deps.cfg, deps.scope);
+    const info = await deviceAuthorization(deps.cfg, deps.scope);
     const url = info.verification_uri_complete ?? info.verification_uri;
 
     // 模式 2:--no-wait(申请了但不轮询,抛信号让框架返回 url)

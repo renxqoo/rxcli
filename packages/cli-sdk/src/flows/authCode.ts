@@ -24,6 +24,9 @@ export const authCodeFlow: AuthFlow = {
   type: "authorization_code" as const,
 
   async login(deps: FlowDeps): Promise<TokenInfo> {
+    if (deps.type !== "authorization_code") {
+      throw new TypeError(`authCodeFlow.login received non-authCode deps (${deps.type})`);
+    }
     // 1. PKCE
     const verifier = generateCodeVerifier();
     const challenge = computeCodeChallenge(verifier);
@@ -57,19 +60,20 @@ export const authCodeFlow: AuthFlow = {
     }
 
     if (result.kind === "error") {
+      // L12: a denied consent / state mismatch is a failed authorization, not a
+      // revocation of an existing token. Reserve `token_revoked` for real revocation.
       throw new AuthenticationError({
-        subtype: "token_revoked",
+        subtype: "token_expired",
         message: `Authorization denied: ${result.error}`,
       });
     }
 
     // 5. 用 code + verifier 换 token
-    const params = {
+    return exchangeCodeForToken(deps.cfg, {
       code: result.code,
       codeVerifier: verifier,
       redirectUri: handle.redirectUri,
-    };
-    return deps.client ? deps.client.exchangeCode(params) : exchangeCodeForToken(deps.cfg, params);
+    });
   },
   // 不实现 refresh → 框架用默认 refreshAccessToken
 };

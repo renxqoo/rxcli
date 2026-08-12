@@ -16,6 +16,8 @@ export interface RoutedCommand<State = unknown> {
   route: string[];
   spec: CommandSpec<any, unknown, State>;
   schema: CompiledCommandSchema;
+  /** Framework-provided default command — grouped separately in top-level help. */
+  framework?: boolean;
 }
 
 export interface MatchResult<State = unknown> {

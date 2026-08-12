@@ -117,7 +117,7 @@ describe("buildProviderChain", () => {
 });
 
 describe("buildOn401Handler", () => {
-  it("device flow(无 refresh) → 用 createOn401Hook(默认 refresh_token)", () => {
+  it("device flow(无 refresh) → 用默认 refresh_token 策略", () => {
     const oauth = { baseUrl: "http://t", clientId: "c", clientSecret: "s" };
     const store = memoryStore();
     const handler = buildOn401Handler({
@@ -125,7 +125,7 @@ describe("buildOn401Handler", () => {
       oauth,
       store,
       namespace: "test",
-      flowDeps: { cfg: oauth },
+      flowDeps: { type: "device", cfg: oauth },
     });
     expect(typeof handler).toBe("function");
   });
@@ -142,7 +142,7 @@ describe("buildOn401Handler", () => {
       oauth,
       store,
       namespace: "test",
-      flowDeps: { cfg: oauth },
+      flowDeps: { type: "client_credentials", cfg: oauth },
     });
     expect(typeof handler).toBe("function");
   });
@@ -156,7 +156,7 @@ describe("buildOn401Handler", () => {
       oauth,
       store,
       namespace: "test",
-      flowDeps: { cfg: oauth },
+      flowDeps: { type: "client_credentials", cfg: oauth },
     });
     const result = await handler();
     expect(result).toBeNull();
@@ -185,13 +185,13 @@ describe("buildOn401Handler", () => {
       oauth,
       store,
       namespace: "test",
-      flowDeps: { cfg: oauth },
+      flowDeps: { type: "client_credentials", cfg: oauth },
     });
     // 并发 3 次
     const results = await Promise.all([handler(), handler(), handler()]);
     expect(refreshFn).toHaveBeenCalledTimes(1);
-    // 三次拿到同一个 token
+    // 三次拿到同一个 token(同一对象)
     expect(results.every((r) => r === results[0])).toBe(true);
-    expect(results[0]).toBe("AT_1");
+    expect(results[0]?.access_token).toBe("AT_1");
   });
 });

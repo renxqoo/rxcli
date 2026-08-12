@@ -23,11 +23,20 @@ export function createLogoutCommand(deps: LogoutCommandDeps): CommandSpec {
     description: "Log out (revoke session + clear local credentials)",
     async run(ctx): Promise<CommandResult> {
       const creds = (await store.loadCredentials(credNs)) as Partial<StoredOAuthCredentials> | null;
+      // B6: revoke the long-lived refresh token as well as the access token, so the
+      // session is invalidated server-side, not merely cleared locally.
       if (creds?.token) {
         try {
-          await revokeToken(oauth, creds.token);
+          await revokeToken(oauth, creds.token, "access_token");
         } catch {
           /* 离线/服务不可用仍清本地 */
+        }
+      }
+      if (creds?.refreshToken) {
+        try {
+          await revokeToken(oauth, creds.refreshToken, "refresh_token");
+        } catch {
+          /* best-effort: refresh token revocation is optional per RFC 7009 */
         }
       }
       await store.clearCredentials(credNs);

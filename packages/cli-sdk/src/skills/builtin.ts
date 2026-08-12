@@ -45,7 +45,7 @@ export function createBuiltinSkillsCommands(
     list: {
       name: "list",
       description: "List all skills, or list one level under a skill",
-      internal: true,
+      skipPluginHooks: true,
       args: {
         schema: z.object({
           name: z.string().describe("skill name or name/subpath").optional(),
@@ -67,7 +67,7 @@ export function createBuiltinSkillsCommands(
       name: "read",
       description:
         "Read a skill's SKILL.md or reference (raw content to stdout, output contract exception)",
-      internal: true,
+      skipPluginHooks: true,
       args: {
         schema: z.object({
           name: z.string().describe("skill name or name/subpath"),
@@ -86,7 +86,7 @@ export function createBuiltinSkillsCommands(
       name: "sync",
       description:
         "Sync skills to installed AI agent discovery dirs (~/.agents always + detected: .claude/.codex/.cursor/.zcode/.openclaw/.pi)",
-      internal: true,
+      skipPluginHooks: true,
       async run() {
         // skillsTargets 未配 → 省略 opts,走探测模式;配了 → 显式传,强制全写。
         const { count, targets } = repository.sync();
@@ -146,10 +146,18 @@ export function createBuiltinSkillsCommands(
       name: "gen",
       description:
         "Generate SKILL.md command docs from defineCommands (refreshes the AUTO-GEN block)",
-      internal: true,
+      skipPluginHooks: true,
       args: {
         schema: z.object({
-          name: z.string().describe("skill name (= directory name)"),
+          // M13: constrain the skill identifier at the schema so an invalid name yields
+          // a validation error (invalid_argument) instead of a misleading NotFoundError.
+          name: z
+            .string()
+            .regex(
+              /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+              "must be a lowercase identifier (letters, digits, single hyphens)",
+            )
+            .describe("skill name (= directory name)"),
           init: z.boolean().default(false),
           force: z.boolean().default(false),
           lang: z.enum(["en", "zh"]).default("en"),

@@ -2,6 +2,7 @@ import type { CommandGroup, CommandSpec, ErrorOnStatus, Plugin } from "./types.j
 import { SUBTYPE_REGISTRY } from "./errs/index.js";
 import {
   compileCommandSchema,
+  compiledSchemaKey,
   RESERVED_ARGUMENT_NAMES,
   type CompiledCommandSchema,
 } from "./command-schema.js";
@@ -14,6 +15,8 @@ interface RegistryEntry<State> {
   spec: CommandSpec<any, unknown, State>;
   schema: CompiledCommandSchema;
   owner?: Plugin<State>;
+  /** Framework-provided default command (qrcode, skills builtins) — grouped separately in help. */
+  framework?: boolean;
 }
 
 export class CommandRegistry<State> {
@@ -46,7 +49,7 @@ export class CommandRegistry<State> {
   }
 
   registerDefault(route: string[], spec: CommandSpec<any, unknown, State>): void {
-    this.#register(route, spec, undefined, false);
+    this.#register(route, spec, undefined, false, true);
   }
 
   has(route: string[]): boolean {
@@ -57,11 +60,13 @@ export class CommandRegistry<State> {
     route: string[];
     spec: CommandSpec<any, unknown, State>;
     schema: CompiledCommandSchema;
+    framework?: boolean;
   }> {
-    return [...this.#entries.values()].map(({ route, spec, schema }) => ({
+    return [...this.#entries.values()].map(({ route, spec, schema, framework }) => ({
       route: [...route],
       spec,
       schema,
+      ...(framework ? { framework } : {}),
     }));
   }
 
@@ -97,23 +102,32 @@ export class CommandRegistry<State> {
     spec: CommandSpec<any, unknown, State>,
     owner: Plugin<State> | undefined,
     overwrite: boolean,
+    framework = false,
   ): void {
     if (route.length < 1 || route.length > 2)
       throw new Error("command route must have 1-2 segments");
     route.forEach((segment, index) =>
       assertRouteIdentifier(segment, index === route.length - 1 ? "command" : "namespace"),
     );
-    const schema = validateCommandSpec(route.at(-1)!, spec);
+    assertCommandSpec(route.at(-1)!, spec);
+    const schema = getOrCompileSchema(spec);
     const key = routeKey(route);
     if (!overwrite && this.#entries.has(key)) return;
-    this.#entries.set(key, { route: [...route], spec, schema, ...(owner ? { owner } : {}) });
+    this.#entries.set(key, {
+      route: [...route],
+      spec,
+      schema,
+      ...(owner ? { owner } : {}),
+      ...(framework ? { framework: true } : {}),
+    });
   }
 }
 
-export function validateCommandSpec(
-  routeName: string,
-  spec: CommandSpec<any, unknown, any>,
-): CompiledCommandSchema {
+/**
+ * Cheap shape validation (identifiers + run presence). Does NOT compile the schema —
+ * callers that need the compiled schema use {@link getOrCompileSchema}.
+ */
+export function assertCommandSpec(routeName: string, spec: CommandSpec<any, unknown, any>): void {
   assertRouteIdentifier(routeName, "command");
   assertRouteIdentifier(spec.name, "command");
   if (routeName !== spec.name) {
@@ -122,7 +136,31 @@ export function validateCommandSpec(
   if (typeof spec.run !== "function") {
     throw new Error(`command ${spec.name}: run is required and must be a function`);
   }
-  return compileCommandSchema(spec.name, spec.args, spec.policy);
+}
+
+/**
+ * Return the compiled schema for a spec, compiling and caching it on the spec exactly
+ * once. Reuses a schema stashed by `defineCommand`/`defineCommands` so registration
+ * never recomputes `z.toJSONSchema`.
+ */
+export function getOrCompileSchema(spec: CommandSpec<any, unknown, any>): CompiledCommandSchema {
+  const cached = (
+    spec as CommandSpec<any, unknown, any> & {
+      [compiledSchemaKey]?: CompiledCommandSchema;
+    }
+  )[compiledSchemaKey];
+  if (cached) return cached;
+  const compiled = compileCommandSchema(spec.name, spec.args, spec.policy);
+  Object.defineProperty(spec, compiledSchemaKey, { value: compiled, enumerable: false });
+  return compiled;
+}
+
+export function validateCommandSpec(
+  routeName: string,
+  spec: CommandSpec<any, unknown, any>,
+): CompiledCommandSchema {
+  assertCommandSpec(routeName, spec);
+  return getOrCompileSchema(spec);
 }
 
 export function assertRouteIdentifier(value: string, kind: "app" | "namespace" | "command"): void {

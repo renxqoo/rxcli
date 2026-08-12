@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { injectAuthHeader } from "../oauth.js";
-import { createOn401Hook } from "../oauth.js";
+import { injectAuthHeader, createOn401Hook } from "../oauth.js";
 import { memoryStore } from "../credentials/config-store.js";
 import type { RequestOptions } from "../types.js";
 
@@ -31,6 +30,12 @@ describe("injectAuthHeader: header 注入工具(开发者写 Plugin 用)", () =>
   });
 });
 
+/** The public 401-refresh façade wraps the coordinator + default OAuth refresh. */
+function on401(cfg: { baseUrl: string; clientId: string; clientSecret: string }) {
+  return (store: ReturnType<typeof memoryStore>, namespace: string) =>
+    createOn401Hook({ cfg, store, namespace });
+}
+
 describe("401 singleflight: 并发复用同一次 refresh + 落盘", () => {
   it("并发 401 复用同一个 refresh Promise", async () => {
     let refreshCalls = 0;
@@ -59,7 +64,7 @@ describe("401 singleflight: 并发复用同一次 refresh + 落盘", () => {
     });
 
     const cfg = { baseUrl: "http://mock", clientId: "c", clientSecret: "s" };
-    const on401 = createOn401Hook({ cfg, store, namespace: "orders" });
+    const refresh = on401(cfg)(store, "orders");
 
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
@@ -75,7 +80,7 @@ describe("401 singleflight: 并发复用同一次 refresh + 落盘", () => {
         return new Response("{}", { status: 200 });
       });
 
-    const [r1, r2, r3] = await Promise.all([on401(), on401(), on401()]);
+    const [r1, r2, r3] = await Promise.all([refresh(), refresh(), refresh()]);
     expect(r1).toBe("new_tok");
     expect(r2).toBe("new_tok");
     expect(r3).toBe("new_tok");
@@ -89,7 +94,7 @@ describe("401 singleflight: 并发复用同一次 refresh + 落盘", () => {
     fetchSpy.mockRestore();
   });
 
-  it("refresh 失败(refreshToken 失效)→ 返回 null", async () => {
+  it("refresh 失败(refreshToken 失效)→ 返回 null 且清空过期会话", async () => {
     const store = memoryStore({
       credentials: {
         orders: {
@@ -103,14 +108,16 @@ describe("401 singleflight: 并发复用同一次 refresh + 落盘", () => {
       },
     });
     const cfg = { baseUrl: "http://mock", clientId: "c", clientSecret: "s" };
-    const on401 = createOn401Hook({ cfg, store, namespace: "orders" });
+    const refresh = on401(cfg)(store, "orders");
 
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockImplementation(async () => new Response('{"error":"invalid_grant"}', { status: 400 }));
 
-    const result = await on401();
+    const result = await refresh();
     expect(result).toBeNull();
+    // L5: permanent auth failure clears the stale session.
+    expect(store._snapshot().credentials.orders).toBeUndefined();
     fetchSpy.mockRestore();
   });
 
@@ -127,18 +134,18 @@ describe("401 singleflight: 并发复用同一次 refresh + 落盘", () => {
         },
       },
     });
-    const on401 = createOn401Hook({
-      cfg: { baseUrl: "http://mock", clientId: "c", clientSecret: "s" },
-      store,
-      namespace: "orders",
-    });
+    const refresh = on401({
+      baseUrl: "http://mock",
+      clientId: "c",
+      clientSecret: "s",
+    })(store, "orders");
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(
         new Response(JSON.stringify({ access_token: "new", expires_in: 3600 }), { status: 200 }),
       );
 
-    await expect(on401()).resolves.toBe("new");
+    await expect(refresh()).resolves.toBe("new");
     expect(store._snapshot().credentials.orders.refreshToken).toBe("keep-me");
     expect(store._snapshot().credentials.orders.scopes).toEqual(["orders:read"]);
     fetchSpy.mockRestore();

@@ -74,9 +74,18 @@ export function waitForCallback(options: {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let resultResolve: ((value: CallbackResult) => void) | undefined;
     let resultReject: ((error: unknown) => void) | undefined;
+    let settled = false;
     const result = new Promise<CallbackResult>((resolve, reject) => {
-      resultResolve = resolve;
-      resultReject = reject;
+      resultResolve = (value) => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+      resultReject = (error) => {
+        if (settled) return;
+        settled = true;
+        reject(error);
+      };
     });
 
     const server: Server = createServer((request, response) => {
@@ -97,6 +106,9 @@ export function waitForCallback(options: {
     const close = (): void => {
       if (timer) clearTimeout(timer);
       server.close();
+      // C5: settle the exposed promise so a caller that awaits `result` and then
+      // closes cannot hang forever waiting for a callback that will never arrive.
+      resultReject?.(new Error("callback listener closed"));
     };
 
     server.on("error", (error) => {

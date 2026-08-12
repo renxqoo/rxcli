@@ -14,6 +14,7 @@ import {
   getUserInfo,
   type OAuthClientConfig,
   type PollResult,
+  type TokenInfo,
 } from "../../oauth.js";
 import type { AuthFlow, FlowType, FlowDeps } from "../../flows/types.js";
 import { SplitFlowSignal } from "../../flows/device.js";
@@ -35,14 +36,16 @@ export async function persistCredentials(
   store: ConfigStore,
   namespace: string,
   oauth: OAuthClientConfig,
-  token: { access_token: string; refresh_token?: string; expires_in: number; scope?: string },
+  token: TokenInfo,
   flowType: FlowType,
   log?: { info(...args: unknown[]): void },
 ): Promise<{ loggedIn: boolean; user?: { id: string; name: string } }> {
   const creds: StoredOAuthCredentials = {
     token: token.access_token,
     refreshToken: token.refresh_token ?? "",
-    expiresAt: Date.now() + token.expires_in * 1000,
+    ...(typeof token.expires_in === "number"
+      ? { expiresAt: Date.now() + token.expires_in * 1000 }
+      : {}),
     scopes: token.scope?.split(/\s+/).filter(Boolean) ?? [],
     storedAt: Date.now(),
     authMethod: flowType,
@@ -106,17 +109,27 @@ export function createLoginCommand(deps: LoginCommandDeps): CommandSpec<any> {
         }
       }
 
-      // 构造 deps:所有 flow 共享基础 + device flow 专用参数
-      const flowDeps: FlowDeps = {
-        cfg: oauth,
-        scope: effectiveScope,
-        log: ctx.log,
-        poller: deps.poller,
-        callbackPort: deps.redirectPort,
-        // device flow split-flow 参数(其它 flow 忽略)
-        noWait: args.wait === false,
-        resumeDeviceCode: args.deviceCode,
-      };
+      // 构造 deps:C2 按 flow.type 构造判别联合的对应变体。
+      const flowDeps: FlowDeps =
+        flow.type === "device"
+          ? {
+              type: "device",
+              cfg: oauth,
+              scope: effectiveScope,
+              log: ctx.log,
+              poller: deps.poller,
+              noWait: args.wait === false,
+              resumeDeviceCode: args.deviceCode,
+            }
+          : flow.type === "authorization_code"
+            ? {
+                type: "authorization_code",
+                cfg: oauth,
+                scope: effectiveScope,
+                log: ctx.log,
+                callbackPort: deps.redirectPort,
+              }
+            : { type: "client_credentials", cfg: oauth, scope: effectiveScope, log: ctx.log };
 
       try {
         // 委托 flow.login() → 统一落盘

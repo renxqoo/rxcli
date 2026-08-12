@@ -53,8 +53,12 @@ export async function getUserInfo(config: OAuthClientConfig, accessToken: string
   return new OAuthClient(config).userInfo(accessToken);
 }
 
-export async function revokeToken(config: OAuthClientConfig, accessToken: string): Promise<void> {
-  return new OAuthClient(config).revoke(accessToken);
+export async function revokeToken(
+  config: OAuthClientConfig,
+  token: string,
+  hint?: "access_token" | "refresh_token",
+): Promise<void> {
+  return new OAuthClient(config).revoke(token, hint);
 }
 
 export async function registerClient(
@@ -102,14 +106,21 @@ export async function clientCredentialsToken(config: OAuthClientConfig, scope?: 
   return new OAuthClient(config).clientCredentials(scope);
 }
 
+/**
+ * Build a default 401-refresh handler for custom auth plugins that use standard OAuth
+ * refresh-token rotation. This is the public boundary for plugins that do NOT use
+ * defineAuth (which wires this up internally via buildOn401Handler). Returns the next
+ * access token string, or null when the session cannot be refreshed.
+ */
 export function createOn401Hook(options: {
   cfg: OAuthClientConfig;
   store: ConfigStore;
   namespace: string;
 }): () => Promise<string | null> {
-  return new OAuthFlowCoordinator({
+  const coordinator = new OAuthFlowCoordinator({
     store: options.store,
     namespace: options.namespace,
     refresh: (refreshToken) => new OAuthClient(options.cfg).refresh(refreshToken),
-  }).refreshStoredSession;
+  });
+  return async () => (await coordinator.refreshStoredSession())?.access_token ?? null;
 }

@@ -12,7 +12,8 @@ export interface DeviceAuthInfo {
 export interface TokenInfo {
   access_token: string;
   refresh_token?: string;
-  expires_in: number;
+  /** Lifetime in seconds. RFC 6749 makes this RECOMMENDED (optional), so it may be absent. */
+  expires_in?: number;
   scope?: string;
 }
 

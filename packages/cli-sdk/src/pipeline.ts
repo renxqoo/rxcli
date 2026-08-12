@@ -62,7 +62,7 @@ export async function runCommand<State>(options: RunCommandOptions<State>): Prom
       ] = options.pluginArgs;
     }
 
-    if (!spec.internal) {
+    if (!spec.skipPluginHooks) {
       await runBeforeCommand(plugins, ctx, options.route, options.ownedRoutes);
     }
 

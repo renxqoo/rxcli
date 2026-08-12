@@ -302,13 +302,13 @@ describe("pipeline: lazy argument validation", () => {
   });
 });
 
-describe("internal 命令跳过 beforeCommand", () => {
-  it("internal 命令不跑 beforeCommand(不走 auth/凭证校验)", async () => {
+describe("skipPluginHooks 命令跳过 beforeCommand", () => {
+  it("skipPluginHooks 命令不跑 beforeCommand(不走 auth/凭证校验)", async () => {
     let beforeRan = false;
     const internalCmd = defineCommand({
       name: "skills",
       description: "internal",
-      internal: true,
+      skipPluginHooks: true,
       async run() {
         return { data: { ok: true } };
       },

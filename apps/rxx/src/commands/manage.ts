@@ -22,7 +22,7 @@ import { assertSafeServiceName } from "../security.js";
 export const listCommand = defineCommand({
   name: "list",
   description: "List all installed dynamic services",
-  internal: true,
+  skipPluginHooks: true,
   async run(_ctx): Promise<CommandResult> {
     try {
       const services = listInstalled();
@@ -63,7 +63,7 @@ export const updateCommand = defineCommand({
     }),
     pos: ["name"],
   },
-  internal: true,
+  skipPluginHooks: true,
   async run(_ctx, args): Promise<CommandResult> {
     try {
       const existing = readService(args.name);
@@ -115,7 +115,7 @@ export const removeCommand = defineCommand({
     schema: z.object({ name: z.string().describe("service name") }),
     pos: ["name"],
   },
-  internal: true,
+  skipPluginHooks: true,
   async run(_ctx, { name }): Promise<CommandResult> {
     try {
       // 先校验 name 合法性(非法 name 是参数错误 exit 2,不是清理失败)

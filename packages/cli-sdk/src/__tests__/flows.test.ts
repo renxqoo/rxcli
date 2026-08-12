@@ -70,6 +70,7 @@ describe("device flow", () => {
     });
 
     const token = await deviceFlow.login({
+      type: "device",
       cfg,
       scope: "orders:read",
       log: { info: vi.fn() },
@@ -106,6 +107,7 @@ describe("authorization_code flow", () => {
     );
 
     const token = await authCodeFlow.login({
+      type: "authorization_code",
       cfg,
       scope: "orders:read offline_access",
       browser,
@@ -126,11 +128,27 @@ describe("authorization_code flow", () => {
 
     await expect(
       authCodeFlow.login({
+        type: "authorization_code",
         cfg,
         browser: { open: vi.fn().mockResolvedValue(undefined) },
         log: { info: vi.fn() },
       }),
     ).rejects.toThrow(/access_denied/);
+  });
+
+  it("L12: 回调返回 error → subtype 为 token_expired(非 token_revoked)", async () => {
+    callbackRef.code = null;
+    callbackRef.error = "access_denied";
+
+    const { authCodeFlow } = await import("../flows/authCode.js");
+    await expect(
+      authCodeFlow.login({
+        type: "authorization_code",
+        cfg: { baseUrl: "http://test", clientId: "cid", clientSecret: "csec" },
+        browser: { open: vi.fn().mockResolvedValue(undefined) },
+        log: { info: vi.fn() },
+      }),
+    ).rejects.toMatchObject({ subtype: "token_expired" });
   });
 });
 
@@ -143,7 +161,11 @@ describe("client_credentials flow", () => {
       jsonResponse(200, { access_token: "AT_machine", expires_in: 3600, scope: "orders:read" }),
     );
 
-    const token = await clientCredentialsFlow.login({ cfg, scope: "orders:read" });
+    const token = await clientCredentialsFlow.login({
+      type: "client_credentials",
+      cfg,
+      scope: "orders:read",
+    });
     expect(token.access_token).toBe("AT_machine");
     expect(token.refresh_token).toBeUndefined();
   });
@@ -156,7 +178,7 @@ describe("client_credentials flow", () => {
       jsonResponse(200, { access_token: "AT_new", expires_in: 3600 }),
     );
 
-    const token = await clientCredentialsFlow.refresh!({ cfg });
+    const token = await clientCredentialsFlow.refresh!({ type: "client_credentials", cfg });
     expect(token.access_token).toBe("AT_new");
   });
 });

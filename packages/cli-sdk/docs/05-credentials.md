@@ -269,6 +269,13 @@ cli-sdk 的 ConfigStore 统一管凭证文件(`fileStore({ dir })` 返回的实�
 
 每个文件按**业务包命名空间隔离**(auth Plugin 的 `namespace` 参数),权限 `0600`。
 
+> **安全契约**:
+> - 凭证以**明文 at-rest** 存储,仅依赖文件系统权限保护(不做混淆/加密)。如需 at-rest 加密,请在 OS keychain 等外部保管。
+> - `0600`(文件)/ `0700`(目录)仅在 **POSIX** 生效;Windows 不支持 chmod,文件 ACL 继承父目录。
+> - 存储目录由业务 app 通过 `fileStore({ dir })` 显式传入(`defineAuth` 的 `store` 为**必填项**);cli-sdk 作为底层 SDK **不内置任何目录默认值**,不替 app 决定落盘位置。POSIX 下建议尊重 `XDG_CONFIG_HOME`(如 `~/.config/<app>`),Windows 下建议用 `%APPDATA%\<app>`。
+> - 凭证/配置文件读取走与命令输入相同的**严格有界解析器**(拒绝重复键、unsafe 键,限制深度/大小)。
+> - OAuth refresh 的「读 → 换 token → 写」事务由**跨进程文件锁**保护(`ConfigStore.withLock`),避免并发 CLI 互相覆盖丢失更新。
+
 ### 凭证文件结构
 
 ```json
