@@ -24,11 +24,14 @@ Prefer `defineAuth` for standard OAuth, Bearer, API key, and Basic authenticatio
 The factory is asynchronous. Always await it:
 
 ```ts
-import { defineAuth, defineCli } from "@renxqoo/agent-data-cli";
+import { defineAuth, defineCli, fileStore } from "@renxqoo/agent-data-cli";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 const auth = await defineAuth({
   credentialNamespace: "weather",
   baseUrl: process.env.AUTH_BASE_URL!,
+  store: fileStore({ dir: join(homedir(), ".weather") }), // the app owns the dir; the SDK has no default
   scope: "weather:read offline_access", // Use only after the service contract confirms it.
   clientMetadata: { client_name: "weather-cli" },
   bearerToken: process.env.WEATHER_BEARER_TOKEN,
@@ -58,7 +61,7 @@ Important options:
 | `clientId` / `clientSecret` | Explicit client credentials                                          |
 | `authStyle`                 | `bearer`, `x-api-key`, or `basic`                                    |
 | `redirectPort`              | Local callback port for authorization-code flow                      |
-| `store`                     | Injected credential store, especially for tests or isolated products |
+| `store`                     | **Required.** Credential store; the app owns the dir (the SDK has no default). Use `fileStore` in prod, `memoryStore` in tests. |
 | `commandNamespace`          | Defaults to `auth`                                                   |
 
 For client ID and secret, resolution order is:
@@ -116,12 +119,17 @@ Disclose these writes before asking an agent to run the wizard. `skillsSource` m
 
 ## 4. Credential isolation and security
 
-The default store uses `~/.rxcli`; credentials are isolated only by `credentialNamespace`:
+The store directory is chosen by the app (the SDK has no default); within that store, credentials are isolated only by `credentialNamespace`:
 
 ```ts
+import { fileStore } from "@renxqoo/agent-data-cli";
+import { homedir } from "node:os";
+import { join } from "node:path";
+
 const auth = await defineAuth({
   credentialNamespace: "orders-prod",
   baseUrl: process.env.AUTH_BASE_URL!,
+  store: fileStore({ dir: join(homedir(), ".rxcli") }), // app-chosen dir
 });
 ```
 

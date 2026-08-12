@@ -56,12 +56,15 @@ const auth = await defineAuth({
 `defineAuth` 是 `async` 函数,返回 `Promise<Plugin>`,必须 `await`:
 
 ```ts
-import { defineCli, defineAuth } from "@renxqoo/agent-data-cli";
+import { defineCli, defineAuth, fileStore } from "@renxqoo/agent-data-cli";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 // 正确:await 拿到的是 Plugin
 const auth = await defineAuth({
   credentialNamespace: "rxweather",
   baseUrl: process.env.AUTH_BASE_URL!,
+  store: fileStore({ dir: join(homedir(), ".rxweather") }), // 目录由 app 决定(SDK 无默认)
   scope: "weather:read offline_access", // 仅使用已确认的最小权限 scope
   clientMetadata: { client_name: "rxweather" },
   bearerToken: process.env.RXWEATHER_BEARER_TOKEN, // sandbox/CI 注入(可选)
@@ -166,14 +169,21 @@ if (isMainEntry() && argv[0] !== "install") await app.run(argv);
 
 ## 3. 凭证存储路径(隔离多 CLI)
 
-`defineAuth` 默认所有 CLI 共用 `~/.rxcli/`,无自动隔离。凭证靠 `credentialNamespace` 区分(`<dir>/credentials/<ns>.json`)。若两个 CLI 的 namespace 撞了 → **静默共用同一份凭证**,引发鉴权混乱。
+存储目录由 app 显式决定(cli-sdk **无默认目录**,不自动隔离)。在同一目录内,凭证靠 `credentialNamespace` 区分(`<dir>/credentials/<ns>.json`)。若两个 CLI 用了同一目录且 namespace 撞了 → **静默共用同一份凭证**,引发鉴权混乱。
 
-**(a) 默认共享 `~/.rxcli`,靠 namespace 区分**(适合同一家公司的多个 CLI,token 可复用):
+**(a) 多个 CLI 共享同一目录,靠 namespace 区分**(适合同一家公司的多个 CLI,token 可复用):
 
 ```ts
+import { fileStore } from "@renxqoo/agent-data-cli";
+import { join } from "node:path";
+import { homedir } from "node:os";
+
+// 目录由 app 显式决定;多个 CLI 传同一目录即可共享(靠 namespace 区分凭证文件)
+const store = fileStore({ dir: join(homedir(), ".rxcli") }); // → ~/.rxcli/credentials/<ns>.json
 const auth = await defineAuth({
   credentialNamespace: "crm", // → ~/.rxcli/credentials/crm.json
   baseUrl: AUTH_BASE_URL,
+  store,
 });
 ```
 
@@ -188,11 +198,11 @@ const store = fileStore({ dir: join(homedir(), ".my-cli") }); // → ~/.my-cli/c
 const auth = await defineAuth({
   credentialNamespace: "my-cli",
   baseUrl: AUTH_BASE_URL,
-  store, // 注入自定义 store 覆盖默认 ~/.rxcli
+  store, // 目录由 app 决定
 });
 ```
 
-> `store` 选项在源码里标注"测试用",但它是唯一覆盖默认目录的方式,生产可用。测试用 `memoryStore({ credentials: { 'my-cli': { apiKey: 'sk_test' } } })`(不碰磁盘)。
+> `defineAuth` 的 `store` 是**必填项**:cli-sdk 不内置默认目录,落盘位置完全由 app 决定。生产用 `fileStore({ dir })`,测试用 `memoryStore({ credentials: { 'my-cli': { apiKey: 'sk_test' } } })`(不碰磁盘)。
 
 ### 安全边界
 
