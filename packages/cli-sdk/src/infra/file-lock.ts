@@ -6,7 +6,15 @@
  * their own SIGINT/SIGHUP cleanup for the abrupt-exit case.
  */
 
-import { constants, openSync, readFileSync, unlinkSync, writeFileSync, mkdirSync } from "node:fs";
+import {
+  constants,
+  closeSync,
+  openSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+  mkdirSync,
+} from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -94,7 +102,9 @@ export async function withFileLock<T>(
     try {
       const handle = openSync(lockPath, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL);
       writeFileSync(handle, JSON.stringify({ pid: process.pid, startedAt: Date.now() }));
-      // handle is closed by writeFileSync(fd) in Node.
+      // Close the fd explicitly: writeFileSync(fd) does NOT close it. On Windows an
+      // open handle blocks unlinkSync (EPERM), so the lock could never be released.
+      closeSync(handle);
       break;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
@@ -153,6 +163,7 @@ export function withFileLockSync<T>(
     try {
       const handle = openSync(lockPath, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL);
       writeFileSync(handle, JSON.stringify({ pid: process.pid, startedAt: Date.now() }));
+      closeSync(handle); // see withFileLock: must close before unlink on Windows
       return true;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
