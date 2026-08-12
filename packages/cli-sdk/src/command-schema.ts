@@ -151,7 +151,7 @@ class DefaultCommandSchema implements CompiledCommandSchema {
 
   async resolve(argv: readonly string[], stdin: Readable): Promise<ResolvedCommandArgs> {
     const tokens = this.#tokenize(argv);
-    const execution = resolveExecution(tokens.options, this.#policy);
+    const execution = resolveExecution(tokens.options);
     let output: Record<string, unknown>;
 
     if (!this.#schema) {
@@ -476,10 +476,7 @@ async function validateZod(schema: z.ZodObject, value: unknown): Promise<Record<
   });
 }
 
-function resolveExecution(
-  options: Record<string, unknown>,
-  policy: CommandPolicy<any, any> | undefined,
-): CommandExecutionState {
+function resolveExecution(options: Record<string, unknown>): CommandExecutionState {
   return {
     dryRun: options["dry-run"] === true,
     confirmed: options.yes === true,
